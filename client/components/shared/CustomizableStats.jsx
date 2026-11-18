@@ -1,26 +1,27 @@
 const React = require('react');
 const { useEffect, useMemo, useState } = React;
 
-const readLayout = (storageKey, defaults, availableIds) => {
+const readLayout = (storageKey, defaults, defaultVisible, availableIds) => {
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey));
-    if (!saved || !Array.isArray(saved.order) || !Array.isArray(saved.hidden)) return { order: defaults, hidden: [] };
+    if (!saved || !Array.isArray(saved.order) || !Array.isArray(saved.hidden)) return { order: defaults, hidden: defaults.filter(id => !defaultVisible.includes(id)) };
     const valid = new Set(availableIds);
-    const order = [...saved.order.filter(id => valid.has(id)), ...defaults.filter(id => !saved.order.includes(id))];
-    return { order, hidden: saved.hidden.filter(id => valid.has(id)) };
+    const newIds = defaults.filter(id => !saved.order.includes(id));
+    const order = [...saved.order.filter(id => valid.has(id)), ...newIds];
+    return { order, hidden: [...saved.hidden.filter(id => valid.has(id)), ...newIds] };
   } catch {
     return { order: defaults, hidden: [] };
   }
 };
 
-const CustomizableStats = ({ storageKey, items, defaultOrder, gridClassName = 'grid grid-cols-2 md:grid-cols-4 gap-4' }) => {
+const CustomizableStats = ({ storageKey, items, defaultOrder, defaultVisible = defaultOrder, gridClassName = 'grid grid-cols-2 md:grid-cols-4 gap-4' }) => {
   const ids = useMemo(() => items.map(item => item.id), [items]);
-  const [layout, setLayout] = useState(() => readLayout(storageKey, defaultOrder, ids));
+  const [layout, setLayout] = useState(() => readLayout(storageKey, defaultOrder, defaultVisible, ids));
   const [editing, setEditing] = useState(false);
   const [draggedId, setDraggedId] = useState(null);
 
   useEffect(() => {
-    setLayout(readLayout(storageKey, defaultOrder, ids));
+    setLayout(readLayout(storageKey, defaultOrder, defaultVisible, ids));
   }, [storageKey, ids.join('|')]);
 
   useEffect(() => {
@@ -54,7 +55,7 @@ const CustomizableStats = ({ storageKey, items, defaultOrder, gridClassName = 'g
     });
   };
 
-  const reset = () => setLayout({ order: defaultOrder, hidden: [] });
+  const reset = () => setLayout({ order: defaultOrder, hidden: defaultOrder.filter(id => !defaultVisible.includes(id)) });
 
   return (
     <div className="space-y-3">
@@ -73,7 +74,7 @@ const CustomizableStats = ({ storageKey, items, defaultOrder, gridClassName = 'g
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-semibold text-text-primary">Customize metrics</h3>
-              <p className="text-xs text-text-tertiary mt-1">Choose which tiles to show and drag them into your preferred order.</p>
+              <p className="text-xs text-text-tertiary mt-1">Choose from all available metrics, then drag the tiles into your preferred order.</p>
             </div>
             <button type="button" onClick={reset} className="text-xs text-text-secondary hover:text-text-primary underline">Reset to default</button>
           </div>
