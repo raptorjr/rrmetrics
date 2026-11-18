@@ -596,6 +596,21 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
     }
   };
 
+  const handlePxAutoSyncChange = async (connectionId, enabled, intervalMinutes) => {
+    try {
+      const response = await authFetch('/api/projectx/auto-sync', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connectionId, enabled, intervalMinutes }),
+      });
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.error || 'Could not update automatic sync');
+      await fetchPxStatus();
+      setMessage({ type: 'success', text: data.message });
+    } catch (err) {
+      setMessage({ type: 'error', text: err?.message || 'Could not update automatic sync' });
+    }
+  };
+
   const handlePxSync = async (connectionId) => {
     setPxSyncingId(connectionId);
     setPxSyncResults(prev => ({ ...prev, [connectionId]: { type: 'info', text: 'Sync running. Fetching trade history and checking current positions...' } }));
@@ -1020,6 +1035,26 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                 </div>
 
                                 {conn.lastSyncTime && <p className="text-xs text-text-muted">Last sync: {relativeTime(conn.lastSyncTime)}</p>}
+                                <div className="rounded-lg bg-bg-surface/70 border border-border px-3 py-2.5 space-y-2">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <label className="flex items-center gap-2 text-xs text-text-primary font-medium">
+                                      <input type="checkbox" checked={!!conn.autoSyncEnabled}
+                                        onChange={(e) => handlePxAutoSyncChange(conn.connectionId, e.target.checked, conn.autoSyncIntervalMinutes || 5)}
+                                        disabled={!conn.configured || conn.expired}
+                                        className="w-4 h-4 rounded border-border text-accent focus:ring-accent" />
+                                      Automatic sync
+                                    </label>
+                                    <select value={conn.autoSyncIntervalMinutes || 5}
+                                      onChange={(e) => handlePxAutoSyncChange(conn.connectionId, !!conn.autoSyncEnabled, Number(e.target.value))}
+                                      disabled={!conn.autoSyncEnabled}
+                                      className="px-2 py-1 bg-bg-input border border-border rounded-md text-xs text-text-primary disabled:opacity-50">
+                                      {[1, 5, 10, 15, 30].map(minutes => <option key={minutes} value={minutes}>{minutes} min</option>)}
+                                    </select>
+                                  </div>
+                                  <p className="text-[11px] text-text-muted">{conn.autoSyncEnabled ? (conn.autoSyncNextAt ? `Next automatic sync: ${relativeTime(conn.autoSyncNextAt)}` : 'Automatic sync is enabled') : 'Off — sync manually using Sync Now'}</p>
+                                  {conn.autoSyncLastError && <p className="text-[11px] text-negative">Last automatic sync error: {conn.autoSyncLastError}</p>}
+                                  {conn.autoSyncLastAttemptAt && <p className="text-[11px] text-text-muted">Last automatic attempt: {relativeTime(conn.autoSyncLastAttemptAt)}</p>}
+                                </div>
 
                                 {pxSyncResults[conn.connectionId] && (
                                   <div role="status" className={`rounded-lg border p-3 text-xs whitespace-pre-wrap break-words ${
