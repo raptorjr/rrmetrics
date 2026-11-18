@@ -120,6 +120,12 @@ export interface ProjectXConnectionRow {
   token_expires_at: string | null;
   selected_accounts: number[] | null;
   copytrade_config: { leadAccountId: number; multiplier: number } | null;
+  auto_sync_enabled: boolean;
+  auto_sync_interval_minutes: number;
+  auto_sync_next_at: string | null;
+  auto_sync_last_attempt_at: string | null;
+  auto_sync_last_error: string | null;
+  auto_sync_last_result: Record<string, any> | null;
 }
 
 export interface RobinhoodConnectionRow {
