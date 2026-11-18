@@ -65,3 +65,7 @@ git clone --branch development https://github.com/raptorjr/rrmetrics.git
 ## Maintenance
 
 Add a dated entry here whenever a user-visible feature, importer/reconciliation behaviour, data migration, or operational requirement changes. Keep detailed usage and troubleshooting instructions in the relevant document under `docs/`.
+
+### Time format preference
+- Added a global 12-hour / 24-hour time format preference in Settings → Preferences.
+- The selected format is saved in browser local storage and is used by shared trade-time formatting, including the calendar day detail popup. The default remains 12-hour to preserve existing display behaviour.
