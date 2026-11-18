@@ -11,7 +11,7 @@ const CalendarView = require('./CalendarView');
 const Icons = require('../shared/Icons');
 
 const { getDateRange, getPreviousDateRange, filterTradesByDateRange, calcPercentChange } = require('../../utils/periodUtils');
-const { calculateAnalytics, applyEvalFilter } = require('../../utils/analytics');
+const { getTradePL, calculateAnalytics, applyEvalFilter, calculateSharpeRatio, calculateSortinoRatio, calculateKellyCriterion } = require('../../utils/analytics');
 const { formatDuration } = require('../../utils/dateUtils');
 
 
@@ -47,6 +47,7 @@ const AvgWinLossCard = ({ avgWin, avgLoss }) => {
 const DashboardPage = ({ trades, onOpenForm, onOpenImport, onManualSync, brokerStatuses, onOpenAddTrade, onEditTrade, dailyNotes, onSaveNote, onDeleteNote, tags, strategyRules, evalFilter, setEvalFilter, sidebarCollapsed }) => {
   const [period, setPeriod] = useState('all');
   const [syncing, setSyncing] = useState(false);
+  const [kellyDrawdown, setKellyDrawdown] = useState(2000);
   const hasBrokers = brokerStatuses && brokerStatuses.length > 0;
 
   const handleSync = async () => {
@@ -64,6 +65,32 @@ const DashboardPage = ({ trades, onOpenForm, onOpenImport, onManualSync, brokerS
   const prevTrades = prevRange ? filterTradesByDateRange(baseTrades, prevRange) : null;
   const prevStats = prevTrades ? calculateAnalytics(prevTrades) : null;
   const showChange = period !== 'all' && prevStats;
+
+  const profitFactor = (() => {
+    let grossWins = 0, grossLosses = 0;
+    filteredTrades.forEach(trade => {
+      const pl = getTradePL(trade);
+      if (pl > 0) grossWins += pl;
+      else grossLosses += Math.abs(pl);
+    });
+    return grossLosses === 0 ? grossWins : grossWins / grossLosses;
+  })();
+  const expectancy = stats.totalTrades > 0
+    ? (stats.winRate / 100) * stats.avgWin + (1 - stats.winRate / 100) * stats.avgLoss
+    : 0;
+  const maxDrawdown = (() => {
+    const sorted = [...filteredTrades].sort((a, b) => new Date(a.exitTime) - new Date(b.exitTime));
+    let peak = 0, running = 0, drawdown = 0;
+    sorted.forEach(trade => {
+      running += getTradePL(trade);
+      peak = Math.max(peak, running);
+      drawdown = Math.max(drawdown, peak - running);
+    });
+    return drawdown;
+  })();
+  const sharpeRatio = calculateSharpeRatio(filteredTrades);
+  const sortinoRatio = calculateSortinoRatio(filteredTrades);
+  const kelly = calculateKellyCriterion(filteredTrades, kellyDrawdown);
 
   return (
     <div className="space-y-6">
@@ -111,7 +138,8 @@ const DashboardPage = ({ trades, onOpenForm, onOpenImport, onManualSync, brokerS
 
       <CustomizableStats
         storageKey="rrmetrics_dashboard_tiles"
-        defaultOrder={['totalPL', 'winRate', 'totalTrades', 'avgDuration', 'avgWinLoss', 'bestTrade', 'worstTrade', 'breakevenRate']}
+        defaultOrder={['totalPL', 'winRate', 'totalTrades', 'avgDuration', 'avgWinLoss', 'bestTrade', 'worstTrade', 'breakevenRate', 'profitFactor', 'expectancy', 'maxDrawdown', 'sharpeRatio', 'sortinoRatio', 'kellyRisk']}
+        defaultVisible={['totalPL', 'winRate', 'totalTrades', 'avgDuration', 'avgWinLoss', 'bestTrade', 'worstTrade', 'breakevenRate']}
         items={[
           { id: 'totalPL', label: 'Total P/L', render: () => <StatCard label="Total P/L" value={`$${stats.totalPL.toFixed(2)}`} color={stats.totalPL >= 0 ? 'text-positive' : 'text-negative'} change={showChange ? calcPercentChange(stats.totalPL, prevStats.totalPL) : null} /> },
           { id: 'winRate', label: 'Win Rate', render: () => <WinRateCard wins={stats.wins} losses={stats.losses} total={stats.totalTrades} change={showChange ? calcPercentChange(stats.winRate, prevStats.winRate) : null} /> },
@@ -121,6 +149,22 @@ const DashboardPage = ({ trades, onOpenForm, onOpenImport, onManualSync, brokerS
           { id: 'bestTrade', label: 'Best Trade', render: () => <StatCard label="Best Trade" value={`$${stats.bestTrade.toFixed(2)}`} color="text-positive" change={showChange ? calcPercentChange(stats.bestTrade, prevStats.bestTrade) : null} /> },
           { id: 'worstTrade', label: 'Worst Trade', render: () => <StatCard label="Worst Trade" value={`$${stats.worstTrade.toFixed(2)}`} color="text-negative" /> },
           { id: 'breakevenRate', label: 'Breakeven Rate', render: () => <StatCard label="Breakeven Rate" value={`${stats.breakevenPct.toFixed(1)}%`} subValue={`${stats.breakevens} trades`} color="text-text-primary" /> },
+          { id: 'profitFactor', label: 'Profit Factor', render: () => <StatCard label="Profit Factor" value={profitFactor.toFixed(2)} color="text-text-primary" /> },
+          { id: 'expectancy', label: 'Expectancy', render: () => <StatCard label="Expectancy" value={`${expectancy.toFixed(2)}`} color={expectancy >= 0 ? 'text-positive' : 'text-negative'} /> },
+          { id: 'maxDrawdown', label: 'Max Drawdown', render: () => <StatCard label="Max Drawdown" value={`${maxDrawdown.toFixed(2)}`} color="text-negative" /> },
+          { id: 'sharpeRatio', label: 'Sharpe Ratio', render: () => <StatCard label="Sharpe Ratio" value={sharpeRatio === Infinity ? '∞' : sharpeRatio.toFixed(2)} color={sharpeRatio > 0 ? 'text-positive' : 'text-negative'} /> },
+          { id: 'sortinoRatio', label: 'Sortino Ratio', render: () => <StatCard label="Sortino Ratio" value={sortinoRatio === Infinity ? '∞' : sortinoRatio.toFixed(2)} color={sortinoRatio > 0 ? 'text-positive' : 'text-negative'} /> },
+          { id: 'kellyRisk', label: 'Kelly Optimal Risk', render: () => (
+            <div className="bg-bg-surface border border-border rounded-xl p-5">
+              <div className="text-text-secondary text-xs font-medium uppercase tracking-wider mb-2">Kelly Optimal Risk</div>
+              <div className="font-mono text-2xl font-bold text-text-primary">${kelly.optimalRisk.toFixed(0)}</div>
+              <div className="text-text-tertiary text-xs mt-1">{kelly.kellyPct.toFixed(1)}% of drawdown</div>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-text-tertiary text-xs">Max DD $</span>
+                <input type="number" value={kellyDrawdown} onChange={event => setKellyDrawdown(Math.max(0, Number(event.target.value)))} className="w-20 bg-bg-input border border-border rounded px-2 py-1 text-xs font-mono text-text-primary focus:outline-none focus:border-accent" />
+              </div>
+            </div>
+          ) },
         ]}
       />
 
