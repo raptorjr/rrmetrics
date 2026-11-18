@@ -733,7 +733,7 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
             return <StatCard label="Avg Win / Loss" value={ratio} color="text-text-primary" subValue={`Avg win ${stats.avgWin.toFixed(0)} · Avg loss -${absLoss.toFixed(0)}`} />;
           } },
           { id: 'bestTrade', label: 'Best Trade', render: () => <StatCard label="Best Trade" value={`${stats.bestTrade.toFixed(2)}`} color="text-positive" /> },
-          { id: 'worstTrade', label: 'Worst Trade', render: () => <StatCard label="Worst Trade", value={`${stats.worstTrade.toFixed(2)}`} color="text-negative" /> },
+          { id: 'worstTrade', label: 'Worst Trade', render: () => <StatCard label="Worst Trade" value={`${stats.worstTrade.toFixed(2)}`} color="text-negative" /> },
           { id: 'sharpeRatio', label: 'Sharpe Ratio', render: () => <StatCard label="Sharpe Ratio" value={sharpeRatio === Infinity ? '∞' : sharpeRatio.toFixed(2)} color={sharpeRatio > 0 ? 'text-positive' : 'text-negative'} tooltip={"Risk-adjusted return measuring reward per unit of total volatility.\\n\\nFormula: (Mean Daily P/L / Std Dev of Daily P/L) x √252\\n\\nAbove 1.0 = good, above 2.0 = excellent, below 0 = losing money on average."} /> },
           { id: 'sortinoRatio', label: 'Sortino Ratio', render: () => <StatCard label="Sortino Ratio" value={sortinoRatio === Infinity ? '∞' : sortinoRatio.toFixed(2)} color={sortinoRatio > 0 ? 'text-positive' : 'text-negative'} tooltip={"Like Sharpe but only penalizes downside volatility, ignoring upside swings.\\n\\nFormula: (Mean Daily P/L / Downside Deviation) x √252\\n\\nHigher is better. A Sortino much higher than Sharpe means your volatility is mostly upside."} /> },
           { id: 'kellyRisk', label: 'Kelly Optimal Risk', render: () => (
