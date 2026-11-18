@@ -119,6 +119,7 @@ export interface ProjectXConnectionRow {
   access_token: string | null;
   token_expires_at: string | null;
   selected_accounts: number[] | null;
+  account_settings: Record<string, { type: 'evaluation' | 'xfa' | 'live_funded' | 'other'; displayName: string }> | null;
   copytrade_config: { leadAccountId: number; multiplier: number } | null;
   auto_sync_enabled: boolean;
   auto_sync_interval_minutes: number;
