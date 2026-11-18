@@ -5,6 +5,7 @@ import * as pxConnDb from '../db/projectx-connections';
 import * as tradesDb from '../db/trades';
 import { encrypt, decrypt } from '../utils/crypto';
 import { ProjectXAPI } from '../services/ProjectXAPI';
+import { findFullyFilledVoidedOrderOverrides } from '../services/ProjectXReconstruction';
 import { clearProjectXImport, reconcileProjectXHistory } from '../services/ProjectXSync';
 import { requiresLogin } from '../middleware/auth';
 import { getDb } from '../db/connection';
@@ -320,6 +321,7 @@ projectx.post(
       );
 
       const allTrades: import('../services/ProjectXAPI').Trade[] = [];
+      const allOrders: import('../services/ProjectXAPI').ProjectXOrder[] = [];
       const brokerOpenPositions: Array<{
         accountId: number;
         accountName: string;
@@ -339,6 +341,12 @@ projectx.post(
           commissions: trade.commissions ?? null,
           fillId: trade.fillId ?? null,
         })));
+
+        // Orders are an independent cross-check. Only orders whose entire
+        // trade-leg set is voided but whose filled quantity matches exactly
+        // can qualify for the narrow simulated-history reconciliation.
+        const orderHistory = await api.searchOrders(token, accountId, '2020-01-01T00:00:00Z');
+        allOrders.push(...orderHistory);
 
         // Independently query the broker's live position snapshot. This helps
         // distinguish a reconstruction problem from a genuinely open position.
@@ -379,6 +387,7 @@ projectx.post(
         multiplier,
         brokerConn.is_eval,
         accountsToSync,
+        findFullyFilledVoidedOrderOverrides(allTrades, allOrders),
       );
 
       await brokerDb.updateById(serviceClient, connectionId, {
