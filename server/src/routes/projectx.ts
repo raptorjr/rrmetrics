@@ -146,6 +146,7 @@ projectx.get(
           autoSyncEnabled: pxConn?.auto_sync_enabled || false,
           autoSyncIntervalMinutes: pxConn?.auto_sync_interval_minutes || 5,
           autoSyncNextAt: pxConn?.auto_sync_next_at || null,
+          autoSyncStartedAt: pxConn?.auto_sync_started_at || null,
           autoSyncLastAttemptAt: pxConn?.auto_sync_last_attempt_at || null,
           autoSyncLastError: pxConn?.auto_sync_last_error || null,
           autoSyncLastResult: pxConn?.auto_sync_last_result || null,
