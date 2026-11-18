@@ -127,6 +127,43 @@ test('rebuilds an existing position when a broker leg is corrected or voided', (
 });
 
 
+test('commits safe positions and raw legs when later history has warnings', () => {
+  const db = createDb();
+  const mixedHistory: ProjectXRawTrade[] = [
+    ...legs,
+    {
+      id: 3, accountId: 7, contractId: 'CON.F.US.MGC.Z6',
+      creationTimestamp: '2026-11-02T10:06:00Z', price: 4002,
+      profitAndLoss: 10, fees: 1.42, commissions: 0.5,
+      side: 1, size: 2, voided: false, orderId: 12, fillId: null,
+    },
+    {
+      id: 4, accountId: 7, contractId: 'CON.F.US.MGC.Z6',
+      creationTimestamp: '2026-11-02T10:07:00Z', price: 4003,
+      profitAndLoss: null, fees: 1.42, commissions: 0.5,
+      side: 0, size: 1, voided: false, orderId: 13, fillId: null,
+    },
+    {
+      id: 5, accountId: 7, contractId: 'CON.F.US.MGC.Z6',
+      creationTimestamp: '2026-11-02T10:08:00Z', price: 4004,
+      profitAndLoss: 10, fees: 1.42, commissions: 0.5,
+      side: 1, size: 1, voided: false, orderId: 14, fillId: null,
+    },
+  ];
+
+  const result = reconcileProjectXHistory(
+    db, 'user-1', 'connection-1', mixedHistory,
+    new Map([[7, 'Topstep Practice']]),
+    { 'CON.F.US.MGC.Z6': 'MGC' }, 1, false, [7],
+  );
+
+  assert.equal(result.positions, 1);
+  assert.equal(result.warnings.length, 1);
+  assert.equal((db.prepare('SELECT COUNT(*) AS count FROM trades').get() as { count: number }).count, 1);
+  assert.equal((db.prepare('SELECT COUNT(*) AS count FROM projectx_trade_legs').get() as { count: number }).count, 5);
+  db.close();
+});
+
 test('clears only the selected connection ProjectX import and keeps connection', () => {
   const db = createDb();
   db.prepare('INSERT INTO broker_connections (id, owner, last_sync_time, updated_at) VALUES (?, ?, ?, ?)').run(
