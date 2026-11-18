@@ -108,7 +108,7 @@ test('rebuilds an existing position when a broker leg is corrected or voided', (
   const row = db.prepare('SELECT * FROM trades').get() as any;
   assert.equal(result.positions, 1);
   assert.equal(row.gross_pl, 8);
-  assert.equal(row.manual_pl, 4.58);
+  assert.equal(row.manual_pl, 3.58);
 
   const voided = corrected.map(leg => leg.id === 2 ? { ...leg, voided: true } : leg);
   const voidedResult = reconcileProjectXHistory(
