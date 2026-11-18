@@ -108,9 +108,6 @@ export function reconcileProjectXHistory(
     const stored = readLegs.all(connectionId) as Array<{ raw_json: string }>;
     const allLegs = stored.map(row => JSON.parse(row.raw_json) as ProjectXRawTrade);
     const reconstruction = reconstructProjectXPositions(allLegs);
-    if (reconstruction.warnings.length > 0) {
-      throw new Error(`ProjectX reconstruction produced ${reconstruction.warnings.length} warning(s): ${reconstruction.warnings.join('; ')}`);
-    }
 
     clearCurrentIds.run();
 
@@ -150,7 +147,12 @@ export function reconcileProjectXHistory(
       );
     }
 
-    deleteStaleProjection.run(userId, connectionId);
+    // When reconstruction is incomplete, preserve the previous projection
+    // snapshot rather than deleting rows that may be absent only because an
+    // instrument was quarantined after its first inconsistency.
+    if (reconstruction.warnings.length === 0) {
+      deleteStaleProjection.run(userId, connectionId);
+    }
     return reconstruction;
   })();
 
