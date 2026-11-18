@@ -61,6 +61,9 @@ export interface TradeRow {
   exit_price: number;
   quantity: number;
   manual_pl: number | null;
+  gross_pl: number | null;
+  fees: number;
+  commissions: number;
   image_attachments: any;
   screenshot: string | null;
   comments: string;
