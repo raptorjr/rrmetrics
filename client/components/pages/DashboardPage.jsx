@@ -6,6 +6,7 @@ const WinRateCard = require('../shared/WinRateCard');
 const StatCard = require('../shared/StatCard');
 const PeriodFilter = require('../shared/PeriodFilter');
 const EvalFilterControl = require('../shared/EvalFilterControl');
+const CustomizableStats = require('../shared/CustomizableStats');
 const CalendarView = require('./CalendarView');
 const Icons = require('../shared/Icons');
 
@@ -108,30 +109,20 @@ const DashboardPage = ({ trades, onOpenForm, onOpenImport, onManualSync, brokerS
         <EvalFilterControl trades={trades} evalFilter={evalFilter} setEvalFilter={setEvalFilter} />
       </div>
 
-      {/* Stats grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard
-          label="Total P/L"
-          value={`$${stats.totalPL.toFixed(2)}`}
-          color={stats.totalPL >= 0 ? 'text-positive' : 'text-negative'}
-          change={showChange ? calcPercentChange(stats.totalPL, prevStats.totalPL) : null}
-        />
-        <WinRateCard wins={stats.wins} losses={stats.losses} total={stats.totalTrades}
-          change={showChange ? calcPercentChange(stats.winRate, prevStats.winRate) : null} />
-        <StatCard label="Total Trades" value={stats.totalTrades} color="text-text-primary"
-          subValue={`${stats.avgTradesPerDay.toFixed(1)} avg/day`}
-          change={showChange ? calcPercentChange(stats.totalTrades, prevStats.totalTrades) : null} />
-        <StatCard label="Avg Duration" value={formatDuration(stats.avgDuration)} color="text-text-primary" />
-      </div>
-
-      {/* Secondary stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <AvgWinLossCard avgWin={stats.avgWin} avgLoss={stats.avgLoss} />
-        <StatCard label="Best Trade" value={`$${stats.bestTrade.toFixed(2)}`} color="text-positive"
-          change={showChange ? calcPercentChange(stats.bestTrade, prevStats.bestTrade) : null} />
-        <StatCard label="Worst Trade" value={`$${stats.worstTrade.toFixed(2)}`} color="text-negative" />
-        <StatCard label="Breakeven Rate" value={`${stats.breakevenPct.toFixed(1)}%`} subValue={`${stats.breakevens} trades`} color="text-text-primary" />
-      </div>
+      <CustomizableStats
+        storageKey="rrmetrics_dashboard_tiles"
+        defaultOrder={['totalPL', 'winRate', 'totalTrades', 'avgDuration', 'avgWinLoss', 'bestTrade', 'worstTrade', 'breakevenRate']}
+        items={[
+          { id: 'totalPL', label: 'Total P/L', render: () => <StatCard label="Total P/L" value={`$${stats.totalPL.toFixed(2)}`} color={stats.totalPL >= 0 ? 'text-positive' : 'text-negative'} change={showChange ? calcPercentChange(stats.totalPL, prevStats.totalPL) : null} /> },
+          { id: 'winRate', label: 'Win Rate', render: () => <WinRateCard wins={stats.wins} losses={stats.losses} total={stats.totalTrades} change={showChange ? calcPercentChange(stats.winRate, prevStats.winRate) : null} /> },
+          { id: 'totalTrades', label: 'Total Trades', render: () => <StatCard label="Total Trades" value={stats.totalTrades} color="text-text-primary" subValue={`${stats.avgTradesPerDay.toFixed(1)} avg/day`} change={showChange ? calcPercentChange(stats.totalTrades, prevStats.totalTrades) : null} /> },
+          { id: 'avgDuration', label: 'Avg Duration', render: () => <StatCard label="Avg Duration" value={formatDuration(stats.avgDuration)} color="text-text-primary" /> },
+          { id: 'avgWinLoss', label: 'Avg Win / Loss', render: () => <AvgWinLossCard avgWin={stats.avgWin} avgLoss={stats.avgLoss} /> },
+          { id: 'bestTrade', label: 'Best Trade', render: () => <StatCard label="Best Trade" value={`$${stats.bestTrade.toFixed(2)}`} color="text-positive" change={showChange ? calcPercentChange(stats.bestTrade, prevStats.bestTrade) : null} /> },
+          { id: 'worstTrade', label: 'Worst Trade', render: () => <StatCard label="Worst Trade" value={`$${stats.worstTrade.toFixed(2)}`} color="text-negative" /> },
+          { id: 'breakevenRate', label: 'Breakeven Rate', render: () => <StatCard label="Breakeven Rate" value={`${stats.breakevenPct.toFixed(1)}%`} subValue={`${stats.breakevens} trades`} color="text-text-primary" /> },
+        ]}
+      />
 
       {/* Calendar */}
       <CalendarView trades={baseTrades} dailyNotes={dailyNotes} onSaveNote={onSaveNote} onDeleteNote={onDeleteNote} tags={tags} strategyRules={strategyRules} onOpenAddTrade={onOpenAddTrade} onEditTrade={onEditTrade} sidebarCollapsed={sidebarCollapsed} />
