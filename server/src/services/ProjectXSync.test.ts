@@ -21,6 +21,7 @@ function createDb() {
       gross_pl REAL,
       fees REAL NOT NULL DEFAULT 0,
       commissions REAL NOT NULL DEFAULT 0,
+      currency_code TEXT NOT NULL DEFAULT 'USD',
       comments TEXT NOT NULL DEFAULT '',
       projectx_trade_id TEXT,
       projectx_source TEXT,
@@ -83,6 +84,7 @@ test('reconciles raw ProjectX legs into a net-P&L trade and is idempotent', () =
   assert.equal(row.commissions, 1);
   assert.equal(row.manual_pl, 6.16);
   assert.equal(row.projectx_source, 'projectx');
+  assert.equal(row.currency_code, 'USD');
 
   db.prepare('INSERT INTO trade_tags (trade_id, tag_id) VALUES (?, ?)').run(row.id, 'strategy-tag');
   const repeated = reconcileProjectXHistory(...args);
@@ -255,5 +257,21 @@ test('verified voided-order overrides remain effective during incremental recons
     { 'CON.F.US.MGC.Z6': 'MGC' }, 1, false, [7], verifiedOverride,
   );
   assert.equal(result.positions, 1);
+  db.close();
+});
+
+
+test('applies the configured currency to reconstructed account trades', () => {
+  const db = createDb();
+  const result = reconcileProjectXHistory(
+    db, 'user-1', 'connection-1', legs,
+    new Map([[7, 'Topstep Europe']]),
+    { 'CON.F.US.MGC.Z6': 'MGC' },
+    1, false, [7], new Set(),
+    { '7': { type: 'other', displayName: 'European account', currencyCode: 'EUR' } },
+  );
+  assert.equal(result.positions, 1);
+  const row = db.prepare('SELECT currency_code FROM trades').get() as { currency_code: string };
+  assert.equal(row.currency_code, 'EUR');
   db.close();
 });
