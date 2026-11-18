@@ -42,7 +42,10 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
     { id: 'entry', label: 'Entry' },
     { id: 'exit', label: 'Exit' },
     { id: 'qty', label: 'Qty' },
-    { id: 'pl', label: 'P/L', alwaysOn: true },
+    { id: 'gross', label: 'Gross P/L' },
+    { id: 'fees', label: 'Fees' },
+    { id: 'commissions', label: 'Commissions' },
+    { id: 'pl', label: 'Net P/L', alwaysOn: true },
     { id: 'duration', label: 'Duration' },
   ];
   const DEFAULT_COLUMNS = ['date','ticker','tags','entry','exit','qty','pl','duration'];
@@ -247,7 +250,10 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
       { id: 'entry', header: 'Enter Price', value: t => t.enterPrice },
       { id: 'exit', header: 'Exit Price', value: t => t.exitPrice },
       { id: 'qty', header: 'Quantity', value: t => t.quantity },
-      { id: 'pl', header: 'P/L', value: t => getTradePL(t).toFixed(2), alwaysOn: true },
+      { id: 'gross', header: 'Gross P/L', value: t => t.grossPL == null ? '' : Number(t.grossPL).toFixed(2) },
+      { id: 'fees', header: 'Fees', value: t => Number(t.fees || 0).toFixed(2) },
+      { id: 'commissions', header: 'Commissions', value: t => Number(t.commissions || 0).toFixed(2) },
+      { id: 'pl', header: 'Net P/L', value: t => getTradePL(t).toFixed(2), alwaysOn: true },
       { id: 'duration', header: 'Duration', value: t => {
         const dur = new Date(t.exitTime) - new Date(t.enterTime);
         return formatDuration(dur);
@@ -645,8 +651,11 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
                   {isCol('entry') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Entry</th>}
                   {isCol('exit') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Exit</th>}
                   {isCol('qty') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Qty</th>}
+                  {isCol('gross') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Gross P/L</th>}
+                  {isCol('fees') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Fees</th>}
+                  {isCol('commissions') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Commissions</th>}
                   <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider cursor-pointer hover:text-text-primary" onClick={() => toggleSort('pl')}>
-                    P/L <SortIcon field="pl" />
+                    Net P/L <SortIcon field="pl" />
                   </th>
                   {isCol('duration') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Duration</th>}
                   <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Actions</th>
@@ -718,6 +727,9 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
                         {isCol('entry') && <td className="px-4 py-3 font-mono text-sm text-text-secondary">${trade.enterPrice.toFixed(2)}</td>}
                         {isCol('exit') && <td className="px-4 py-3 font-mono text-sm text-text-secondary">${trade.exitPrice.toFixed(2)}</td>}
                         {isCol('qty') && <td className="px-4 py-3 font-mono text-sm text-text-secondary">{trade.quantity}</td>}
+                        {isCol('gross') && <td className="px-4 py-3 font-mono text-sm text-text-secondary">{trade.grossPL == null ? '—' : `${Number(trade.grossPL).toFixed(2)}`}</td>}
+                        {isCol('fees') && <td className="px-4 py-3 font-mono text-sm text-text-secondary">${Number(trade.fees || 0).toFixed(2)}</td>}
+                        {isCol('commissions') && <td className="px-4 py-3 font-mono text-sm text-text-secondary">${Number(trade.commissions || 0).toFixed(2)}</td>}
                         <td className="px-4 py-3">
                           <span className={`font-mono text-sm font-semibold ${pl >= 0 ? 'text-positive' : 'text-negative'}`}>
                             {pl >= 0 ? '+' : ''}${pl.toFixed(2)}
