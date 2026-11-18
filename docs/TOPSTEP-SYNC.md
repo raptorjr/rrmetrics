@@ -61,7 +61,7 @@ Automatic sync runs in the RR Metrics server process, not in the browser. Closin
 
 The default interval is 5 minutes. Automatic sync is disabled by default, including for connections that already existed before this feature was installed.
 
-The server checks for due connections every 30 seconds. The configured interval is the delay between scheduled attempts; actual start time can be up to one poll interval later, and a long-running sync can take longer.
+The server checks for due connections every 15 seconds. The configured interval is the delay after a sync completes; actual start time can be up to one poll interval later. The attempt start time and in-progress state are persisted before the importer starts, so the UI does not keep showing an old overdue schedule while a sync is running.
 
 ### Status and diagnostics
 
@@ -75,7 +75,7 @@ The connection card shows:
 
 When an automatic sync completes while RR Metrics is open, the app shows a brief notification with the number of newly imported journal trades, or that Topstep is up to date. The count is based on newly created imported trade records, not the total number of historical positions reconstructed or raw execution legs fetched. Detailed diagnostics remain available after a manual sync in the Settings connection panel; the previous automatic-sync result is not repeated there.
 
-Manual **Sync Now** remains available. Manual and scheduled sync requests for the same connection are protected by a per-connection in-process lock; a second overlapping request is rejected rather than running a second importer concurrently.
+Manual **Sync Now** remains available. Scheduled sync requests have a two-minute timeout; timed-out requests record an error and release the scheduler lock so later attempts can proceed. The request is also aborted where supported. The in-progress marker is recovered after a server restart if it has been left stale for longer than the timeout. Manual and scheduled sync requests for the same connection remain protected by a per-connection in-process lock.
 
 ### Data and credentials
 
