@@ -73,7 +73,7 @@ The connection card shows:
 - The last automatic attempt.
 - Any error from the last attempt.
 
-The latest automatic sync response is retained and can be displayed using the same detailed diagnostics as a manual sync, including imported position counts, raw execution counts, open-position checks, warnings, and order-history cross-check errors.
+When an automatic sync completes while RR Metrics is open, the app shows a brief notification with the number of newly imported journal trades, or that Topstep is up to date. The count is based on newly created imported trade records, not the total number of historical positions reconstructed or raw execution legs fetched. Detailed diagnostics remain available after a manual sync in the Settings connection panel; the previous automatic-sync result is not repeated there.
 
 Manual **Sync Now** remains available. Manual and scheduled sync requests for the same connection are protected by a per-connection in-process lock; a second overlapping request is rejected rather than running a second importer concurrently.
 
