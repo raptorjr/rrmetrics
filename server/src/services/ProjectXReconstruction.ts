@@ -90,6 +90,18 @@ export function reconstructProjectXPositions(
   const openPositions: ReconstructionResult['openPositions'] = [];
 
   for (const legs of instruments.values()) {
+    // If an instrument becomes inconsistent, keep positions completed before
+    // the first warning but do not publish any later positions from that
+    // instrument. A bad sequence must not contaminate subsequent trades.
+    let instrumentHasWarnings = false;
+    let safePositionCount = positions.length;
+    const warn = (message: string) => {
+      if (!instrumentHasWarnings) {
+        instrumentHasWarnings = true;
+        safePositionCount = positions.length;
+      }
+      warnings.push(message);
+    };
     // Rebuild executions. Simulated accounts use orderId; live accounts
     // use fillId. Individual trade IDs are always preserved.
     const executions = new Map<string, ProjectXTradeLeg[]>();
@@ -150,9 +162,7 @@ export function reconstructProjectXPositions(
       const sides = new Set(execution.map(leg => leg.side));
 
       if (sides.size !== 1) {
-        warnings.push(
-          `Mixed sides in execution ${execution[0].orderId}; execution skipped`
-        );
+        warn(`Mixed sides in execution ${execution[0].orderId}; execution skipped`);
         continue;
       }
 
@@ -173,16 +183,12 @@ export function reconstructProjectXPositions(
           || netQuantity === 0
           || Math.sign(netQuantity) === direction
         ) {
-          warnings.push(
-            `Unmatched closing leg ${leg.id}; no opposite position exists`
-          );
+          warn(`Unmatched closing leg ${leg.id}; no opposite position exists`);
           continue;
         }
 
         if (leg.size > Math.abs(netQuantity)) {
-          warnings.push(
-            `Closing leg ${leg.id} exceeds open quantity; expected API opening leg for reversal`
-          );
+          warn(`Closing leg ${leg.id} exceeds open quantity; expected API opening leg for reversal`);
           continue;
         }
 
@@ -208,9 +214,7 @@ export function reconstructProjectXPositions(
           netQuantity !== 0
           && Math.sign(netQuantity) !== direction
         ) {
-          warnings.push(
-            `Opening leg ${leg.id} conflicts with remaining position`
-          );
+          warn(`Opening leg ${leg.id} conflicts with remaining position`);
           continue;
         }
 
@@ -246,6 +250,10 @@ export function reconstructProjectXPositions(
           Math.abs(netQuantity)
         );
       }
+    }
+
+    if (instrumentHasWarnings) {
+      positions.splice(safePositionCount);
     }
 
     if (current && netQuantity !== 0) {
