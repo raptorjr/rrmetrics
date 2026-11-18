@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS trades (
   gross_pl             REAL,
   fees                 REAL NOT NULL DEFAULT 0,
   commissions          REAL NOT NULL DEFAULT 0,
+  currency_code        TEXT NOT NULL DEFAULT 'USD',
   image_attachments    TEXT NOT NULL DEFAULT '[]',        -- JSON string[]
   screenshot           TEXT,
   comments             TEXT NOT NULL DEFAULT '',

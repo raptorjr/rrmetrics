@@ -58,6 +58,15 @@ The preference is stored in browser local storage and affects shared trade date/
 
 **Important:** Display time zone and trading-session time zone are separate. Market-day grouping and session calculations remain anchored to `America/New_York`; the preference changes how timestamps are displayed to the user, not how trades are assigned to trading days.
 
+
+## Account currencies
+
+Topstep accounts have a **P&L currency** setting in Settings → Integrations → Topstep accounts. Set the currency for each account before syncing its history. Newly discovered accounts default to USD; existing accounts keep their saved account classification and friendly name and receive USD as the initial currency default.
+
+The selected ISO currency code is copied onto each imported trade and is updated during reconciliation. The Yearly calendar uses that code when formatting monthly and yearly P&L. If a month or year contains more than one currency, the P&L cell displays **Mixed currencies** rather than adding unlike amounts and showing a misleading total.
+
+Existing trades receive USD through an additive database migration. This preserves current display assumptions but does not infer currency from an import file or broker account balance. Verify the account currency before relying on monetary reports. Conversion to a common reporting currency using historical FX rates is not yet included.
+
 ## Verification status
 
 The Yearly view is present on the `development` branch and its GitHub Actions CI run passed. The view still needs interactive verification in the Babylon self-hosted installation before it should be treated as runtime-tested.

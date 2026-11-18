@@ -13,6 +13,7 @@ interface TradeAPI {
   grossPL: number | null;
   fees: number;
   commissions: number;
+  currencyCode: string;
   imageAttachments: string[];
   screenshot: string | null;
   comments: string;
@@ -53,6 +54,7 @@ function rowToAPI(row: any, tagIds: string[] = []): TradeAPI {
     grossPL: row.gross_pl ?? null,
     fees: row.fees ?? 0,
     commissions: row.commissions ?? 0,
+    currencyCode: row.currency_code || 'USD',
     imageAttachments: parseJsonArray(row.image_attachments),
     screenshot: row.screenshot,
     comments: row.comments || '',

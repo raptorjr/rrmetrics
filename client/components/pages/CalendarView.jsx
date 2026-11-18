@@ -8,6 +8,10 @@ const RuleChecklist = require("../shared/RuleChecklist");
 const { getTradePL, groupTradesByDate } = require("../../utils/analytics");
 const { formatDuration, formatFullDateEST, formatTimeEST } = require("../../utils/dateUtils");
 const { isBreakevenTrade } = require("../../utils/tickValues");
+const formatCurrency = (value, currency = 'USD') => {
+  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 0, notation: 'compact' }).format(value); }
+  catch { return `${currency} ${Number(value || 0).toFixed(0)}`; }
+};
 const { calcPercentChange } = require("../../utils/periodUtils");
 const { SidePanelContext } = require("../../utils/contexts");
 const { useWindowWidth } = require("../../utils/hooks");
@@ -831,6 +835,7 @@ const YearlyGrid = ({ currentYear, dailyData, onSelectMonth }) => {
     let tradeCount = 0;
     let wins = 0;
     let decisiveTrades = 0;
+    const currencies = new Set();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
 
     for (let day = 1; day <= daysInMonth; day++) {
@@ -840,6 +845,7 @@ const YearlyGrid = ({ currentYear, dailyData, onSelectMonth }) => {
       totalPL += dayData.totalPL;
       tradeCount += dayData.tradeCount;
       dayData.trades.forEach(trade => {
+        currencies.add((trade.currencyCode || 'USD').toUpperCase());
         if (isBreakevenTrade(trade)) return;
         decisiveTrades++;
         if (getTradePL(trade) > 0) wins++;
@@ -850,6 +856,7 @@ const YearlyGrid = ({ currentYear, dailyData, onSelectMonth }) => {
       totalPL,
       tradeCount,
       winRate: decisiveTrades > 0 ? (wins / decisiveTrades) * 100 : null,
+      currencyCode: currencies.size > 1 ? 'MIXED' : (currencies.values().next().value || 'USD'),
     };
   };
 
@@ -886,19 +893,15 @@ const YearlyGrid = ({ currentYear, dailyData, onSelectMonth }) => {
       months,
       totalPL: total.totalPL,
       tradeCount: total.tradeCount,
+      currencyCode: new Set(months.filter(m => m.tradeCount > 0).map(m => m.currencyCode)).size > 1 ? 'MIXED' : (months.find(m => m.tradeCount > 0)?.currencyCode || 'USD'),
       winRate: allTrades.decisive > 0 ? (allTrades.wins / allTrades.decisive) * 100 : null,
     };
   });
 
   const maxAbsPL = Math.max(1, ...rows.flatMap(row => row.months.map(m => Math.abs(m.totalPL))));
   const maxTrades = Math.max(1, ...rows.flatMap(row => row.months.map(m => m.tradeCount)));
-  const formatMoney = value => {
-    const abs = Math.abs(value);
-    const formatted = abs >= 1000
-      ? `${(abs / 1000).toFixed(abs >= 10000 ? 0 : 1)}K`
-      : `${abs.toFixed(0)}`;
-    return value < 0 ? `-${formatted}` : formatted;
-  };
+  const formatMoney = (value, currencyCode) => currencyCode === 'MIXED' ? 'Mixed currencies' : formatCurrency(value, currencyCode);
+
   const cellStyle = (value, max, color) => ({
     backgroundColor: value === 0 ? 'var(--bg-input)' : color === 'pl'
       ? (value > 0
@@ -919,9 +922,9 @@ const YearlyGrid = ({ currentYear, dailyData, onSelectMonth }) => {
     const hasTrades = stats.tradeCount > 0;
     const intensityValue = metric === 'pl' ? (value || 0) : (value || 0);
     const intensityMax = metric === 'pl' ? maxAbsPL : metric === 'trades' ? maxTrades : 100;
-    const style = hasTrades ? cellStyle(intensityValue, intensityMax, metric) : {};
+    const style = hasTrades && !(metric === 'pl' && stats.currencyCode === 'MIXED') ? cellStyle(intensityValue, intensityMax, metric) : {};
     const content = !hasTrades ? '--' : metric === 'pl'
-      ? formatMoney(value)
+      ? formatMoney(value, stats.currencyCode)
       : metric === 'winRate'
         ? (value === null ? '--' : `${value.toFixed(1)}%`)
         : String(value);
@@ -995,6 +998,7 @@ const YearlyGrid = ({ currentYear, dailyData, onSelectMonth }) => {
               {renderCell({
                 totalPL: row.totalPL,
                 tradeCount: row.tradeCount,
+                currencyCode: row.currencyCode,
                 winRate: row.winRate,
               }, row.year, null, true)}
             </div>

@@ -181,7 +181,7 @@ projectx.post(
       connectionId?: string;
       selectedAccounts?: number[];
       copytradeConfig?: { leadAccountId: number; multiplier: number } | null;
-      accountSettings?: Record<string, { type: 'evaluation' | 'xfa' | 'live_funded' | 'other'; displayName: string }>;
+      accountSettings?: Record<string, { type: 'evaluation' | 'xfa' | 'live_funded' | 'other'; displayName: string; currencyCode?: string }>;
     };
 
     if (!connectionId) {

@@ -79,6 +79,15 @@ cd rrmetrics
 - Monthly and yearly statistics use the calendar's existing trade-date grouping. Win rate excludes breakeven trades and is calculated from decisive trades.
 - The Yearly view's GitHub Actions CI run passed; interactive verification in the Babylon self-hosted installation is still pending.
 
+
+### Account and trade currency foundation
+
+- Added an ISO currency code to each trade record, with an additive SQLite migration that assigns existing trades USD to preserve the current RR Metrics assumption.
+- Added a per-account P&L currency selector to Topstep account settings (USD, EUR, GBP, CAD, AUD, CHF, JPY). Existing Topstep accounts default to USD and retain their saved classification and display name.
+- Imported Topstep positions now inherit the selected account currency, and subsequent reconciliations update the trade currency alongside P&L and fee fields.
+- The Yearly calendar formats P&L using the currency code instead of assuming a dollar sign. If a month or year contains more than one currency, its P&L cell displays “Mixed currencies” instead of presenting an invalid combined amount.
+- This is the currency metadata and display foundation. Currency conversion into a single reporting currency is a separate follow-up; mixed-currency totals are deliberately not converted or combined for display.
+
 ## Deployment notes
 
 - Fork-specific changes are developed on `development`; upstream's `main` branch is not the deployment target for these additions.

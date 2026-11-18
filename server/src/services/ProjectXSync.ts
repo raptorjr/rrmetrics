@@ -29,7 +29,7 @@ export function reconcileProjectXHistory(
   connectionIsEval: boolean,
   selectedAccountIds: number[],
   reinstatedVoidedOrderKeys: Set<string> = new Set(),
-  accountSettings: Record<string, { type: 'evaluation' | 'xfa' | 'live_funded' | 'other'; displayName: string }> = {},
+  accountSettings: Record<string, { type: 'evaluation' | 'xfa' | 'live_funded' | 'other'; displayName: string; currencyCode?: string }> = {},
 ): ProjectXSyncResult {
   const now = new Date().toISOString();
 
@@ -66,10 +66,10 @@ export function reconcileProjectXHistory(
   const insertPosition = db.prepare(`
     INSERT INTO trades (
       id, user_id, ticker, enter_time, exit_time, enter_price, exit_price,
-      quantity, manual_pl, gross_pl, fees, commissions, comments,
+      quantity, manual_pl, gross_pl, fees, commissions, currency_code, comments,
       projectx_trade_id, projectx_source, broker_connection_id, account,
       is_eval, created_date
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'projectx', ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'projectx', ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       ticker = excluded.ticker,
       enter_time = excluded.enter_time,
@@ -81,6 +81,7 @@ export function reconcileProjectXHistory(
       gross_pl = excluded.gross_pl,
       fees = excluded.fees,
       commissions = excluded.commissions,
+      currency_code = excluded.currency_code,
       projectx_trade_id = excluded.projectx_trade_id,
       broker_connection_id = excluded.broker_connection_id,
       account = excluded.account,
@@ -147,6 +148,7 @@ export function reconcileProjectXHistory(
         scaled.grossPL,
         scaled.fees,
         scaled.commissions,
+        (accountSettings[String(position.accountId)]?.currencyCode || 'USD').toUpperCase(),
         '',
         projectionId,
         connectionId,

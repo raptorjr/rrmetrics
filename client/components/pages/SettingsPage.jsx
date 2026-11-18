@@ -465,9 +465,10 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
           (conn.accounts || []).forEach(account => {
             if (!accountSettings[String(account.id)]) {
               const saved = conn.accountSettings?.[String(account.id)];
-              accountSettings[String(account.id)] = saved || {
+              accountSettings[String(account.id)] = saved ? { ...saved, currencyCode: saved.currencyCode || 'USD' } : {
                 type: conn.legacyIsEval || /EV/i.test(account.name) ? 'evaluation' : 'other',
                 displayName: '',
+                currencyCode: 'USD',
               };
             }
           });
@@ -1140,15 +1141,15 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                   <div className="flex items-center justify-between">
                                     <div>
                                       <h4 className="text-sm font-medium text-text-primary">Topstep accounts</h4>
-                                      <p className="text-xs text-text-muted">Choose which accounts to sync, classify each account and optionally give it a friendly name.</p>
+                                      <p className="text-xs text-text-muted">Choose which accounts to sync, classify each account, set its P&amp;L currency and optionally give it a friendly name.</p>
                                     </div>
                                     <span className="text-xs text-text-secondary">{(pxAccountDrafts[conn.connectionId]?.selectedAccounts || []).length} selected</span>
                                   </div>
                                   {(conn.accounts || []).map(account => {
                                     const draft = pxAccountDrafts[conn.connectionId] || { selectedAccounts: [], accountSettings: {} };
-                                    const accountSetting = draft.accountSettings[String(account.id)] || { type: 'other', displayName: '' };
+                                    const accountSetting = draft.accountSettings[String(account.id)] || { type: 'other', displayName: '', currencyCode: 'USD' };
                                     return (
-                                      <div key={account.id} className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_150px_minmax(0,1fr)] gap-2 items-center p-3 bg-bg-surface/60 border border-border rounded-lg">
+                                      <div key={account.id} className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_150px_110px_minmax(0,1fr)] gap-2 items-center p-3 bg-bg-surface/60 border border-border rounded-lg">
                                         <label className="flex items-start gap-2 cursor-pointer min-w-0">
                                           <input type="checkbox" checked={draft.selectedAccounts.includes(account.id)}
                                             onChange={() => togglePxAccountSync(conn.connectionId, account.id)}
@@ -1165,6 +1166,11 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                           <option value="xfa">Express Funded (XFA)</option>
                                           <option value="live_funded">Live Funded</option>
                                           <option value="other">Other / Practice</option>
+                                        </select>
+                                        <select value={accountSetting.currencyCode || 'USD'}
+                                          onChange={e => updatePxAccountDraft(conn.connectionId, account.id, { currencyCode: e.target.value })}
+                                          className="w-full px-2 py-2 bg-bg-input border border-border rounded-md text-xs text-text-primary">
+                                          <option value="USD">USD ($)</option><option value="EUR">EUR (€)</option><option value="GBP">GBP (£)</option><option value="CAD">CAD ($)</option><option value="AUD">AUD ($)</option><option value="CHF">CHF (Fr.)</option><option value="JPY">JPY (¥)</option>
                                         </select>
                                         <input type="text" value={accountSetting.displayName}
                                           onChange={e => updatePxAccountDraft(conn.connectionId, account.id, { displayName: e.target.value })}

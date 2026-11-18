@@ -31,6 +31,7 @@ export function getDb(): Db {
   if (!tradeColumns.has('gross_pl')) db.exec('ALTER TABLE trades ADD COLUMN gross_pl REAL');
   if (!tradeColumns.has('fees')) db.exec('ALTER TABLE trades ADD COLUMN fees REAL NOT NULL DEFAULT 0');
   if (!tradeColumns.has('commissions')) db.exec('ALTER TABLE trades ADD COLUMN commissions REAL NOT NULL DEFAULT 0');
+  if (!tradeColumns.has('currency_code')) db.exec("ALTER TABLE trades ADD COLUMN currency_code TEXT NOT NULL DEFAULT 'USD'");
 
   const projectxColumns = new Set((db.prepare('PRAGMA table_info(projectx_connections)').all() as Array<{ name: string }>).map(column => column.name));
   if (!projectxColumns.has('account_settings')) db.exec('ALTER TABLE projectx_connections ADD COLUMN account_settings TEXT');

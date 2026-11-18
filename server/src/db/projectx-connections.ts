@@ -18,7 +18,7 @@ function rowFromDb(row: any): ProjectXConnectionRow {
   return {
     ...row,
     selected_accounts: parseJson<number[]>(row.selected_accounts),
-    account_settings: parseJson<Record<string, { type: 'evaluation' | 'xfa' | 'live_funded' | 'other'; displayName: string }>>(row.account_settings),
+    account_settings: parseJson<Record<string, { type: 'evaluation' | 'xfa' | 'live_funded' | 'other'; displayName: string; currencyCode?: string }>>(row.account_settings),
     reinstated_order_keys: parseJson<string[]>(row.reinstated_order_keys),
     copytrade_config: parseJson<{ leadAccountId: number; multiplier: number }>(row.copytrade_config),
     auto_sync_enabled: !!row.auto_sync_enabled,

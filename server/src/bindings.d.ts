@@ -64,6 +64,7 @@ export interface TradeRow {
   gross_pl: number | null;
   fees: number;
   commissions: number;
+  currency_code: string;
   image_attachments: any;
   screenshot: string | null;
   comments: string;
@@ -119,7 +120,7 @@ export interface ProjectXConnectionRow {
   access_token: string | null;
   token_expires_at: string | null;
   selected_accounts: number[] | null;
-  account_settings: Record<string, { type: 'evaluation' | 'xfa' | 'live_funded' | 'other'; displayName: string }> | null;
+  account_settings: Record<string, { type: 'evaluation' | 'xfa' | 'live_funded' | 'other'; displayName: string; currencyCode?: string }> | null;
   last_full_sync_time: string | null;
   reinstated_order_keys: string[] | null;
   copytrade_config: { leadAccountId: number; multiplier: number } | null;
