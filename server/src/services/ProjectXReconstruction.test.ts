@@ -91,6 +91,21 @@ test('splits a reversal into a closed position and a new opposite position', () 
   assert.equal(result.warnings.length, 0);
 });
 
+test('keeps positions completed before an instrument warning and quarantines later positions', () => {
+  const result = reconstructProjectXPositions([
+    leg(1, 0, 1, 100, null, 10, '2026-11-01T10:00:00Z'),
+    leg(2, 1, 1, 101, 10, 11, '2026-11-01T10:01:00Z'),
+    // An unmatched close makes the subsequent instrument history unsafe.
+    leg(3, 1, 1, 102, 10, 12, '2026-11-01T10:02:00Z'),
+    leg(4, 0, 1, 103, null, 13, '2026-11-01T10:03:00Z'),
+    leg(5, 1, 1, 104, 10, 14, '2026-11-01T10:04:00Z'),
+  ]);
+
+  assert.equal(result.positions.length, 1);
+  assert.equal(result.positions[0].tradeIds.join(','), '1,2');
+  assert.equal(result.warnings.length, 1);
+});
+
 test('latest voided version of a trade ID is excluded', () => {
   const original = leg(
     1, 0, 1, 100, null, 10, '2026-11-01T10:00:00Z', 1, 0.5
