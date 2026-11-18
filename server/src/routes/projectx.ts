@@ -355,6 +355,7 @@ projectx.post(
         contractNames,
         multiplier,
         brokerConn.is_eval,
+        accountsToSync,
       );
 
       await brokerDb.updateById(serviceClient, connectionId, {
