@@ -9,6 +9,7 @@ export interface ProjectXSyncResult {
   positions: number;
   openPositions: number;
   warnings: string[];
+  reinstatedVoidedOrders: number;
 }
 
 /**
@@ -162,6 +163,7 @@ export function reconcileProjectXHistory(
     positions: result.positions.length,
     openPositions: result.openPositions.length,
     warnings: result.warnings,
+    reinstatedVoidedOrders: reinstatedVoidedOrderKeys.size,
   };
 }
 
