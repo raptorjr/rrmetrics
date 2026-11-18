@@ -6,7 +6,6 @@ import { getDb, initDb } from './db/connection';
 import { ensureLocalUser } from './db/profiles';
 import { refreshExpiringBrokerTokens } from './scheduled/broker-refresh';
 import * as pxConnDb from './db/projectx-connections';
-import { getDb } from './db/connection';
 
 const BROKER_REFRESH_INTERVAL_MS = 60 * 60 * 1000; // hourly
 const PROJECTX_AUTO_SYNC_POLL_INTERVAL_MS = 30 * 1000;
@@ -48,7 +47,6 @@ const main = async () => {
       if (connection.auto_sync_next_at && new Date(connection.auto_sync_next_at).getTime() > Date.now()) continue;
       autoSyncInProgress.add(id);
       const attemptedAt = new Date().toISOString();
-      const nextAt = new Date(Date.now() + (connection.auto_sync_interval_minutes || 5) * 60_000).toISOString();
       try {
         const response = await app.fetch(new Request('http://localhost/api/projectx/sync', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ connectionId: id }),
@@ -56,13 +54,13 @@ const main = async () => {
         const result = await response.json() as Record<string, any>;
         await pxConnDb.updateByBrokerConnectionId(db, id, {
           auto_sync_last_attempt_at: attemptedAt,
-          auto_sync_next_at: nextAt,
+          auto_sync_next_at: new Date(Date.now() + (connection.auto_sync_interval_minutes || 5) * 60_000).toISOString(),
           auto_sync_last_error: response.ok ? null : (result.error || `Sync failed (HTTP ${response.status})`),
           auto_sync_last_result: result,
         });
       } catch (error: any) {
         await pxConnDb.updateByBrokerConnectionId(db, id, {
-          auto_sync_last_attempt_at: attemptedAt, auto_sync_next_at: nextAt,
+          auto_sync_last_attempt_at: attemptedAt, auto_sync_next_at: new Date(Date.now() + (connection.auto_sync_interval_minutes || 5) * 60_000).toISOString(),
           auto_sync_last_error: error?.message || String(error),
           auto_sync_last_result: { error: error?.message || String(error) },
         });
