@@ -367,6 +367,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
   const [pxSyncResults, setPxSyncResults] = useState({});
   const [pxAccountDrafts, setPxAccountDrafts] = useState({});
   const [pxSavingAccounts, setPxSavingAccounts] = useState(null);
+  const [pxAccountSaveMessages, setPxAccountSaveMessages] = useState({});
   const [pxShowNewForm, setPxShowNewForm] = useState(false);
   // Per-connection editing state for ProjectX accounts
   const [pxEditingConnId, setPxEditingConnId] = useState(null);
@@ -592,6 +593,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
       return;
     }
     setPxSavingAccounts(connectionId);
+    setPxAccountSaveMessages(prev => ({ ...prev, [connectionId]: null }));
     setMessage(null);
     try {
       const copytradeConfig = pxEditingConnId === connectionId
@@ -609,10 +611,12 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
       });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.error || 'Could not save account settings');
-      setMessage({ type: 'success', text: 'Topstep account settings saved' });
+      setPxAccountSaveMessages(prev => ({ ...prev, [connectionId]: { type: 'success', text: 'Account settings saved' } }));
       await fetchPxStatus();
     } catch (err) {
-      setMessage({ type: 'error', text: err.message || 'Failed to save account settings' });
+      const errorText = err.message || 'Failed to save account settings';
+      setPxAccountSaveMessages(prev => ({ ...prev, [connectionId]: { type: 'error', text: errorText } }));
+      setMessage({ type: 'error', text: errorText });
     } finally {
       setPxSavingAccounts(null);
     }
@@ -1172,6 +1176,11 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                       className="px-4 py-2 bg-accent text-accent-text text-xs font-medium rounded-lg hover:brightness-110 transition-all disabled:opacity-50">
                                       {pxSavingAccounts === conn.connectionId ? 'Saving...' : 'Save account settings'}
                                     </button>
+                                    {pxAccountSaveMessages[conn.connectionId] && (
+                                      <span role="status" className={`text-xs ${pxAccountSaveMessages[conn.connectionId].type === 'error' ? 'text-negative' : 'text-positive'}`}>
+                                        {pxAccountSaveMessages[conn.connectionId].text}
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
 
