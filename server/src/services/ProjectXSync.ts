@@ -48,9 +48,15 @@ export function reconcileProjectXHistory(
     ORDER BY creation_timestamp, trade_id
   `);
 
-  const deleteProjection = db.prepare(`
+  // Track the current projection IDs so unchanged positions can be updated
+  // in place. This preserves tags, rule checks and other journal metadata.
+  db.exec('CREATE TEMP TABLE IF NOT EXISTS projectx_current_position_ids (id TEXT PRIMARY KEY)');
+  const clearCurrentIds = db.prepare('DELETE FROM projectx_current_position_ids');
+  const rememberCurrentId = db.prepare('INSERT OR IGNORE INTO projectx_current_position_ids (id) VALUES (?)');
+  const deleteStaleProjection = db.prepare(`
     DELETE FROM trades
     WHERE user_id = ? AND broker_connection_id = ? AND projectx_source = 'projectx'
+      AND id NOT IN (SELECT id FROM projectx_current_position_ids)
   `);
 
   const insertPosition = db.prepare(`
@@ -60,6 +66,22 @@ export function reconcileProjectXHistory(
       projectx_trade_id, projectx_source, broker_connection_id, account,
       is_eval, created_date
      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'projectx', ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      ticker = excluded.ticker,
+      enter_time = excluded.enter_time,
+      exit_time = excluded.exit_time,
+      enter_price = excluded.enter_price,
+      exit_price = excluded.exit_price,
+      quantity = excluded.quantity,
+      manual_pl = excluded.manual_pl,
+      gross_pl = excluded.gross_pl,
+      fees = excluded.fees,
+      commissions = excluded.commissions,
+      comments = excluded.comments,
+      projectx_trade_id = excluded.projectx_trade_id,
+      broker_connection_id = excluded.broker_connection_id,
+      account = excluded.account,
+      is_eval = excluded.is_eval
   `);
 
   const result = db.transaction(() => {
@@ -88,7 +110,7 @@ export function reconcileProjectXHistory(
     const allLegs = stored.map(row => JSON.parse(row.raw_json) as ProjectXRawTrade);
     const reconstruction = reconstructProjectXPositions(allLegs);
 
-    deleteProjection.run(userId, connectionId);
+    clearCurrentIds.run();
 
     for (const position of reconstruction.positions) {
       const accountName = accountNames.get(position.accountId) || `ProjectX ${position.accountId}`;
@@ -102,8 +124,10 @@ export function reconcileProjectXHistory(
         netPL: position.netPL * multiplier,
       };
 
+      const projectionId = `px:${connectionId}:${position.positionKey}`;
+      rememberCurrentId.run(projectionId);
       insertPosition.run(
-        `px:${connectionId}:${position.positionKey}`,
+        projectionId,
         userId,
         ticker,
         position.enterTime,
@@ -116,7 +140,7 @@ export function reconcileProjectXHistory(
         scaled.fees,
         scaled.commissions,
         position.tradeIds.join(','),
-        `px:${connectionId}:${position.positionKey}`,
+        projectionId,
         connectionId,
         accountName,
         connectionIsEval || /EV/i.test(accountName) ? 1 : 0,
@@ -124,6 +148,7 @@ export function reconcileProjectXHistory(
       );
     }
 
+    deleteStaleProjection.run(userId, connectionId);
     return reconstruction;
   })();
 
