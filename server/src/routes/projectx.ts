@@ -322,6 +322,7 @@ projectx.post(
 
       const allTrades: import('../services/ProjectXAPI').Trade[] = [];
       const allOrders: import('../services/ProjectXAPI').ProjectXOrder[] = [];
+      const orderCheckErrors: string[] = [];
       const brokerOpenPositions: Array<{
         accountId: number;
         accountName: string;
@@ -345,8 +346,14 @@ projectx.post(
         // Orders are an independent cross-check. Only orders whose entire
         // trade-leg set is voided but whose filled quantity matches exactly
         // can qualify for the narrow simulated-history reconciliation.
-        const orderHistory = await api.searchOrders(token, accountId, '2020-01-01T00:00:00Z');
-        allOrders.push(...orderHistory);
+        try {
+          const orderHistory = await api.searchOrders(token, accountId, '2020-01-01T00:00:00Z');
+          allOrders.push(...orderHistory);
+        } catch (error: any) {
+          // The normal trade import can still proceed safely without this
+          // optional cross-check; anomalous voided legs remain quarantined.
+          orderCheckErrors.push(`Account ${accountId}: ${error.message}`);
+        }
 
         // Independently query the broker's live position snapshot. This helps
         // distinguish a reconstruction problem from a genuinely open position.
@@ -405,7 +412,14 @@ projectx.post(
       return c.json({
         message: (result.warnings.length > 0
           ? `Partially imported ${result.positions} safe positions from ${result.rawLegs} execution legs. ${result.warnings.length} reconstruction warning(s); affected instrument history was held back.`
-          : `Reconciled ${result.positions} positions from ${result.rawLegs} raw execution legs`) + positionSummary,
+          : `Reconciled ${result.positions} positions from ${result.rawLegs} raw execution legs`)
+          + (result.reinstatedVoidedOrders > 0
+            ? ` Reconciled ${result.reinstatedVoidedOrders} fully filled order(s) whose trade legs were marked voided, based on the Orders API.`
+            : '')
+          + (orderCheckErrors.length > 0
+            ? ` Order-history cross-check unavailable: ${orderCheckErrors.join('; ')}.`
+            : '')
+          + positionSummary,
         partial: result.warnings.length > 0,
         synced: result.positions,
         rawLegs: result.rawLegs,
