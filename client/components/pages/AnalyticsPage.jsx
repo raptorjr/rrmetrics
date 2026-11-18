@@ -716,7 +716,8 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
 
       <CustomizableStats
         storageKey="rrmetrics_analytics_tiles"
-        defaultOrder={['totalPL', 'winRate', 'profitFactor', 'expectancy', 'maxDrawdown', 'breakevenRate', 'sharpeRatio', 'sortinoRatio', 'kellyRisk']}
+        defaultOrder={['totalPL', 'winRate', 'totalTrades', 'avgDuration', 'avgWinLoss', 'bestTrade', 'worstTrade', 'breakevenRate', 'profitFactor', 'expectancy', 'maxDrawdown', 'sharpeRatio', 'sortinoRatio', 'kellyRisk']}
+        defaultVisible={['totalPL', 'winRate', 'profitFactor', 'expectancy', 'maxDrawdown', 'breakevenRate', 'sharpeRatio', 'sortinoRatio', 'kellyRisk']}
         items={[
           { id: 'totalPL', label: 'Total P/L', render: () => <StatCard label="Total P/L" value={`$${stats.totalPL.toFixed(2)}`} color={stats.totalPL >= 0 ? 'text-positive' : 'text-negative'} change={showChange ? calcPercentChange(stats.totalPL, prevStats.totalPL) : null} /> },
           { id: 'winRate', label: 'Win Rate', render: () => <WinRateCard wins={stats.wins} losses={stats.losses} breakevens={stats.breakevens} total={stats.totalTrades} change={showChange ? calcPercentChange(stats.winRate, prevStats.winRate) : null} /> },
@@ -724,6 +725,15 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
           { id: 'expectancy', label: 'Expectancy', render: () => <StatCard label="Expectancy" value={`$${expectancy.toFixed(2)}`} color={expectancy >= 0 ? 'text-positive' : 'text-negative'} change={showChange ? calcPercentChange(expectancy, prevExpectancy) : null} /> },
           { id: 'maxDrawdown', label: 'Max Drawdown', render: () => <StatCard label="Max Drawdown" value={`$${maxDrawdown.toFixed(2)}`} color="text-negative" /> },
           { id: 'breakevenRate', label: 'Breakeven Rate', render: () => <StatCard label="Breakeven Rate" value={`${stats.breakevenPct.toFixed(1)}%`} subValue={`${stats.breakevens} trades`} color="text-text-primary" /> },
+          { id: 'totalTrades', label: 'Total Trades', render: () => <StatCard label="Total Trades" value={stats.totalTrades} color="text-text-primary" /> },
+          { id: 'avgDuration', label: 'Avg Duration', render: () => <StatCard label="Avg Duration" value={formatDuration(stats.avgDuration)} color="text-text-primary" /> },
+          { id: 'avgWinLoss', label: 'Avg Win / Loss', render: () => {
+            const absLoss = Math.abs(stats.avgLoss);
+            const ratio = absLoss > 0 ? (stats.avgWin / absLoss).toFixed(2) : stats.avgWin > 0 ? '∞' : '0.00';
+            return <StatCard label="Avg Win / Loss" value={ratio} color="text-text-primary" subValue={`Avg win ${stats.avgWin.toFixed(0)} · Avg loss -${absLoss.toFixed(0)}`} />;
+          } },
+          { id: 'bestTrade', label: 'Best Trade', render: () => <StatCard label="Best Trade" value={`${stats.bestTrade.toFixed(2)}`} color="text-positive" /> },
+          { id: 'worstTrade', label: 'Worst Trade', render: () => <StatCard label="Worst Trade", value={`${stats.worstTrade.toFixed(2)}`} color="text-negative" /> },
           { id: 'sharpeRatio', label: 'Sharpe Ratio', render: () => <StatCard label="Sharpe Ratio" value={sharpeRatio === Infinity ? '∞' : sharpeRatio.toFixed(2)} color={sharpeRatio > 0 ? 'text-positive' : 'text-negative'} tooltip={"Risk-adjusted return measuring reward per unit of total volatility.\\n\\nFormula: (Mean Daily P/L / Std Dev of Daily P/L) x √252\\n\\nAbove 1.0 = good, above 2.0 = excellent, below 0 = losing money on average."} /> },
           { id: 'sortinoRatio', label: 'Sortino Ratio', render: () => <StatCard label="Sortino Ratio" value={sortinoRatio === Infinity ? '∞' : sortinoRatio.toFixed(2)} color={sortinoRatio > 0 ? 'text-positive' : 'text-negative'} tooltip={"Like Sharpe but only penalizes downside volatility, ignoring upside swings.\\n\\nFormula: (Mean Daily P/L / Downside Deviation) x √252\\n\\nHigher is better. A Sortino much higher than Sharpe means your volatility is mostly upside."} /> },
           { id: 'kellyRisk', label: 'Kelly Optimal Risk', render: () => (
