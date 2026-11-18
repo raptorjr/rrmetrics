@@ -34,6 +34,8 @@ export function getDb(): Db {
 
   const projectxColumns = new Set((db.prepare('PRAGMA table_info(projectx_connections)').all() as Array<{ name: string }>).map(column => column.name));
   if (!projectxColumns.has('account_settings')) db.exec('ALTER TABLE projectx_connections ADD COLUMN account_settings TEXT');
+  if (!projectxColumns.has('last_full_sync_time')) db.exec('ALTER TABLE projectx_connections ADD COLUMN last_full_sync_time TEXT');
+  if (!projectxColumns.has('reinstated_order_keys')) db.exec('ALTER TABLE projectx_connections ADD COLUMN reinstated_order_keys TEXT');
   if (!projectxColumns.has('auto_sync_enabled')) db.exec('ALTER TABLE projectx_connections ADD COLUMN auto_sync_enabled INTEGER NOT NULL DEFAULT 0');
   if (!projectxColumns.has('auto_sync_interval_minutes')) db.exec('ALTER TABLE projectx_connections ADD COLUMN auto_sync_interval_minutes INTEGER NOT NULL DEFAULT 5');
   if (!projectxColumns.has('auto_sync_next_at')) db.exec('ALTER TABLE projectx_connections ADD COLUMN auto_sync_next_at TEXT');
