@@ -340,7 +340,7 @@ projectx.post(
             return;
           }
           const name = contract.name || contractId;
-          contractNames[contractId] = name.replace(/[A-Z]\\d+$/i, '').toUpperCase() || name.toUpperCase();
+          contractNames[contractId] = name.replace(/[A-Z]\d+$/i, '').toUpperCase() || name.toUpperCase();
         } catch {
           contractNames[contractId] = contractId;
         }
