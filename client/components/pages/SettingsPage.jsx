@@ -364,7 +364,6 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
   const [pxApiKey, setPxApiKey] = useState('');
   const [pxConnecting, setPxConnecting] = useState(false);
   const [pxSyncingId, setPxSyncingId] = useState(null);
-  const [pxSyncResults, setPxSyncResults] = useState({});
   const [pxShowNewForm, setPxShowNewForm] = useState(false);
   // Per-connection editing state for ProjectX accounts
   const [pxEditingConnId, setPxEditingConnId] = useState(null);
@@ -548,7 +547,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
       if (data.error) {
         setMessage({ type: 'error', text: data.error });
       } else {
-        setMessage({ type: 'success', text: 'Connected to ProjectX!' });
+        setMessage({ type: 'success', text: 'Connected to Topstep!' });
         setPxApiKey('');
         setPxUsername('');
         setPxShowNewForm(false);
@@ -563,7 +562,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
         fetchPxStatus();
       }
     } catch (err) {
-      setMessage({ type: 'error', text: 'Failed to connect to ProjectX' });
+      setMessage({ type: 'error', text: 'Failed to connect to Topstep' });
     }
     setPxConnecting(false);
   };
@@ -598,7 +597,6 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
 
   const handlePxSync = async (connectionId) => {
     setPxSyncingId(connectionId);
-    setPxSyncResults(prev => ({ ...prev, [connectionId]: { type: 'info', text: 'Sync started. Waiting for ProjectX history and reconciliation...' } }));
     setMessage(null);
     try {
       const response = await authFetch('/api/projectx/sync', {
@@ -606,61 +604,22 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ connectionId }),
       });
-      const responseText = await response.text();
-      let data = {};
-      try {
-        data = responseText ? JSON.parse(responseText) : {};
-      } catch {
-        throw new Error(`Server returned an unreadable response (HTTP ${response.status}): ${responseText.slice(0, 300) || 'empty response'}`);
-      }
-      if (!response.ok || data.error) {
-        throw new Error(data.error || `Sync request failed with HTTP ${response.status}`);
-      }
-      const resultText = data.message || 'Sync completed, but the server did not provide a summary.';
-      setPxSyncResults(prev => ({ ...prev, [connectionId]: { type: 'success', text: resultText, details: data } }));
-      setMessage({ type: 'success', text: resultText });
-      await fetchPxStatus();
-      if (onSyncComplete) onSyncComplete();
-    } catch (err) {
-      const errorText = err?.message || String(err) || 'Unknown sync error';
-      setPxSyncResults(prev => ({ ...prev, [connectionId]: { type: 'error', text: errorText } }));
-      setMessage({ type: 'error', text: `ProjectX sync failed: ${errorText}` });
-    } finally {
-      setPxSyncingId(null);
-    }
-  };
-
-  const handlePxClear = async (connectionId) => {
-    const confirmed = window.confirm(
-      'Clear all imported ProjectX trades and raw execution history for this connection? Your ProjectX login, selected accounts, tags and other broker connections will be kept. This cannot be undone.'
-    );
-    if (!confirmed) return;
-
-    setMessage(null);
-    try {
-      const response = await authFetch('/api/projectx/clear', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connectionId }),
-      });
       const data = await response.json();
-      if (!response.ok || data.error) {
-        setMessage({ type: 'error', text: data.error || 'Failed to clear ProjectX imported data' });
+      if (data.error) {
+        setMessage({ type: 'error', text: data.error });
       } else {
-        setMessage({
-          type: 'success',
-          text: `Cleared ${data.deletedPositions} imported trades and ${data.deletedRawLegs} raw execution records. Your connection is still active.`,
-        });
+        setMessage({ type: 'success', text: data.message || 'Sync complete' });
         fetchPxStatus();
         if (onSyncComplete) onSyncComplete();
       }
     } catch (err) {
-      setMessage({ type: 'error', text: 'Failed to clear ProjectX imported data' });
+      setMessage({ type: 'error', text: 'Sync failed' });
     }
+    setPxSyncingId(null);
   };
 
   const handlePxDisconnect = async (connectionId) => {
-    if (!confirm('Disconnect this ProjectX connection?')) return;
+    if (!confirm('Disconnect this Topstep connection?')) return;
     setMessage(null);
     try {
       const response = await authFetch(`/api/projectx/connections/${connectionId}`, { method: 'DELETE' });
@@ -928,7 +887,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
           {(() => {
             const propFirms = [
               ...TRADOVATE_BROKERS.filter(b => b.subtitle.includes('Prop')),
-              { key: 'projectx', label: 'Topstep (ProjectX)', icon: '/assets/img/topstep.png', subtitle: 'Prop trading firm' },
+              { key: 'projectx', label: 'Topstep', icon: '/assets/img/topstep.png', subtitle: 'Prop trading firm' },
             ];
             const cols = 3;
             const rows = [];
@@ -997,9 +956,9 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                     <div className="bg-bg-surface border border-border rounded-xl overflow-hidden">
                       <div className="flex items-center justify-between p-5">
                         <div className="flex items-center gap-3">
-                          <img src="/assets/img/topstep.png" alt="ProjectX" className="w-10 h-10 rounded-lg object-contain" />
+                          <img src="/assets/img/topstep.png" alt="Topstep" className="w-10 h-10 rounded-lg object-contain" />
                           <div className="text-left">
-                            <h3 className="text-text-primary font-semibold text-sm">ProjectX / Topstep</h3>
+                            <h3 className="text-text-primary font-semibold text-sm">Topstep</h3>
                             <p className="text-text-tertiary text-xs">Prop trading firm</p>
                           </div>
                         </div>
@@ -1013,7 +972,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2.5">
                                     <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${statusDot(conn)}`}></span>
-                                    <span className="text-sm text-text-primary font-medium">ProjectX <span className="capitalize">{conn.environment}</span></span>
+                                    <span className="text-sm text-text-primary font-medium">Topstep <span className="capitalize">{conn.environment}</span></span>
                                     {conn.label && <span className="text-xs text-text-secondary">— {conn.label}</span>}
                                   </div>
                                   <span className={`text-xs px-2 py-0.5 rounded-full ${
@@ -1025,29 +984,6 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                 </div>
 
                                 {conn.lastSyncTime && <p className="text-xs text-text-muted">Last sync: {relativeTime(conn.lastSyncTime)}</p>}
-
-                                {pxSyncResults[conn.connectionId] && (
-                                  <div role="status" className={`rounded-lg border p-3 text-xs whitespace-pre-wrap break-words ${
-                                    pxSyncResults[conn.connectionId].type === 'error'
-                                      ? 'border-negative/40 bg-negative/10 text-negative'
-                                      : pxSyncResults[conn.connectionId].type === 'success'
-                                        ? 'border-positive/40 bg-positive/10 text-positive'
-                                        : 'border-border bg-bg-surface text-text-secondary'
-                                  }`}>
-                                    <div className="font-semibold mb-1">
-                                      {pxSyncResults[conn.connectionId].type === 'error' ? 'ProjectX sync failed' :
-                                       pxSyncResults[conn.connectionId].type === 'success' ? 'ProjectX sync complete' : 'ProjectX sync in progress'}
-                                    </div>
-                                    {pxSyncResults[conn.connectionId].text}
-                                    {pxSyncResults[conn.connectionId].details && (
-                                      <div className="mt-1">
-                                        Raw execution legs: {pxSyncResults[conn.connectionId].details.rawLegs ?? '—'} ·
-                                        Imported positions: {pxSyncResults[conn.connectionId].details.synced ?? '—'} ·
-                                        Open positions: {pxSyncResults[conn.connectionId].details.openPositions ?? '—'}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
 
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
@@ -1130,7 +1066,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                 )}
 
                                 {pxEditingConnId !== conn.connectionId && (
-                                  <div className="flex flex-wrap items-center gap-2">
+                                  <div className="flex items-center gap-2">
                                     {conn.configured && !conn.expired && (
                                       <>
                                         <button onClick={() => handlePxSync(conn.connectionId)} disabled={pxSyncingId !== null}
@@ -1142,8 +1078,6 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                           className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-bg-surface rounded-lg transition-colors">Settings</button>
                                       </>
                                     )}
-                                    <button onClick={() => handlePxClear(conn.connectionId)}
-                                      className="px-3 py-1.5 text-negative text-xs font-medium hover:bg-negative/10 rounded-lg transition-colors">Clear imported data</button>
                                     <button onClick={() => handlePxDisconnect(conn.connectionId)}
                                       className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-negative hover:bg-negative/10 rounded-lg transition-colors">Disconnect</button>
                                   </div>
@@ -1154,7 +1088,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                             {pxConnections.length === 0 ? (
                               <>
                                 <div className="bg-bg-page/50 rounded-lg p-3">
-                                  <p className="text-xs text-text-secondary leading-relaxed">Connect your Topstep account via the ProjectX API to automatically sync trades. You'll need a paid API subscription from Topstep ($29/month).</p>
+                                  <p className="text-xs text-text-secondary leading-relaxed">Connect your Topstep account. Topstep uses the ProjectX API for automated trade syncing. You'll need a paid API subscription from Topstep ($29/month).</p>
                                 </div>
                                 <div className="space-y-3">
                                   <div>
@@ -1182,7 +1116,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                 <span className="text-xs text-text-muted">{pxConnectionLimit > 0 ? `${pxConnectionsUsed} / ${pxConnectionLimit} broker connections` : `${pxConnectionsUsed} broker connections`}</span>
                                 <button onClick={() => setPxShowNewForm(true)} disabled={pxConnectionsUsed >= pxConnectionLimit && pxConnectionLimit > 0}
                                   className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-input border border-border text-text-primary text-xs font-medium rounded-lg hover:border-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                  title={pxConnectionsUsed >= pxConnectionLimit && pxConnectionLimit > 0 ? 'Connection limit reached' : 'Add another ProjectX connection'}>
+                                  title={pxConnectionsUsed >= pxConnectionLimit && pxConnectionLimit > 0 ? 'Connection limit reached' : 'Add another Topstep connection'}>
                                   <Icons.Plus className="w-3.5 h-3.5" />Connect Another
                                 </button>
                               </div>
@@ -1190,7 +1124,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
 
                             {pxConnections.length > 0 && pxShowNewForm && (
                               <div className="bg-bg-page/50 border border-border rounded-lg p-4 space-y-3">
-                                <h4 className="text-sm font-medium text-text-primary">New ProjectX Connection</h4>
+                                <h4 className="text-sm font-medium text-text-primary">New Topstep Connection</h4>
                                 <div>
                                   <label className="block text-xs font-medium text-text-secondary mb-1">Username</label>
                                   <input type="text" value={pxUsername} onChange={(e) => setPxUsername(e.target.value)} placeholder="Your Topstep username"
