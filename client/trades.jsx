@@ -297,7 +297,9 @@ const App = () => {
     { apiBase: '/api/tradovate', brokerParam: 'apex_trader_funding', label: 'Apex Trader Funding' },
     { apiBase: '/api/webull',    brokerParam: null,                  label: 'Webull' },
     { apiBase: '/api/robinhood', brokerParam: null,                  label: 'Robinhood' },
-    { apiBase: '/api/projectx',  brokerParam: null,                  label: 'Topstep' },
+    // Topstep has its own server-side scheduler. Do not sync it again from the
+    // browser on every application mount or page refresh.
+    { apiBase: '/api/projectx',  brokerParam: null,                  label: 'Topstep', autoSyncOnMount: false },
   ];
 
   // Auto-sync brokers on mount
@@ -306,7 +308,7 @@ const App = () => {
       const statuses = [];
       let anyNewTrades = false;
 
-      for (const { apiBase, brokerParam, label } of SYNC_BROKERS) {
+      for (const { apiBase, brokerParam, label, autoSyncOnMount = true } of SYNC_BROKERS) {
         try {
           const statusUrl = brokerParam
             ? `${apiBase}/status?broker=${brokerParam}`
@@ -320,7 +322,7 @@ const App = () => {
 
           statuses.push({ name: label, apiBase, brokerParam, connections: conns, ...statusData });
 
-          if (configuredConns.length > 0) {
+          if (configuredConns.length > 0 && autoSyncOnMount) {
             setSyncNotification(`Syncing trades from ${label}...`);
             let totalSynced = 0;
 
