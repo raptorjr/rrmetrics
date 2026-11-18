@@ -243,6 +243,8 @@ CREATE TABLE IF NOT EXISTS projectx_connections (
   token_expires_at     TEXT,                              -- ISO timestamp
   selected_accounts    TEXT,                              -- JSON number[]
   account_settings     TEXT,                              -- JSON object keyed by Topstep account ID: { type, displayName }
+  last_full_sync_time  TEXT,
+  reinstated_order_keys TEXT,                             -- JSON string[] of broker-verified accountId:orderId keys
   copytrade_config     TEXT,                              -- JSON { leadAccountId, multiplier }
   auto_sync_enabled    INTEGER NOT NULL DEFAULT 0,
   auto_sync_interval_minutes INTEGER NOT NULL DEFAULT 5,
