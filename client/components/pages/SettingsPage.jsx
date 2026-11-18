@@ -1054,7 +1054,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                   </div>
                                   <p className="text-[11px] text-text-muted">{conn.autoSyncEnabled ? (conn.autoSyncStartedAt ? 'Automatic sync: Syncing…' : conn.autoSyncNextAt ? `Next automatic sync: ${relativeTime(conn.autoSyncNextAt)}` : 'Automatic sync is enabled') : 'Off — sync manually using Sync Now'}</p>
                                   {conn.autoSyncLastError && <p className="text-[11px] text-negative">Last automatic sync error: {conn.autoSyncLastError}</p>}
-                                  {conn.autoSyncLastAttemptAt && <p className="text-[11px] text-text-muted">Last automatic attempt: {relativeTime(conn.autoSyncLastAttemptAt)}</p>
+                                  {conn.autoSyncLastAttemptAt && <p className="text-[11px] text-text-muted">Last automatic attempt: {relativeTime(conn.autoSyncLastAttemptAt)}</p>}
                                   <p className="text-[11px] text-text-muted">Last full history reconciliation: {conn.lastFullSyncTime ? relativeTime(conn.lastFullSyncTime) : 'Not yet completed — the next sync will import full history'}</p>
                                 </div>
 
