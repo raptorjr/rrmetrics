@@ -18,6 +18,24 @@ The check is scoped to the affected order. It does not make voided executions ge
 
 The sync also compares reconstructed open positions with the broker's current open-position snapshot where that endpoint is available. Warnings and discrepancies are shown in the connection's detailed sync status.
 
+## Topstep accounts and account-level settings
+
+After connecting, RR Metrics fetches the accounts available to the supplied Topstep credentials and displays them directly in the Topstep integration panel. The list is refreshed from Topstep when connection status is loaded.
+
+For each account, the user can:
+
+- Select whether that account should be included in imports.
+- Classify it as **Evaluation**, **Express Funded (XFA)**, **Live Funded**, or **Other / Practice**.
+- Set an optional friendly display name. The original Topstep account ID and name remain the broker identity used for matching; the friendly name is used for the account label on imported trades.
+
+These settings are saved per account, not per Topstep login. This allows one login to contain Evaluation and funded accounts without applying one global Eval switch to every account.
+
+RR Metrics currently stores the Evaluation distinction in its existing boolean trade field (`is_eval`). Evaluation accounts are marked as Eval; XFA, Live Funded, and Other / Practice are marked as non-Eval. The more specific account type is retained in the Topstep connection settings for account-level configuration and future use, while the existing trade model does not yet distinguish XFA from Live Funded as separate trade flags.
+
+Older connections may still have the legacy connection-level Eval flag. When no per-account settings have been saved yet, that legacy flag and the existing account-name `EV` heuristic provide a compatibility fallback. Once account settings are saved, the explicit per-account classification takes precedence.
+
+Account selection, account type, and friendly names are edited inline in the Topstep panel; there is no separate Topstep **Settings** button for these controls. Copy-trading options remain available separately.
+
 ## Automatic sync
 
 Automatic sync runs in the RR Metrics server process, not in the browser. Closing the Settings page therefore does not stop scheduled syncs.
