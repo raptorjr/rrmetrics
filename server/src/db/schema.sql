@@ -316,3 +316,23 @@ CREATE TABLE IF NOT EXISTS syncer_order_log (
 
 CREATE INDEX IF NOT EXISTS idx_syncer_order_log_config_created
   ON syncer_order_log(config_id, created_at DESC);
+
+
+-- ─── ProjectX raw execution legs ─────────────────────────────────────────────
+-- Keep the broker's complete history (including voided/corrected records).
+-- Reconstructed positions in trades are a replaceable projection of this data.
+CREATE TABLE IF NOT EXISTS projectx_trade_legs (
+  broker_connection_id TEXT NOT NULL
+    REFERENCES broker_connections(id) ON DELETE CASCADE,
+  account_id           INTEGER NOT NULL,
+  trade_id             INTEGER NOT NULL,
+  contract_id          TEXT NOT NULL,
+  creation_timestamp   TEXT NOT NULL,
+  voided               INTEGER NOT NULL DEFAULT 0,
+  raw_json             TEXT NOT NULL,
+  updated_at           TEXT NOT NULL,
+  PRIMARY KEY (broker_connection_id, account_id, trade_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_projectx_trade_legs_connection_time
+  ON projectx_trade_legs(broker_connection_id, creation_timestamp);
