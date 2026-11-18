@@ -199,7 +199,7 @@ test('applies per-account Topstep type and friendly display name', () => {
   const xfaLegs = legs.map(leg => ({ ...leg, id: leg.id + 100, accountId: 8, orderId: leg.orderId + 100 }));
   reconcileProjectXHistory(
     db, 'user-1', 'connection-1', [...evalLegs, ...xfaLegs],
-    new Map([[7, 'Topstep original EV'], [8, 'Topstep original XFA']]),
+    new Map([[7, 'Gold Evaluation'], [8, 'Main XFA']]),
     { 'CON.F.US.MGC.Z6': 'MGC' }, 1, false, [7, 8], new Set(),
     {
       '7': { type: 'evaluation', displayName: 'Gold Evaluation' },
