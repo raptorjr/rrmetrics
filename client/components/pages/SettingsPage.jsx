@@ -450,6 +450,8 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
             next[conn.connectionId] = {
               ...result,
               type: result.error ? 'error' : (result.partial || result.openPositionMismatch || result.positionCheckErrors?.length || result.warnings?.length ? 'warning' : 'success'),
+              source: 'automatic',
+              attemptedAt: conn.autoSyncLastAttemptAt || null,
               text: result.message || result.error || 'Automatic sync completed.',
             };
           }
@@ -1106,9 +1108,11 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                           : 'border-border bg-bg-surface text-text-secondary'
                                   }`}>
                                     <div className="font-semibold mb-1">
-                                      {pxSyncResults[conn.connectionId].type === 'error' ? 'Topstep sync failed' :
-                                       pxSyncResults[conn.connectionId].type === 'warning' ? 'Topstep sync completed with warnings' :
-                                       pxSyncResults[conn.connectionId].type === 'success' ? 'Topstep sync complete' : 'Topstep sync in progress'}
+                                      {pxSyncResults[conn.connectionId].source === 'automatic'
+                                        ? `Previous automatic sync result${pxSyncResults[conn.connectionId].attemptedAt ? ` · ${relativeTime(pxSyncResults[conn.connectionId].attemptedAt)}` : ''} (not currently syncing)`
+                                        : pxSyncResults[conn.connectionId].type === 'error' ? 'Topstep sync failed' :
+                                          pxSyncResults[conn.connectionId].type === 'warning' ? 'Topstep sync completed with warnings' :
+                                          pxSyncResults[conn.connectionId].type === 'success' ? 'Topstep sync complete' : 'Topstep sync in progress'}
                                     </div>
                                     {pxSyncResults[conn.connectionId].text}
                                     {pxSyncResults[conn.connectionId].rawLegs !== undefined && (
