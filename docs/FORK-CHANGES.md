@@ -54,6 +54,27 @@ git clone --branch development https://github.com/raptorjr/rrmetrics.git
 - Dashboard and Analytics preferences are stored independently in browser local storage.
 - Existing default tile sets are preserved for users who have not customized either page.
 - The change affects presentation only; metric calculations, trade data, filters, charts, and other analytics sections remain unchanged.
+### Customizable Dashboard and Analytics metric tiles
+
+- Added a shared metric-tile customization component used by Dashboard and Analytics.
+- Users can show or hide supported metric tiles, drag them into a preferred order, and reset each page to its original layout.
+- Dashboard and Analytics preferences are stored independently in browser local storage.
+- Existing default tile sets are preserved for users who have not customized either page.
+- The change affects presentation only; metric calculations, trade data, filters, charts, and other analytics sections remain unchanged.
+
+### Display preferences
+
+- Added a global 12-hour / 24-hour time format preference in Settings → Preferences. The selected format is saved in browser local storage.
+- Added a display time zone preference with Automatic browser detection and manual IANA time zone selection. The preference is saved in browser local storage.
+- Shared trade date/time display formatting uses the selected time zone and format. Trading-session calculations and market-day grouping remain anchored to America/New_York; only displayed timestamps are converted.
+
+### Yearly calendar
+
+- Added a Yearly view alongside Daily, Heatmap, and Monthly in the calendar.
+- Added monthly P&L, Win rate, and Trades metric modes, with color intensity to help compare months and years.
+- Added year totals and clickable month cells that open the selected month in Daily view.
+- Monthly and yearly statistics use the calendar's existing trade-date grouping. Win rate excludes breakeven trades and is calculated from decisive trades.
+- The feature is implemented on the development branch; interactive verification in the self-hosted Babylon environment is still pending.
 
 ## Deployment notes
 

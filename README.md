@@ -8,7 +8,7 @@
 
 This repository is a public fork of [Snoe0/rrmetrics](https://github.com/Snoe0/rrmetrics). The `main` branch is kept aligned with upstream; additional work is developed on the `development` branch.
 
-The `development` branch includes additional Topstep import reconciliation and configurable server-side automatic syncing. These changes are documented in [Fork changes](docs/FORK-CHANGES.md), with setup and behaviour details in [Topstep sync](docs/TOPSTEP-SYNC.md).
+The `development` branch includes additional Topstep import reconciliation and configurable server-side automatic syncing, account-level Topstep settings, customizable Dashboard and Analytics metric tiles, display time preferences, and an expanded calendar with a yearly performance matrix. These changes are documented in [Fork changes](docs/FORK-CHANGES.md), with detailed guides for [Topstep sync](docs/TOPSTEP-SYNC.md) and [calendar and display preferences](docs/CALENDAR-AND-PREFERENCES.md).
 
 To try the fork-specific changes, clone the `development` branch explicitly:
 
@@ -48,12 +48,13 @@ Most trading journals are subscription SaaS products that hold your trade histor
 ## Features
 
 - **Trade journal** — manual entry, CSV import/export, per-trade comments, tags, and screenshot attachments (with markup)
-- **Dashboard** — P/L calendar with daily, heatmap, and monthly views
-- **Analytics** — equity curve, win rate, profit factor, expectancy, Sharpe and Sortino ratios, Kelly criterion, max drawdown, long/short breakdown
+- **Dashboard** — customizable metric tiles and a P/L calendar with daily, heatmap, monthly, and yearly views
+- **Analytics** — customizable metric tiles, equity curve, win rate, profit factor, expectancy, Sharpe and Sortino ratios, Kelly criterion, max drawdown, long/short breakdown
 - **Broker auto-sync** — Tradovate, TopstepX (ProjectX), Webull, and Robinhood, with automatic hourly token refresh
 - **Trade Syncer** — mirror orders live from a leader account to follower accounts (Tradovate-based accounts, per-follower size multipliers)
 - **Discipline tools** — pre-market checklist, daily notes, strategy rule tracking per trade and per day
 - **Backtesting sessions** — log and review backtests separately from live trades
+- **Preferences** — choose 12/24-hour time display and automatic or manual display time zone
 - **Dark and light themes**
 
 ## Quick Start
