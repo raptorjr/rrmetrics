@@ -140,6 +140,7 @@ projectx.get(
           expired: hasToken && tokenExpired,
           selectedAccounts: pxConn?.selected_accounts || [],
           accountSettings: pxConn?.account_settings || {},
+          lastFullSyncTime: pxConn?.last_full_sync_time || null,
           copytradeConfig: pxConn?.copytrade_config || null,
           lastSyncTime: bc.last_sync_time,
           autoSyncEnabled: pxConn?.auto_sync_enabled || false,
@@ -273,8 +274,8 @@ projectx.post('/api/projectx/auto-sync', requiresLogin, async (c) => {
 
 /**
  * POST /api/projectx/sync
- * Full-history reconciliation from ProjectX. The broker can correct or void
- * older records, so the sync deliberately re-fetches selected account history.
+ * Incremental Topstep sync with periodic full-history reconciliation. Initial sync
+ * and weekly reconciliation fetch all history; normal syncs fetch a rolling 24h window.
  */
 projectx.post(
   '/api/projectx/sync',
@@ -283,7 +284,7 @@ projectx.post(
     const user = c.get('user');
     const db = c.get('db');
     const body = await c.req.json();
-    const { connectionId } = body as { connectionId?: string };
+    const { connectionId, fullHistory: forceFullHistory } = body as { connectionId?: string; fullHistory?: boolean };
 
     if (!connectionId) {
       return c.json({ error: 'Missing connectionId' }, 400);
@@ -342,6 +343,12 @@ projectx.post(
       const accountsToSync = pxConn.copytrade_config
         ? [pxConn.copytrade_config.leadAccountId]
         : selectedAccounts;
+      const fullReconciliationDue = !pxConn.last_full_sync_time
+        || Date.now() - Date.parse(pxConn.last_full_sync_time) >= 7 * 24 * 60 * 60 * 1000;
+      const isFullHistory = forceFullHistory === true || fullReconciliationDue;
+      const historyStart = isFullHistory
+        ? '2020-01-01T00:00:00Z'
+        : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const multiplier = pxConn.copytrade_config?.multiplier || 1;
 
       const accounts = await api.getAccounts(token);
@@ -364,8 +371,9 @@ projectx.post(
       const positionCheckErrors: string[] = [];
 
       for (const accountId of accountsToSync) {
-        // Full history is intentional: ProjectX can revise or void old trade IDs.
-        const history = await api.searchTrades(token, accountId, '2020-01-01T00:00:00Z');
+        // Normal syncs overlap the previous 24 hours to catch delayed fills and corrections.
+        // Full history is reserved for the first sync, weekly reconciliation, or an explicit request.
+        const history = await api.searchTrades(token, accountId, historyStart);
         allTrades.push(...history.map(trade => ({
           ...trade,
           commissions: trade.commissions ?? null,
@@ -376,7 +384,7 @@ projectx.post(
         // trade-leg set is voided but whose filled quantity matches exactly
         // can qualify for the narrow simulated-history reconciliation.
         try {
-          const orderHistory = await api.searchOrders(token, accountId, '2020-01-01T00:00:00Z');
+          const orderHistory = await api.searchOrders(token, accountId, historyStart);
           allOrders.push(...orderHistory);
         } catch (error: any) {
           // The normal trade import can still proceed safely without this
@@ -397,9 +405,32 @@ projectx.post(
         }
       }
 
+      // Rebuild from all locally stored legs, not just the incremental response.
+      // This preserves complete position history while only downloading recent broker data.
+      const storedLegRows = db.prepare('SELECT raw_json FROM projectx_trade_legs WHERE broker_connection_id = ?').all(connectionId) as Array<{ raw_json: string }>;
+      const mergedTrades = new Map<string, import('../services/ProjectXAPI').Trade>();
+      for (const row of storedLegRows) {
+        const trade = JSON.parse(row.raw_json) as import('../services/ProjectXAPI').Trade;
+        if (accountsToSync.includes(trade.accountId)) mergedTrades.set(`${trade.accountId}:${trade.id}`, trade);
+      }
+      for (const trade of allTrades) mergedTrades.set(`${trade.accountId}:${trade.id}`, trade);
+
+      const freshOrderOverrides = findFullyFilledVoidedOrderOverrides([...mergedTrades.values()], allOrders);
+      const reinstatedOrderKeys = new Set<string>(isFullHistory ? [] : (pxConn.reinstated_order_keys || []));
+      if (!isFullHistory) {
+        const refreshedOrderKeys = new Set(allOrders.map(order => `${order.accountId}:${order.id}`));
+        for (const key of refreshedOrderKeys) reinstatedOrderKeys.delete(key);
+      }
+      for (const key of freshOrderOverrides) reinstatedOrderKeys.add(key);
+
       const contractNames: Record<string, string> = {};
-      const contractIds = [...new Set(allTrades.map(trade => trade.contractId))];
+      const recentContractIds = new Set(allTrades.map(trade => trade.contractId));
+      const contractIds = [...new Set([...mergedTrades.values()].map(trade => trade.contractId))];
       await Promise.all(contractIds.map(async contractId => {
+        if (!recentContractIds.has(contractId)) {
+          contractNames[contractId] = contractId.split('.')[3] || contractId;
+          return;
+        }
         try {
           const contract = await api.searchContract(token, contractId);
           if (!contract) {
@@ -423,12 +454,16 @@ projectx.post(
         multiplier,
         brokerConn.is_eval,
         accountsToSync,
-        findFullyFilledVoidedOrderOverrides(allTrades, allOrders),
+        reinstatedOrderKeys,
         pxConn.account_settings || {},
       );
 
-      await brokerDb.updateById(serviceClient, connectionId, {
-        last_sync_time: new Date().toISOString(),
+      const syncedAt = new Date().toISOString();
+      await brokerDb.updateById(serviceClient, connectionId, { last_sync_time: syncedAt });
+      const fullReconciliationCompleted = isFullHistory && result.warnings.length === 0 && orderCheckErrors.length === 0;
+      await pxConnDb.updateByBrokerConnectionId(serviceClient, connectionId, {
+        reinstated_order_keys: [...reinstatedOrderKeys],
+        ...(fullReconciliationCompleted ? { last_full_sync_time: syncedAt } : {}),
       });
 
       const openPositionMismatch = positionCheckErrors.length === 0
@@ -459,6 +494,15 @@ projectx.post(
         openPositionMismatch,
         positionCheckErrors,
         warnings: result.warnings,
+        syncMode: isFullHistory ? 'full' : 'incremental',
+        historyStart,
+        fullReconciliationCompleted,
+        lastFullSyncTime: fullReconciliationCompleted ? syncedAt : pxConn.last_full_sync_time,
+        nextFullReconciliationDue: fullReconciliationCompleted
+          ? new Date(Date.parse(syncedAt) + 7 * 24 * 60 * 60 * 1000).toISOString()
+          : pxConn.last_full_sync_time
+            ? new Date(Date.parse(pxConn.last_full_sync_time) + 7 * 24 * 60 * 60 * 1000).toISOString()
+            : null,
       });
     } catch (err: any) {
       console.error('ProjectX sync error:', err.message);
@@ -491,6 +535,7 @@ projectx.post('/api/projectx/clear', requiresLogin, async (c) => {
 
   try {
     const result = clearProjectXImport(db, user.id, connectionId);
+    await pxConnDb.updateByBrokerConnectionId(db, connectionId, { last_full_sync_time: null, reinstated_order_keys: [] });
     return c.json({
       message: 'ProjectX imported data cleared. Your connection and account settings are unchanged.',
       deletedPositions: result.deletedPositions,
