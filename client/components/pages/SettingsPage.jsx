@@ -442,22 +442,8 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
         });
         return next;
       });
-      setPxSyncResults(prev => {
-        const next = { ...prev };
-        (data.connections || []).forEach(conn => {
-          if (conn.autoSyncLastResult) {
-            const result = conn.autoSyncLastResult;
-            next[conn.connectionId] = {
-              ...result,
-              type: result.error ? 'error' : (result.partial || result.openPositionMismatch || result.positionCheckErrors?.length || result.warnings?.length ? 'warning' : 'success'),
-              source: 'automatic',
-              attemptedAt: conn.autoSyncLastAttemptAt || null,
-              text: result.message || result.error || 'Automatic sync completed.',
-            };
-          }
-        });
-        return next;
-      });
+      // Automatic sync results are surfaced as brief app-wide notifications,
+      // not repeated as a persistent diagnostic panel in Settings.
       setPxConnectionsUsed(data.connectionsUsed || 0);
       setPxConnectionLimit(data.connectionLimit || 0);
     } catch (err) {
