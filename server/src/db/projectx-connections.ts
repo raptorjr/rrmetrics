@@ -19,6 +19,7 @@ function rowFromDb(row: any): ProjectXConnectionRow {
     ...row,
     selected_accounts: parseJson<number[]>(row.selected_accounts),
     account_settings: parseJson<Record<string, { type: 'evaluation' | 'xfa' | 'live_funded' | 'other'; displayName: string }>>(row.account_settings),
+    reinstated_order_keys: parseJson<string[]>(row.reinstated_order_keys),
     copytrade_config: parseJson<{ leadAccountId: number; multiplier: number }>(row.copytrade_config),
     auto_sync_enabled: !!row.auto_sync_enabled,
     auto_sync_last_result: parseJson<Record<string, any>>(row.auto_sync_last_result),
@@ -71,7 +72,7 @@ export async function create(
 export async function updateByBrokerConnectionId(
   db: Db,
   brokerConnectionId: string,
-  updates: Partial<Pick<ProjectXConnectionRow, 'username' | 'api_key' | 'access_token' | 'token_expires_at' | 'selected_accounts' | 'account_settings' | 'copytrade_config' | 'auto_sync_enabled' | 'auto_sync_interval_minutes' | 'auto_sync_next_at' | 'auto_sync_last_attempt_at' | 'auto_sync_last_error' | 'auto_sync_last_result'>>,
+  updates: Partial<Pick<ProjectXConnectionRow, 'username' | 'api_key' | 'access_token' | 'token_expires_at' | 'selected_accounts' | 'account_settings' | 'last_full_sync_time' | 'reinstated_order_keys' | 'copytrade_config' | 'auto_sync_enabled' | 'auto_sync_interval_minutes' | 'auto_sync_next_at' | 'auto_sync_last_attempt_at' | 'auto_sync_last_error' | 'auto_sync_last_result'>>,
 ): Promise<void> {
   const columns: string[] = [];
   const values: unknown[] = [];
@@ -100,6 +101,8 @@ export async function updateByBrokerConnectionId(
     columns.push('account_settings = ?');
     values.push(updates.account_settings == null ? null : JSON.stringify(updates.account_settings));
   }
+  if (updates.last_full_sync_time !== undefined) { columns.push('last_full_sync_time = ?'); values.push(updates.last_full_sync_time); }
+  if (updates.reinstated_order_keys !== undefined) { columns.push('reinstated_order_keys = ?'); values.push(updates.reinstated_order_keys == null ? null : JSON.stringify(updates.reinstated_order_keys)); }
   if (updates.copytrade_config !== undefined) {
     columns.push('copytrade_config = ?');
     values.push(updates.copytrade_config == null ? null : JSON.stringify(updates.copytrade_config));
