@@ -80,6 +80,14 @@ cd rrmetrics
 - The Yearly view's GitHub Actions CI run passed; interactive verification in the Babylon self-hosted installation is still pending.
 
 
+### Trades tracking views and overview tiles
+
+- Added Day, Week, and All tracking views to the Trades page, with All remaining the default view to preserve the existing trade-table workflow.
+- Day and Week group trades by the New York trading-session date. Group summaries show net P&L, trade count, win rate, and profit factor, and can be expanded or collapsed to review the underlying trades.
+- Added customizable overview tiles to the All view, reusing the shared Dashboard / Analytics tile customization component. The default tiles show net P&L, profit factor, win rate, and average win/loss; additional trade metrics can be enabled and reordered.
+- Existing filters, sorting, table columns, trade editing, bulk actions, and CSV export remain available across the views.
+- Aggregate monetary metrics are withheld when multiple currencies are present rather than combining unlike currencies. Individual trade monetary values use their recorded currency code.
+
 ### Account and trade currency foundation
 
 - Added an ISO currency code to each trade record, with an additive SQLite migration that assigns existing trades USD to preserve the current RR Metrics assumption.

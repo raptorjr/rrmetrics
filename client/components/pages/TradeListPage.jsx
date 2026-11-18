@@ -2,7 +2,10 @@ const React = require('react');
 const { useState, useEffect } = React;
 const helper = require('../../helper.js');
 const { authFetch } = helper;
-const { getTradePL } = require('../../utils/analytics');
+const { getTradePL, calculateAnalytics } = require('../../utils/analytics');
+const CustomizableStats = require('../shared/CustomizableStats');
+const StatCard = require('../shared/StatCard');
+const WinRateCard = require('../shared/WinRateCard');
 const { formatDuration, formatDateEST, formatTimeEST } = require('../../utils/dateUtils');
 const { TAG_COLOR_PRESETS } = require('../../utils/tagConstants');
 const Icons = require('../shared/Icons');
@@ -30,6 +33,8 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
   const [bulkTagPickerOpen, setBulkTagPickerOpen] = useState(false);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [trackingView, setTrackingView] = useState('all');
+  const [expandedGroups, setExpandedGroups] = useState({});
 
   useEffect(() => {
     setSelectedTradeIds(new Set());
@@ -335,6 +340,64 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
     return 0;
   });
 
+
+  // Group by the New York trading session, independent of the display time zone.
+  const getSessionDateKey = (trade) => {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(new Date(trade.exitTime));
+    const get = type => parts.find(part => part.type === type).value;
+    return get('year') + '-' + get('month') + '-' + get('day');
+  };
+  const formatGroupDate = (key, options) => {
+    const parts = key.split('-').map(Number);
+    return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12)).toLocaleDateString('en-US', { ...options, timeZone: 'UTC' });
+  };
+  const currencyCodes = [...new Set(filtered.map(trade => (trade.currency_code || trade.currencyCode || 'USD').toUpperCase()))];
+  const hasMixedCurrencies = currencyCodes.length > 1;
+  const formatMoney = (value, currency) => {
+    const code = currency || (currencyCodes.length === 1 ? currencyCodes[0] : 'USD');
+    try {
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: code, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+    } catch { return code + ' ' + Number(value || 0).toFixed(2); }
+  };
+  const formatAggregateMoney = value => hasMixedCurrencies ? 'Mixed' : formatMoney(value);
+
+  const groupedTrades = (() => {
+    const groups = new Map();
+    filtered.forEach(trade => {
+      const dateKey = getSessionDateKey(trade);
+      let groupKey = dateKey;
+      let label = formatGroupDate(dateKey, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+      if (trackingView === 'week') {
+        const [year, month, day] = dateKey.split('-').map(Number);
+        const monday = new Date(Date.UTC(year, month - 1, day, 12));
+        monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+        const sunday = new Date(monday);
+        sunday.setUTCDate(sunday.getUTCDate() + 6);
+        groupKey = monday.getUTCFullYear() + '-' + String(monday.getUTCMonth() + 1).padStart(2, '0') + '-' + String(monday.getUTCDate()).padStart(2, '0');
+        const sundayKey = sunday.getUTCFullYear() + '-' + String(sunday.getUTCMonth() + 1).padStart(2, '0') + '-' + String(sunday.getUTCDate()).padStart(2, '0');
+        label = formatGroupDate(groupKey, { month: 'short', day: 'numeric' }) + ' – ' + formatGroupDate(sundayKey, { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+      if (!groups.has(groupKey)) groups.set(groupKey, { key: groupKey, label, trades: [], totalPL: 0, wins: 0, losses: 0, grossWins: 0, grossLosses: 0, currencyCodes: new Set() });
+      const group = groups.get(groupKey);
+      const pl = getTradePL(trade);
+      group.trades.push(trade);
+      group.currencyCodes.add((trade.currency_code || trade.currencyCode || 'USD').toUpperCase());
+      group.totalPL += pl;
+      if (pl > 0) { group.wins++; group.grossWins += pl; }
+      else if (pl < 0) { group.losses++; group.grossLosses += Math.abs(pl); }
+    });
+    return [...groups.values()].sort((a, b) => b.key.localeCompare(a.key));
+  })();
+  const displayRows = trackingView === 'all'
+    ? filtered.map(trade => ({ type: 'trade', trade }))
+    : groupedTrades.flatMap(group => [
+        { type: 'group', group },
+        ...(expandedGroups[group.key] === false ? [] : group.trades.map(trade => ({ type: 'trade', trade }))),
+      ]);
+  const toggleGroup = key => setExpandedGroups(current => ({ ...current, [key]: current[key] === false ? true : false }));
+
   const toggleSort = (field) => {
     if (sortField === field) {
       setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
@@ -387,6 +450,58 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
           </button>
         </div>
       </div>
+
+
+      <div className="flex items-center gap-1 bg-bg-surface border border-border rounded-lg p-1 w-fit">
+        {[
+          { id: 'day', label: 'Day' },
+          { id: 'week', label: 'Week' },
+          { id: 'all', label: 'All' },
+        ].map(view => (
+          <button
+            key={view.id}
+            type="button"
+            onClick={() => setTrackingView(view.id)}
+            className={'px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ' + (trackingView === view.id ? 'bg-accent text-accent-text' : 'text-text-secondary hover:text-text-primary')}
+          >
+            {view.label}
+          </button>
+        ))}
+      </div>
+
+      {trackingView === 'all' && (
+        <CustomizableStats
+          storageKey="rrmetrics_trades_all_tiles"
+          defaultOrder={['netPL', 'profitFactor', 'winRate', 'avgWinLoss', 'totalTrades', 'bestTrade', 'worstTrade', 'avgDuration']}
+          defaultVisible={['netPL', 'profitFactor', 'winRate', 'avgWinLoss']}
+          items={[
+            { id: 'netPL', label: 'Net cumulative P&L', render: () => <StatCard label={hasMixedCurrencies ? 'Net P&L · Mixed currencies' : 'Net cumulative P&L · ' + (currencyCodes[0] || 'USD')} value={formatAggregateMoney(calculateAnalytics(filtered).totalPL)} color={hasMixedCurrencies ? 'text-text-secondary' : calculateAnalytics(filtered).totalPL >= 0 ? 'text-positive' : 'text-negative'} subValue={hasMixedCurrencies ? 'Choose one currency for comparable totals' : filtered.length + ' closed trades'} /> },
+            { id: 'profitFactor', label: 'Profit factor', render: () => {
+              const grossWins = filtered.reduce((sum, trade) => sum + Math.max(0, getTradePL(trade)), 0);
+              const grossLosses = filtered.reduce((sum, trade) => sum + Math.max(0, -getTradePL(trade)), 0);
+              const factor = grossLosses > 0 ? grossWins / grossLosses : grossWins > 0 ? Infinity : 0;
+              return <StatCard label="Profit factor" value={hasMixedCurrencies ? '—' : factor === Infinity ? '∞' : factor.toFixed(2)} color="text-text-primary" subValue={hasMixedCurrencies ? 'Multiple currencies' : 'Gross wins ÷ gross losses'} />;
+            } },
+            { id: 'winRate', label: 'Trade win %', render: () => <WinRateCard wins={calculateAnalytics(filtered).wins} losses={calculateAnalytics(filtered).losses} breakevens={calculateAnalytics(filtered).breakevens} total={filtered.length} /> },
+            { id: 'avgWinLoss', label: 'Average win/loss', render: () => {
+              const stats = calculateAnalytics(filtered);
+              const ratio = Math.abs(stats.avgLoss) > 0 ? (stats.avgWin / Math.abs(stats.avgLoss)).toFixed(2) : '∞';
+              return <StatCard label="Avg win / loss" value={hasMixedCurrencies ? '—' : ratio} color="text-text-primary" subValue={hasMixedCurrencies ? 'Multiple currencies' : formatMoney(stats.avgWin) + ' avg win · ' + formatMoney(Math.abs(stats.avgLoss)) + ' avg loss'} />;
+            } },
+            { id: 'totalTrades', label: 'Total trades', render: () => <StatCard label="Total trades" value={filtered.length} color="text-text-primary" /> },
+            { id: 'bestTrade', label: 'Best trade', render: () => <StatCard label="Best trade" value={hasMixedCurrencies ? '—' : formatMoney(filtered.length ? Math.max(...filtered.map(getTradePL)) : 0)} color="text-positive" /> },
+            { id: 'worstTrade', label: 'Worst trade', render: () => <StatCard label="Worst trade" value={hasMixedCurrencies ? '—' : formatMoney(filtered.length ? Math.min(...filtered.map(getTradePL)) : 0)} color="text-negative" /> },
+            { id: 'avgDuration', label: 'Average duration', render: () => <StatCard label="Average duration" value={filtered.length ? formatDuration(filtered.reduce((sum, trade) => sum + (new Date(trade.exitTime) - new Date(trade.enterTime)), 0) / filtered.length) : '—'} color="text-text-primary" /> },
+          ]}
+        />
+      )}
+
+      {trackingView !== 'all' && (
+        <div className="flex items-center justify-between text-xs text-text-tertiary">
+          <span>{groupedTrades.length} {trackingView === 'day' ? 'trading days' : 'trading weeks'} · {filtered.length} trades</span>
+          <button type="button" className="hover:text-text-primary" onClick={() => setExpandedGroups({})}>Expand all</button>
+        </div>
+      )}
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3">
@@ -662,7 +777,30 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(trade => {
+                {displayRows.map(item => {
+                  if (item.type === 'group') {
+                    const group = item.group;
+                    const isOpen = expandedGroups[group.key] !== false;
+                    const decisive = group.wins + group.losses;
+                    const winRate = decisive > 0 ? (group.wins / decisive) * 100 : 0;
+                    const profitFactor = group.grossLosses > 0 ? group.grossWins / group.grossLosses : group.grossWins > 0 ? Infinity : 0;
+                    const groupHasMixedCurrencies = group.currencyCodes.size > 1;
+                    return (
+                      <tr key={'group-' + group.key} className="bg-bg-input/60 border-y border-border">
+                        <td colSpan={visibleColCount} className="px-4 py-3">
+                          <button type="button" onClick={() => toggleGroup(group.key)} className="w-full flex flex-wrap items-center gap-x-4 gap-y-2 text-left">
+                            <span className="text-text-secondary">{isOpen ? '⌄' : '›'}</span>
+                            <span className="font-semibold text-text-primary text-sm min-w-[170px]">{group.label}</span>
+                            <span className={'font-mono text-sm font-semibold ' + (group.totalPL >= 0 ? 'text-positive' : 'text-negative')}>{groupHasMixedCurrencies ? 'Mixed currencies' : formatMoney(group.totalPL, [...group.currencyCodes][0])}</span>
+                            <span className="text-text-tertiary text-xs">{group.trades.length} trades</span>
+                            <span className="text-text-tertiary text-xs">{winRate.toFixed(1)}% win rate</span>
+                            <span className="text-text-tertiary text-xs">PF {groupHasMixedCurrencies ? '—' : profitFactor === Infinity ? '∞' : profitFactor.toFixed(2)}</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  const trade = item.trade;
                   const pl = getTradePL(trade);
                   const duration = new Date(trade.exitTime) - new Date(trade.enterTime);
                   const isExpanded = expandedTradeId === trade._id;
@@ -727,12 +865,12 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
                         {isCol('entry') && <td className="px-4 py-3 font-mono text-sm text-text-secondary">${trade.enterPrice.toFixed(2)}</td>}
                         {isCol('exit') && <td className="px-4 py-3 font-mono text-sm text-text-secondary">${trade.exitPrice.toFixed(2)}</td>}
                         {isCol('qty') && <td className="px-4 py-3 font-mono text-sm text-text-secondary">{trade.quantity}</td>}
-                        {isCol('gross') && <td className="px-4 py-3 font-mono text-sm text-text-secondary">{trade.grossPL == null ? '—' : `${Number(trade.grossPL).toFixed(2)}`}</td>}
-                        {isCol('fees') && <td className="px-4 py-3 font-mono text-sm text-text-secondary">${Number(trade.fees || 0).toFixed(2)}</td>}
-                        {isCol('commissions') && <td className="px-4 py-3 font-mono text-sm text-text-secondary">${Number(trade.commissions || 0).toFixed(2)}</td>}
+                        {isCol('gross') && <td className="px-4 py-3 font-mono text-sm text-text-secondary">{trade.grossPL == null ? '—' : formatMoney(Number(trade.grossPL), (trade.currency_code || trade.currencyCode || 'USD').toUpperCase())}</td>}
+                        {isCol('fees') && <td className="px-4 py-3 font-mono text-sm text-text-secondary">{formatMoney(Number(trade.fees || 0), (trade.currency_code || trade.currencyCode || 'USD').toUpperCase())}</td>}
+                        {isCol('commissions') && <td className="px-4 py-3 font-mono text-sm text-text-secondary">{formatMoney(Number(trade.commissions || 0), (trade.currency_code || trade.currencyCode || 'USD').toUpperCase())}</td>}
                         <td className="px-4 py-3">
                           <span className={`font-mono text-sm font-semibold ${pl >= 0 ? 'text-positive' : 'text-negative'}`}>
-                            {pl >= 0 ? '+' : ''}${pl.toFixed(2)}
+                            {formatMoney(pl, (trade.currency_code || trade.currencyCode || 'USD').toUpperCase())}
                           </span>
                           {trade.manualPL !== null && trade.manualPL !== undefined && (
                             <span className="text-text-muted text-xs ml-1">(M)</span>
