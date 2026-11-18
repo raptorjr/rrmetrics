@@ -8,14 +8,17 @@ const { useBrokerConnection, TRADOVATE_BROKERS, BROKER_CONFIGS } = require('../.
 // Helper: relative time string from ISO date
 const relativeTime = (iso) => {
   if (!iso) return null;
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins} min ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
+  const timestamp = new Date(iso).getTime();
+  if (!Number.isFinite(timestamp)) return null;
+  const diffMs = timestamp - Date.now();
+  const mins = Math.ceil(Math.abs(diffMs) / 60000);
+  if (mins < 1) return diffMs > 0 ? 'in less than a min' : 'just now';
+  const suffix = diffMs > 0 ? 'from now' : 'ago';
+  if (mins < 60) return diffMs > 0 ? `in ${mins} min` : `${mins} min ago`;
+  const hrs = Math.ceil(mins / 60);
+  if (hrs < 24) return diffMs > 0 ? `in ${hrs}h` : `${hrs}h ago`;
+  const days = Math.ceil(hrs / 24);
+  return diffMs > 0 ? `in ${days}d` : `${days}d ago`;
 };
 
 const TradovateBrokerSection = ({ hook, expandedBroker, toggleBroker, brokerHeaderBadge, statusDot }) => {
@@ -457,6 +460,12 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
     Object.values(brokerHooks).forEach(h => h.fetchStatus());
     fetchPxStatus();
   }, []);
+
+  // Keep Topstep automatic-sync timing and progress current while Settings is open.
+  useEffect(() => {
+    const intervalId = window.setInterval(fetchPxStatus, 15 * 1000);
+    return () => window.clearInterval(intervalId);
+  }, [fetchPxStatus]);
 
   // =============================================
   // OAuth callback detection (shared across all Tradovate-compatible brokers)
@@ -1043,9 +1052,9 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                       {[1, 5, 10, 15, 30].map(minutes => <option key={minutes} value={minutes}>{minutes} min</option>)}
                                     </select>
                                   </div>
-                                  <p className="text-[11px] text-text-muted">{conn.autoSyncEnabled ? (conn.autoSyncNextAt ? `Next automatic sync: ${relativeTime(conn.autoSyncNextAt)}` : 'Automatic sync is enabled') : 'Off — sync manually using Sync Now'}</p>
+                                  <p className="text-[11px] text-text-muted">{conn.autoSyncEnabled ? (conn.autoSyncStartedAt ? 'Automatic sync: Syncing…' : conn.autoSyncNextAt ? `Next automatic sync: ${relativeTime(conn.autoSyncNextAt)}` : 'Automatic sync is enabled') : 'Off — sync manually using Sync Now'}</p>
                                   {conn.autoSyncLastError && <p className="text-[11px] text-negative">Last automatic sync error: {conn.autoSyncLastError}</p>}
-                                  {conn.autoSyncLastAttemptAt && <p className="text-[11px] text-text-muted">Last automatic attempt: {relativeTime(conn.autoSyncLastAttemptAt)}</p>}
+                                  {conn.autoSyncLastAttemptAt && <p className="text-[11px] text-text-muted">Last automatic attempt: {relativeTime(conn.autoSyncLastAttemptAt)}</p>
                                   <p className="text-[11px] text-text-muted">Last full history reconciliation: {conn.lastFullSyncTime ? relativeTime(conn.lastFullSyncTime) : 'Not yet completed — the next sync will import full history'}</p>
                                 </div>
 
