@@ -28,6 +28,7 @@ function createDb() {
       is_eval INTEGER NOT NULL DEFAULT 0,
       created_date TEXT NOT NULL
     );
+    CREATE TABLE trade_tags (trade_id TEXT NOT NULL, tag_id TEXT NOT NULL, PRIMARY KEY (trade_id, tag_id));
     CREATE TABLE projectx_trade_legs (
       broker_connection_id TEXT NOT NULL,
       account_id INTEGER NOT NULL,
@@ -81,8 +82,10 @@ test('reconciles raw ProjectX legs into a net-P&L trade and is idempotent', () =
   assert.equal(row.manual_pl, 6.16);
   assert.equal(row.projectx_source, 'projectx');
 
+  db.prepare('INSERT INTO trade_tags (trade_id, tag_id) VALUES (?, ?)').run(row.id, 'strategy-tag');
   reconcileProjectXHistory(...args);
   assert.equal((db.prepare('SELECT COUNT(*) AS count FROM trades').get() as { count: number }).count, 1);
+  assert.equal((db.prepare('SELECT COUNT(*) AS count FROM trade_tags WHERE trade_id = ?').get(row.id) as { count: number }).count, 1);
   assert.equal((db.prepare('SELECT COUNT(*) AS count FROM projectx_trade_legs').get() as { count: number }).count, 2);
   db.close();
 });
