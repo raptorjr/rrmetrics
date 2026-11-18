@@ -161,3 +161,36 @@ export function reconcileProjectXHistory(
     warnings: result.warnings,
   };
 }
+
+
+/**
+ * Clear only this user's imported ProjectX projection and raw broker history.
+ * The connection and encrypted credentials remain intact so it can be synced
+ * again without reconnecting. All deletes and the sync timestamp reset are
+ * committed atomically.
+ */
+export function clearProjectXImport(
+  db: Db,
+  userId: string,
+  connectionId: string,
+): { deletedPositions: number; deletedRawLegs: number } {
+  const run = db.transaction(() => {
+    const deletedPositions = db.prepare(`
+      DELETE FROM trades
+      WHERE user_id = ? AND broker_connection_id = ? AND projectx_source = 'projectx'
+    `).run(userId, connectionId).changes;
+
+    const deletedRawLegs = db.prepare(`
+      DELETE FROM projectx_trade_legs WHERE broker_connection_id = ?
+    `).run(connectionId).changes;
+
+    db.prepare(`
+      UPDATE broker_connections SET last_sync_time = NULL, updated_at = ?
+      WHERE id = ? AND owner = ?
+    `).run(new Date().toISOString(), connectionId, userId);
+
+    return { deletedPositions, deletedRawLegs };
+  });
+
+  return run();
+}
