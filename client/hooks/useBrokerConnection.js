@@ -110,7 +110,7 @@ const useBrokerConnection = (brokerType, { onSyncComplete, setMessage, setExpand
       if (data.error) {
         setMessage?.({ type: 'error', text: data.error });
       } else {
-        setMessage?.({ type: 'success', text: data.message || 'Sync complete' });
+        setMessage?.({ type: data.partial ? 'error' : 'success', text: data.message || 'Sync complete' });
         fetchStatus();
         onSyncComplete?.();
       }
