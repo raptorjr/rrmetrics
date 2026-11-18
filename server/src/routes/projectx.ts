@@ -363,7 +363,10 @@ projectx.post(
       });
 
       return c.json({
-        message: `Reconciled ${result.positions} positions from ${result.rawLegs} raw execution legs`,
+        message: result.warnings.length > 0
+          ? `Partially imported ${result.positions} safe positions from ${result.rawLegs} execution legs. ${result.warnings.length} reconstruction warning(s); affected instrument history was held back.`
+          : `Reconciled ${result.positions} positions from ${result.rawLegs} raw execution legs`,
+        partial: result.warnings.length > 0,
         synced: result.positions,
         rawLegs: result.rawLegs,
         openPositions: result.openPositions,
