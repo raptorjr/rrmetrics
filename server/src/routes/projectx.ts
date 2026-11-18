@@ -192,6 +192,11 @@ projectx.post(
       return c.json({ error: 'Select at least one account' }, 400);
     }
 
+    const supportedCurrencies = new Set(['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'CHF', 'JPY']);
+    if (accountSettings && Object.values(accountSettings).some(setting => setting.currencyCode && !supportedCurrencies.has(setting.currencyCode.toUpperCase()))) {
+      return c.json({ error: 'Unsupported account currency' }, 400);
+    }
+
     // Validate copytrade config if provided
     if (copytradeConfig) {
       if (!selectedAccounts.includes(copytradeConfig.leadAccountId)) {

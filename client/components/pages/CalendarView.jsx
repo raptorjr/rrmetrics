@@ -929,7 +929,7 @@ const YearlyGrid = ({ currentYear, dailyData, onSelectMonth }) => {
         ? (value === null ? '--' : `${value.toFixed(1)}%`)
         : String(value);
 
-    const colorClass = metric === 'pl' && hasTrades
+    const colorClass = metric === 'pl' && hasTrades && stats.currencyCode !== 'MIXED'
       ? (value >= 0 ? 'text-positive' : 'text-negative')
       : 'text-text-primary';
 
