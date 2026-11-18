@@ -476,19 +476,19 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
           defaultOrder={['netPL', 'profitFactor', 'winRate', 'avgWinLoss', 'totalTrades', 'bestTrade', 'worstTrade', 'avgDuration']}
           defaultVisible={['netPL', 'profitFactor', 'winRate', 'avgWinLoss']}
           items={[
-            { id: 'netPL', label: 'Net cumulative P&L', render: () => <StatCard label={hasMixedCurrencies ? 'Net P&L · Mixed currencies' : 'Net cumulative P&L · ' + (currencyCodes[0] || 'USD')} value={formatAggregateMoney(calculateAnalytics(filtered).totalPL)} color={hasMixedCurrencies ? 'text-text-secondary' : calculateAnalytics(filtered).totalPL >= 0 ? 'text-positive' : 'text-negative'} subValue={hasMixedCurrencies ? 'Choose one currency for comparable totals' : filtered.length + ' closed trades'} /> },
+            { id: 'netPL', label: 'Net cumulative P&L', render: () => <StatCard label={hasMixedCurrencies ? 'Net P&L · Mixed currencies' : 'Net cumulative P&L · ' + (currencyCodes[0] || 'USD')} value={formatAggregateMoney(calculateAnalytics(filtered).totalPL)} tooltip="Net profit or loss across the selected trades, after fees and commissions." color={hasMixedCurrencies ? 'text-text-secondary' : calculateAnalytics(filtered).totalPL >= 0 ? 'text-positive' : 'text-negative'} subValue={hasMixedCurrencies ? 'Choose one currency for comparable totals' : filtered.length + ' closed trades'} /> },
             { id: 'profitFactor', label: 'Profit factor', render: () => {
               const grossWins = filtered.reduce((sum, trade) => sum + Math.max(0, getTradePL(trade)), 0);
               const grossLosses = filtered.reduce((sum, trade) => sum + Math.max(0, -getTradePL(trade)), 0);
               const factor = grossLosses > 0 ? grossWins / grossLosses : grossWins > 0 ? Infinity : 0;
-              return <StatCard label="Profit factor" value={hasMixedCurrencies ? '—' : factor === Infinity ? '∞' : factor.toFixed(2)} color="text-text-primary" subValue={hasMixedCurrencies ? 'Multiple currencies' : 'Gross wins ÷ gross losses'} />;
+              return <StatCard label="Profit factor" value={hasMixedCurrencies ? '—' : factor === Infinity ? '∞' : factor.toFixed(2)} color="text-text-primary" subValue={hasMixedCurrencies ? 'Multiple currencies' : undefined} tooltip="Gross profit divided by gross loss. Above 1.00 means gross profits exceed gross losses; below 1.00 means gross losses are larger." />;
             } },
             { id: 'winRate', label: 'Trade win %', render: () => <WinRateCard wins={calculateAnalytics(filtered).wins} losses={calculateAnalytics(filtered).losses} breakevens={calculateAnalytics(filtered).breakevens} total={filtered.length} /> },
             { id: 'avgWinLoss', label: 'Avg Win / Loss', render: () => <AvgWinLossCard avgWin={calculateAnalytics(filtered).avgWin} avgLoss={calculateAnalytics(filtered).avgLoss} /> },
-            { id: 'totalTrades', label: 'Total trades', render: () => <StatCard label="Total trades" value={filtered.length} color="text-text-primary" /> },
-            { id: 'bestTrade', label: 'Best trade', render: () => <StatCard label="Best trade" value={hasMixedCurrencies ? '—' : formatMoney(filtered.length ? Math.max(...filtered.map(getTradePL)) : 0)} color="text-positive" /> },
-            { id: 'worstTrade', label: 'Worst trade', render: () => <StatCard label="Worst trade" value={hasMixedCurrencies ? '—' : formatMoney(filtered.length ? Math.min(...filtered.map(getTradePL)) : 0)} color="text-negative" /> },
-            { id: 'avgDuration', label: 'Average duration', render: () => <StatCard label="Average duration" value={filtered.length ? formatDuration(filtered.reduce((sum, trade) => sum + (new Date(trade.exitTime) - new Date(trade.enterTime)), 0) / filtered.length) : '—'} color="text-text-primary" /> },
+            { id: 'totalTrades', label: 'Total trades', render: () => <StatCard label="Total trades" value={filtered.length} color="text-text-primary" tooltip="Number of closed trades in the selected period." /> },
+            { id: 'bestTrade', label: 'Best trade', render: () => <StatCard label="Best trade" value={hasMixedCurrencies ? '—' : formatMoney(filtered.length ? Math.max(...filtered.map(getTradePL)) : 0)} color="text-positive" tooltip="The highest net P&L from a single trade in the selected period." /> },
+            { id: 'worstTrade', label: 'Worst trade', render: () => <StatCard label="Worst trade" value={hasMixedCurrencies ? '—' : formatMoney(filtered.length ? Math.min(...filtered.map(getTradePL)) : 0)} color="text-negative" tooltip="The lowest net P&L from a single trade in the selected period." /> },
+            { id: 'avgDuration', label: 'Average duration', render: () => <StatCard label="Average duration" value={filtered.length ? formatDuration(filtered.reduce((sum, trade) => sum + (new Date(trade.exitTime) - new Date(trade.enterTime)), 0) / filtered.length) : '—'} color="text-text-primary" tooltip="Average time between entry and exit across the selected trades." /> },
           ]}
         />
       )}
