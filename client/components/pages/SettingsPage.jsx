@@ -669,15 +669,15 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
     }
   };
 
-  const handlePxSync = async (connectionId) => {
+  const handlePxSync = async (connectionId, fullHistory = false) => {
     setPxSyncingId(connectionId);
-    setPxSyncResults(prev => ({ ...prev, [connectionId]: { type: 'info', text: 'Sync running. Fetching trade history and checking current positions...' } }));
+    setPxSyncResults(prev => ({ ...prev, [connectionId]: { type: 'info', text: fullHistory ? 'Full historical reconciliation running. This may take longer...' : 'Incremental sync running. Checking recent trades and current positions...' } }));
     setMessage(null);
     try {
       const response = await authFetch('/api/projectx/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connectionId }),
+        body: JSON.stringify({ connectionId, fullHistory }),
       });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.error || `Sync request failed (HTTP ${response.status})`);
@@ -1092,6 +1092,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                   <p className="text-[11px] text-text-muted">{conn.autoSyncEnabled ? (conn.autoSyncNextAt ? `Next automatic sync: ${relativeTime(conn.autoSyncNextAt)}` : 'Automatic sync is enabled') : 'Off — sync manually using Sync Now'}</p>
                                   {conn.autoSyncLastError && <p className="text-[11px] text-negative">Last automatic sync error: {conn.autoSyncLastError}</p>}
                                   {conn.autoSyncLastAttemptAt && <p className="text-[11px] text-text-muted">Last automatic attempt: {relativeTime(conn.autoSyncLastAttemptAt)}</p>}
+                                  <p className="text-[11px] text-text-muted">Last full history reconciliation: {conn.lastFullSyncTime ? relativeTime(conn.lastFullSyncTime) : 'Not yet completed — the next sync will import full history'}</p>
                                 </div>
 
                                 {pxSyncResults[conn.connectionId] && (
@@ -1235,6 +1236,8 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                           <Icons.RefreshCw className={`w-3.5 h-3.5 ${pxSyncingId === conn.connectionId ? 'animate-spin' : ''}`} />
                                           {pxSyncingId === conn.connectionId ? 'Syncing...' : 'Sync Now'}
                                         </button>
+                                        <button onClick={() => { if (window.confirm('Fetch all available Topstep trade and order history for the selected accounts? This uses more API requests than a normal sync.')) handlePxSync(conn.connectionId, true); }} disabled={pxSyncingId !== null}
+                                          className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-bg-surface rounded-lg transition-colors disabled:opacity-50">Full reconciliation</button>
                                         <button onClick={() => startEditingPxConnection(conn)}
                                           className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-bg-surface rounded-lg transition-colors">Copy-trading options</button>
                                       </>
