@@ -19,6 +19,15 @@ git clone --branch development https://github.com/raptorjr/rrmetrics.git
 - Added additive SQLite storage for per-account settings. Existing imported trade rows are not rewritten just by saving account settings; the next sync rebuilds the imported projection using the saved account names and Eval classification.
 - Evaluation is reflected in RR Metrics' existing `is_eval` trade flag. XFA and Live Funded are stored as distinct account types, but both currently map to non-Eval in the existing trade model.
 
+### Topstep incremental sync
+
+- Changed normal manual and scheduled syncs to fetch only the rolling last 24 hours of trades and orders.
+- Kept the initial import as a full-history fetch, then automatically performs a full-history reconciliation every seven days.
+- Added an explicit **Full reconciliation** action for users who want to run a full-history pass before the weekly schedule.
+- Incremental broker responses are upserted into the retained local raw execution history; position reconstruction continues to use the complete locally stored history.
+- Persisted broker-verified voided-order overrides so incremental rebuilds do not accidentally drop older executions that were previously corroborated by the Orders API.
+- Added a visible last-full-reconciliation timestamp and reset it when imported data is explicitly cleared.
+
 ### Topstep automatic sync
 
 - Added server-side automatic syncing for each Topstep connection.
