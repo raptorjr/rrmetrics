@@ -996,8 +996,6 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                 )}
                 {expandedBroker === 'projectx' && (
                   <div className="mt-3">
-                {expandedBroker === 'projectx' && (
-                  <div className="mt-3">
                     <div className="bg-bg-surface border border-border rounded-xl overflow-hidden">
                       <div className="flex items-center justify-between p-5">
                         <div className="flex items-center gap-3">
@@ -1280,9 +1278,6 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                         )}
                       </div>
                     </div>
-                  </div>
-                )}
-
                   </div>
                 )}
               </>
