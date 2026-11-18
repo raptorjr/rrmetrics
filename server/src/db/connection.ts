@@ -23,6 +23,15 @@ export function getDb(): Db {
   const schemaPath = path.join(__dirname, 'schema.sql');
   db.exec(fs.readFileSync(schemaPath, 'utf8'));
 
+  // CREATE TABLE IF NOT EXISTS does not add columns to existing databases.
+  // Apply additive, idempotent migrations before the DB is exposed to routes.
+  const tradeColumns = new Set(
+    (db.prepare('PRAGMA table_info(trades)').all() as Array<{ name: string }>).map(column => column.name),
+  );
+  if (!tradeColumns.has('gross_pl')) db.exec('ALTER TABLE trades ADD COLUMN gross_pl REAL');
+  if (!tradeColumns.has('fees')) db.exec('ALTER TABLE trades ADD COLUMN fees REAL NOT NULL DEFAULT 0');
+  if (!tradeColumns.has('commissions')) db.exec('ALTER TABLE trades ADD COLUMN commissions REAL NOT NULL DEFAULT 0');
+
   instance = db;
   return db;
 }
