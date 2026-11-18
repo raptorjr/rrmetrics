@@ -64,7 +64,7 @@ test('reconciles raw ProjectX legs into a net-P&L trade and is idempotent', () =
     db, 'user-1', 'connection-1', legs,
     new Map([[7, 'Topstep Practice']]),
     { 'CON.F.US.MGC.Z6': 'MGC' },
-    1, false,
+    1, false, [7],
   ] as const;
 
   const first = reconcileProjectXHistory(...args);
@@ -103,7 +103,7 @@ test('rebuilds an existing position when a broker leg is corrected or voided', (
   const result = reconcileProjectXHistory(
     db, 'user-1', 'connection-1', corrected,
     new Map([[7, 'Topstep Practice']]),
-    { 'CON.F.US.MGC.Z6': 'MGC' }, 1, false,
+    { 'CON.F.US.MGC.Z6': 'MGC' }, 1, false, [7],
   );
   const row = db.prepare('SELECT * FROM trades').get() as any;
   assert.equal(result.positions, 1);
