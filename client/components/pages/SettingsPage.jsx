@@ -365,6 +365,8 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
   const [pxConnecting, setPxConnecting] = useState(false);
   const [pxSyncingId, setPxSyncingId] = useState(null);
   const [pxSyncResults, setPxSyncResults] = useState({});
+  const [pxAccountDrafts, setPxAccountDrafts] = useState({});
+  const [pxSavingAccounts, setPxSavingAccounts] = useState(null);
   const [pxShowNewForm, setPxShowNewForm] = useState(false);
   // Per-connection editing state for ProjectX accounts
   const [pxEditingConnId, setPxEditingConnId] = useState(null);
@@ -419,6 +421,27 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
       const response = await authFetch('/api/projectx/status');
       const data = await response.json();
       setPxConnections(data.connections || []);
+      setPxAccountDrafts(prev => {
+        const next = { ...prev };
+        (data.connections || []).forEach(conn => {
+          const existing = next[conn.connectionId] || { selectedAccounts: conn.selectedAccounts || [], accountSettings: {} };
+          const accountSettings = { ...existing.accountSettings };
+          (conn.accounts || []).forEach(account => {
+            if (!accountSettings[String(account.id)]) {
+              const saved = conn.accountSettings?.[String(account.id)];
+              accountSettings[String(account.id)] = saved || {
+                type: conn.isEval || /EV/i.test(account.name) ? 'evaluation' : 'other',
+                displayName: '',
+              };
+            }
+          });
+          next[conn.connectionId] = {
+            selectedAccounts: existing.selectedAccounts ?? (conn.selectedAccounts || []),
+            accountSettings,
+          };
+        });
+        return next;
+      });
       setPxSyncResults(prev => {
         const next = { ...prev };
         (data.connections || []).forEach(conn => {
@@ -566,14 +589,6 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
         setPxApiKey('');
         setPxUsername('');
         setPxShowNewForm(false);
-        // Open editing for the new connection
-        if (data.connectionId) {
-          setPxEditingConnId(data.connectionId);
-          setPxEditSelectedAccounts([]);
-          setPxEditCopytradeEnabled(false);
-          setPxEditLeadAccount(null);
-          setPxEditMultiplier(1);
-        }
         fetchPxStatus();
       }
     } catch (err) {
@@ -583,31 +598,60 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
   };
 
   const handlePxSaveAccounts = async (connectionId) => {
-    if (pxEditSelectedAccounts.length === 0) {
-      setMessage({ type: 'error', text: 'Select at least one account' });
+    const draft = pxAccountDrafts[connectionId];
+    if (!draft || draft.selectedAccounts.length === 0) {
+      setMessage({ type: 'error', text: 'Select at least one account to sync' });
       return;
     }
+    setPxSavingAccounts(connectionId);
     setMessage(null);
     try {
-      const copytradeConfig = pxEditCopytradeEnabled && pxEditLeadAccount
+      const copytradeConfig = pxEditingConnId === connectionId && pxEditCopytradeEnabled && pxEditLeadAccount
         ? { leadAccountId: pxEditLeadAccount, multiplier: pxEditMultiplier }
-        : null;
+        : (pxConnections.find(conn => conn.connectionId === connectionId)?.copytradeConfig || null);
       const response = await authFetch('/api/projectx/accounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connectionId, selectedAccounts: pxEditSelectedAccounts, copytradeConfig }),
+        body: JSON.stringify({
+          connectionId,
+          selectedAccounts: draft.selectedAccounts,
+          accountSettings: draft.accountSettings,
+          copytradeConfig,
+        }),
       });
       const data = await response.json();
-      if (data.error) {
-        setMessage({ type: 'error', text: data.error });
-      } else {
-        setMessage({ type: 'success', text: 'Account settings saved' });
-        setPxEditingConnId(null);
-        fetchPxStatus();
-      }
+      if (!response.ok || data.error) throw new Error(data.error || 'Could not save account settings');
+      setMessage({ type: 'success', text: 'Topstep account settings saved' });
+      await fetchPxStatus();
     } catch (err) {
-      setMessage({ type: 'error', text: 'Failed to save settings' });
+      setMessage({ type: 'error', text: err.message || 'Failed to save account settings' });
+    } finally {
+      setPxSavingAccounts(null);
     }
+  };
+
+  const updatePxAccountDraft = (connectionId, accountId, patch) => {
+    setPxAccountDrafts(prev => {
+      const current = prev[connectionId] || { selectedAccounts: [], accountSettings: {} };
+      const existing = current.accountSettings[String(accountId)] || { type: 'other', displayName: '' };
+      return {
+        ...prev,
+        [connectionId]: {
+          ...current,
+          accountSettings: { ...current.accountSettings, [String(accountId)]: { ...existing, ...patch } },
+        },
+      };
+    });
+  };
+
+  const togglePxAccountSync = (connectionId, accountId) => {
+    setPxAccountDrafts(prev => {
+      const current = prev[connectionId] || { selectedAccounts: [], accountSettings: {} };
+      const selected = current.selectedAccounts.includes(accountId)
+        ? current.selectedAccounts.filter(id => id !== accountId)
+        : [...current.selectedAccounts, accountId];
+      return { ...prev, [connectionId]: { ...current, selectedAccounts: selected } };
+    });
   };
 
   const handlePxAutoSyncChange = async (connectionId, enabled, intervalMinutes) => {
@@ -701,26 +745,6 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
     }
   };
 
-  const handlePxToggleEval = async (connectionId, isEval) => {
-    setMessage(null);
-    try {
-      const response = await authFetch('/api/projectx/eval', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connectionId, isEval }),
-      });
-      const data = await response.json();
-      if (data.error) {
-        setMessage({ type: 'error', text: data.error });
-      } else {
-        setPxConnections(prev => prev.map(c =>
-          c.connectionId === connectionId ? { ...c, isEval } : c
-        ));
-      }
-    } catch {
-      setMessage({ type: 'error', text: 'Failed to update eval setting' });
-    }
-  };
 
   const startEditingPxConnection = (conn) => {
     setPxEditingConnId(conn.connectionId);
@@ -1114,44 +1138,54 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                   </div>
                                 )}
 
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs text-text-secondary">Eval Account</span>
-                                    <span className="text-[10px] text-text-muted">(marks all synced trades as eval)</span>
+                                <div className="pt-2 border-t border-border space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <h4 className="text-sm font-medium text-text-primary">Topstep accounts</h4>
+                                      <p className="text-xs text-text-muted">Choose which accounts to sync, classify each account and optionally give it a friendly name.</p>
+                                    </div>
+                                    <span className="text-xs text-text-secondary">{(pxAccountDrafts[conn.connectionId]?.selectedAccounts || []).length} selected</span>
                                   </div>
-                                  <button
-                                    onClick={() => handlePxToggleEval(conn.connectionId, !conn.isEval)}
-                                    className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer ${conn.isEval ? 'bg-accent' : 'bg-border'}`}
-                                  >
-                                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${conn.isEval ? 'translate-x-4' : ''}`} />
-                                  </button>
+                                  {(conn.accounts || []).map(account => {
+                                    const draft = pxAccountDrafts[conn.connectionId] || { selectedAccounts: [], accountSettings: {} };
+                                    const accountSetting = draft.accountSettings[String(account.id)] || { type: 'other', displayName: '' };
+                                    return (
+                                      <div key={account.id} className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_150px_minmax(0,1fr)] gap-2 items-center p-3 bg-bg-surface/60 border border-border rounded-lg">
+                                        <label className="flex items-start gap-2 cursor-pointer min-w-0">
+                                          <input type="checkbox" checked={draft.selectedAccounts.includes(account.id)}
+                                            onChange={() => togglePxAccountSync(conn.connectionId, account.id)}
+                                            className="mt-1 w-4 h-4 rounded border-border text-accent focus:ring-accent" />
+                                          <span className="min-w-0">
+                                            <span className="block text-sm font-medium text-text-primary break-words">{account.name}</span>
+                                            <span className="block text-xs text-text-muted">ID {account.id}{account.balance !== undefined ? ` · ${account.balance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}</span>
+                                          </span>
+                                        </label>
+                                        <select value={accountSetting.type}
+                                          onChange={e => updatePxAccountDraft(conn.connectionId, account.id, { type: e.target.value })}
+                                          className="w-full px-2 py-2 bg-bg-input border border-border rounded-md text-xs text-text-primary">
+                                          <option value="evaluation">Evaluation</option>
+                                          <option value="xfa">Express Funded (XFA)</option>
+                                          <option value="live_funded">Live Funded</option>
+                                          <option value="other">Other / Practice</option>
+                                        </select>
+                                        <input type="text" value={accountSetting.displayName}
+                                          onChange={e => updatePxAccountDraft(conn.connectionId, account.id, { displayName: e.target.value })}
+                                          placeholder="Friendly name (optional)"
+                                          className="w-full min-w-0 px-2 py-2 bg-bg-input border border-border rounded-md text-xs text-text-primary placeholder:text-text-muted" />
+                                      </div>
+                                    );
+                                  })}
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <span className="text-[11px] text-text-muted">Original Topstep names and IDs are retained for matching.</span>
+                                    <button onClick={() => handlePxSaveAccounts(conn.connectionId)} disabled={pxSavingAccounts === conn.connectionId || !pxAccountDrafts[conn.connectionId]?.selectedAccounts?.length}
+                                      className="px-4 py-2 bg-accent text-accent-text text-xs font-medium rounded-lg hover:brightness-110 transition-all disabled:opacity-50">
+                                      {pxSavingAccounts === conn.connectionId ? 'Saving...' : 'Save account settings'}
+                                    </button>
+                                  </div>
                                 </div>
 
                                 {pxEditingConnId === conn.connectionId && (
                                   <div className="space-y-3 pt-2 border-t border-border">
-                                    {(conn.accounts || []).length > 0 && (
-                                      <div>
-                                        <div className="flex items-center justify-between mb-2">
-                                          <h4 className="text-sm font-medium text-text-primary">Accounts</h4>
-                                        </div>
-                                        <div className="space-y-2">
-                                          {(conn.accounts || []).map(account => (
-                                            <label key={account.id} className="flex items-center gap-3 p-2.5 bg-bg-surface/50 rounded-lg cursor-pointer hover:bg-bg-surface transition-colors">
-                                              <input type="checkbox" checked={pxEditSelectedAccounts.includes(account.id)} onChange={() => togglePxEditAccount(account.id)}
-                                                className="w-4 h-4 rounded border-border text-accent focus:ring-accent disabled:opacity-40" />
-                                              <div className="flex-1">
-                                                <span className="text-sm text-text-primary font-medium">{account.name}</span>
-                                                {account.balance !== undefined && (
-                                                  <span className="text-xs text-text-secondary ml-2">${account.balance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                                )}
-                                              </div>
-                                              {account.canTrade && <span className="text-xs text-positive bg-positive/10 px-2 py-0.5 rounded-full">Active</span>}
-                                            </label>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-
                                     <div className="border border-border rounded-lg p-4 space-y-3">
                                       <label className="flex items-center gap-3 cursor-pointer">
                                         <input type="checkbox" checked={pxEditCopytradeEnabled}
@@ -1186,10 +1220,8 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                     </div>
 
                                     <div className="flex gap-2">
-                                      <button onClick={() => handlePxSaveAccounts(conn.connectionId)}
-                                        className="px-4 py-2 bg-accent text-accent-text text-sm font-medium rounded-lg hover:brightness-110 transition-all">Save Settings</button>
                                       <button onClick={() => setPxEditingConnId(null)}
-                                        className="px-4 py-2 text-text-secondary text-sm font-medium hover:text-text-primary transition-colors">Cancel</button>
+                                        className="px-4 py-2 text-text-secondary text-sm font-medium hover:text-text-primary transition-colors">Close copy-trading options</button>
                                     </div>
                                   </div>
                                 )}
@@ -1204,7 +1236,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                           {pxSyncingId === conn.connectionId ? 'Syncing...' : 'Sync Now'}
                                         </button>
                                         <button onClick={() => startEditingPxConnection(conn)}
-                                          className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-bg-surface rounded-lg transition-colors">Settings</button>
+                                          className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-bg-surface rounded-lg transition-colors">Copy-trading options</button>
                                       </>
                                     )}
                                     <button onClick={() => handlePxClear(conn.connectionId)}
