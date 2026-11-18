@@ -866,8 +866,7 @@ const YearlyGrid = ({ currentYear, dailyData, onSelectMonth }) => {
     const total = months.reduce((acc, m) => ({
       totalPL: acc.totalPL + m.totalPL,
       tradeCount: acc.tradeCount + m.tradeCount,
-      wins: acc.wins + (m.winRate === null ? 0 : (m.winRate / 100) * m.decisiveTrades),
-    }), { totalPL: 0, tradeCount: 0, wins: 0 });
+    }), { totalPL: 0, tradeCount: 0 });
     const allTrades = months.reduce((acc, m) => {
       const datePrefix = `${year}-${String(m.month + 1).padStart(2, '0')}-`;
       Object.entries(dailyData).forEach(([key, day]) => {
@@ -918,7 +917,7 @@ const YearlyGrid = ({ currentYear, dailyData, onSelectMonth }) => {
   const renderCell = (stats, year, month, isTotal = false) => {
     const value = metric === 'pl' ? stats.totalPL : metric === 'winRate' ? stats.winRate : stats.tradeCount;
     const hasTrades = stats.tradeCount > 0;
-    const intensityValue = metric === 'pl' ? Math.abs(value || 0) : (value || 0);
+    const intensityValue = metric === 'pl' ? (value || 0) : (value || 0);
     const intensityMax = metric === 'pl' ? maxAbsPL : metric === 'trades' ? maxTrades : 100;
     const style = hasTrades ? cellStyle(intensityValue, intensityMax, metric) : {};
     const content = !hasTrades ? '--' : metric === 'pl'
