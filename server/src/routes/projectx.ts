@@ -136,6 +136,7 @@ projectx.get(
           environment: bc.environment,
           label: bc.label,
           configured: hasToken && !tokenExpired,
+          legacyIsEval: bc.is_eval,
           expired: hasToken && tokenExpired,
           selectedAccounts: pxConn?.selected_accounts || [],
           accountSettings: pxConn?.account_settings || {},
