@@ -430,7 +430,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
             if (!accountSettings[String(account.id)]) {
               const saved = conn.accountSettings?.[String(account.id)];
               accountSettings[String(account.id)] = saved || {
-                type: conn.isEval || /EV/i.test(account.name) ? 'evaluation' : 'other',
+                type: conn.legacyIsEval || /EV/i.test(account.name) ? 'evaluation' : 'other',
                 displayName: '',
               };
             }
