@@ -12,6 +12,48 @@ const { TAG_COLOR_PRESETS } = require('../../utils/tagConstants');
 const Icons = require('../shared/Icons');
 const RuleChecklist = require('../shared/RuleChecklist');
 
+
+const DailyPnlChart = ({ trades, currency, formatMoney, totalPL }) => {
+  const ordered = [...trades].sort((a, b) => new Date(a.exitTime) - new Date(b.exitTime));
+  let running = 0;
+  const values = [0, ...ordered.map(trade => { running += getTradePL(trade); return running; })];
+  const min = Math.min(0, ...values);
+  const max = Math.max(0, ...values);
+  const range = max - min || 1;
+  const width = 320;
+  const height = 112;
+  const pad = 7;
+  const x = index => pad + (values.length <= 1 ? 0 : index / (values.length - 1)) * (width - pad * 2);
+  const y = value => pad + ((max - value) / range) * (height - pad * 2);
+  const points = values.map((value, index) => [x(index), y(value)]);
+  const line = points.map((point, index) => (index === 0 ? 'M' : 'L') + point[0].toFixed(1) + ',' + point[1].toFixed(1)).join(' ');
+  const area = line + ' L' + points[points.length - 1][0].toFixed(1) + ',' + (height - pad) + ' L' + points[0][0].toFixed(1) + ',' + (height - pad) + ' Z';
+  const zeroY = y(0);
+  const positive = totalPL >= 0;
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">Intraday cumulative P&amp;L</span>
+        <span className="text-[10px] text-text-muted">{ordered.length} closes</span>
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-[112px]" role="img" aria-label={`Cumulative P&L chart ending at ${formatMoney(totalPL, currency)}`}>
+        <line x1={pad} y1={zeroY} x2={width - pad} y2={zeroY} stroke="currentColor" opacity="0.22" strokeDasharray="3 3" />
+        <path d={area} fill={positive ? 'rgba(34,197,94,0.13)' : 'rgba(239,68,68,0.13)'} />
+        <path d={line} fill="none" stroke={positive ? '#22c55e' : '#ef4444'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        {points.length > 1 && <circle cx={points[points.length - 1][0]} cy={points[points.length - 1][1]} r="3.5" fill={positive ? '#22c55e' : '#ef4444'} />}
+      </svg>
+      <div className="flex justify-between text-[10px] text-text-muted"><span>{formatMoney(min, currency)}</span><span>{formatMoney(max, currency)}</span></div>
+    </div>
+  );
+};
+
+const DailyMetric = ({ label, value, valueClass = 'text-text-primary' }) => (
+  <div className="min-w-0">
+    <div className="text-[10px] uppercase tracking-wider text-text-tertiary mb-1">{label}</div>
+    <div className={`font-mono text-sm font-semibold truncate ${valueClass}`}>{value}</div>
+  </div>
+);
+
 const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport, tags, strategyRules }) => {
   const [searchTicker, setSearchTicker] = useState('');
   const [sortField, setSortField] = useState('exitTime');
@@ -380,12 +422,16 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
         const sundayKey = sunday.getUTCFullYear() + '-' + String(sunday.getUTCMonth() + 1).padStart(2, '0') + '-' + String(sunday.getUTCDate()).padStart(2, '0');
         label = formatGroupDate(groupKey, { month: 'short', day: 'numeric' }) + ' – ' + formatGroupDate(sundayKey, { month: 'short', day: 'numeric', year: 'numeric' });
       }
-      if (!groups.has(groupKey)) groups.set(groupKey, { key: groupKey, label, trades: [], totalPL: 0, wins: 0, losses: 0, grossWins: 0, grossLosses: 0, currencyCodes: new Set() });
+      if (!groups.has(groupKey)) groups.set(groupKey, { key: groupKey, label, trades: [], totalPL: 0, wins: 0, losses: 0, grossWins: 0, grossLosses: 0, grossPL: 0, grossPLComplete: true, commissions: 0, volume: 0, currencyCodes: new Set() });
       const group = groups.get(groupKey);
       const pl = getTradePL(trade);
       group.trades.push(trade);
       group.currencyCodes.add((trade.currency_code || trade.currencyCode || 'USD').toUpperCase());
       group.totalPL += pl;
+      group.commissions += Number(trade.commissions || 0);
+      group.volume += Math.abs(Number(trade.quantity || 0));
+      if (trade.grossPL === null || trade.grossPL === undefined || trade.grossPL === '') group.grossPLComplete = false;
+      else group.grossPL += Number(trade.grossPL);
       if (pl > 0) { group.wins++; group.grossWins += pl; }
       else if (pl < 0) { group.losses++; group.grossLosses += Math.abs(pl); }
     });
@@ -395,7 +441,7 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
     ? filtered.map(trade => ({ type: 'trade', trade }))
     : groupedTrades.flatMap(group => [
         { type: 'group', group },
-        ...(expandedGroups[group.key] === false ? [] : group.trades.map(trade => ({ type: 'trade', trade }))),
+        ...(expandedGroups[group.key] === false ? [] : (trackingView === 'day' ? [...group.trades].sort((a, b) => new Date(a.exitTime) - new Date(b.exitTime)) : group.trades).map(trade => ({ type: 'trade', trade }))),
       ]);
   const toggleGroup = key => setExpandedGroups(current => ({ ...current, [key]: current[key] === false ? true : false }));
 
@@ -782,6 +828,43 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
                     const winRate = decisive > 0 ? (group.wins / decisive) * 100 : 0;
                     const profitFactor = group.grossLosses > 0 ? group.grossWins / group.grossLosses : group.grossWins > 0 ? Infinity : 0;
                     const groupHasMixedCurrencies = group.currencyCodes.size > 1;
+                    if (trackingView === 'day') {
+                      const currency = [...group.currencyCodes][0] || 'USD';
+                      return (
+                        <tr key={'group-' + group.key} className="border-b border-border/60">
+                          <td colSpan={visibleColCount} className="p-3">
+                            <div className="rounded-xl border border-border bg-bg-surface overflow-hidden">
+                              <button type="button" onClick={() => toggleGroup(group.key)} aria-expanded={isOpen} className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-bg-input/40 transition-colors">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <span className="text-text-secondary">{isOpen ? '⌄' : '›'}</span>
+                                  <div className="min-w-0">
+                                    <div className="font-semibold text-text-primary text-sm">{group.label}</div>
+                                    <div className="text-[11px] text-text-tertiary mt-0.5">{group.trades.length} closed trades · {group.wins} wins · {group.losses} losses</div>
+                                  </div>
+                                </div>
+                                <div className={'font-mono text-lg font-bold whitespace-nowrap ' + (group.totalPL >= 0 ? 'text-positive' : 'text-negative')}>
+                                  {groupHasMixedCurrencies ? 'Mixed currencies' : (group.totalPL > 0 ? '+' : '') + formatMoney(group.totalPL, currency)}
+                                </div>
+                              </button>
+                              <div className="grid grid-cols-1 lg:grid-cols-[minmax(220px,0.9fr)_1.5fr] gap-5 px-4 pb-4 pt-1">
+                                <DailyPnlChart trades={group.trades} currency={currency} formatMoney={formatMoney} totalPL={group.totalPL} />
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-4 content-center">
+                                  <DailyMetric label="Total trades" value={group.trades.length} />
+                                  <DailyMetric label="Win rate" value={winRate.toFixed(1) + '%'} />
+                                  <DailyMetric label="Winners / losers" value={group.wins + ' / ' + group.losses} />
+                                  <DailyMetric label="Profit factor" value={groupHasMixedCurrencies ? '—' : profitFactor === Infinity ? '∞' : profitFactor.toFixed(2)} />
+                                  <DailyMetric label="Gross P&L" value={group.grossPLComplete && !groupHasMixedCurrencies ? formatMoney(group.grossPL, currency) : '—'} />
+                                  <DailyMetric label="Commissions" value={!groupHasMixedCurrencies ? formatMoney(group.commissions, currency) : '—'} />
+                                  <DailyMetric label="Volume" value={group.volume.toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' contracts'} />
+                                  <DailyMetric label="Breakeven" value={group.trades.filter(trade => getTradePL(trade) === 0).length} />
+                                </div>
+                              </div>
+                              {!isOpen && null}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
                     return (
                       <tr key={'group-' + group.key} className="bg-bg-input/60 border-y border-border">
                         <td colSpan={visibleColCount} className="px-4 py-3">
