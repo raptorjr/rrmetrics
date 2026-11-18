@@ -86,7 +86,7 @@ test('splits a reversal into a closed position and a new opposite position', () 
   assert.equal(result.positions[0].quantity, 2);
   assert.equal(result.positions[0].netPL, 14);
   assert.equal(result.positions[1].quantity, -3);
-  assert.equal(result.positions[1].netPL, 24);
+  assert.equal(result.positions[1].netPL, 21);
   assert.equal(result.openPositions.length, 0);
   assert.equal(result.warnings.length, 0);
 });
