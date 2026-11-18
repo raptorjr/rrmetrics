@@ -480,6 +480,9 @@ const App = () => {
             onOpenImport={() => setCsvImportOpen(true)}
             tags={tags}
             strategyRules={strategyRules}
+            dailyNotes={dailyNotes}
+            onSaveNote={handleSaveNote}
+            onDeleteNote={handleDeleteNote}
           />
         );
       case 'analytics':

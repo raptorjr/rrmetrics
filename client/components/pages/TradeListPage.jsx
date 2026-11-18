@@ -20,38 +20,50 @@ const DailyPnlChart = ({ trades, currency, formatMoney, totalPL }) => {
   const min = Math.min(0, ...values);
   const max = Math.max(0, ...values);
   const span = max - min || 1;
-  const width = 360;
-  const height = 132;
-  const left = 54;
-  const right = 8;
-  const top = 9;
-  const bottom = 9;
-  const plotWidth = width - left - right;
-  const plotHeight = height - top - bottom;
+  const width = 360, height = 132, left = 58, right = 8, top = 10, bottom = 10;
+  const plotWidth = width - left - right, plotHeight = height - top - bottom;
   const x = index => left + (values.length <= 1 ? 0 : index / (values.length - 1)) * plotWidth;
   const y = value => top + ((max - value) / span) * plotHeight;
   const zeroY = y(0);
   const points = values.map((value, index) => [x(index), y(value)]);
-  const line = points.map((point, index) => (index === 0 ? 'M' : 'L') + point[0].toFixed(1) + ',' + point[1].toFixed(1)).join(' ');
-  const area = line + ' L' + points[points.length - 1][0].toFixed(1) + ',' + zeroY.toFixed(1) + ' L' + points[0][0].toFixed(1) + ',' + zeroY.toFixed(1) + ' Z';
-  const positive = totalPL >= 0;
-  const mixed = min < 0 && max > 0;
-  const axis = mixed ? [{ value: max, label: formatMoney(max, currency) }, { value: 0, label: formatMoney(0, currency) }, { value: min, label: formatMoney(min, currency) }]
-    : max > 0 ? [{ value: max, label: formatMoney(max, currency) }, { value: 0, label: formatMoney(0, currency) }]
-    : [{ value: 0, label: formatMoney(0, currency) }, { value: min, label: formatMoney(min, currency) }];
+  const segmentPath = (index) => {
+    const p0 = points[Math.max(0, index - 1)], p1 = points[index];
+    const p2 = points[index + 1], p3 = points[Math.min(points.length - 1, index + 2)];
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6;
+    const c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6;
+    const c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    return `M${p1[0]},${p1[1]} C${c1x},${c1y} ${c2x},${c2y} ${p2[0]},${p2[1]}`;
+  };
+  const segments = points.slice(0, -1).map((point, index) => {
+    const next = points[index + 1];
+    const color = ((values[index] + values[index + 1]) / 2) >= 0 ? 'positive' : 'negative';
+    const path = segmentPath(index);
+    const area = path + ` L${next[0]},${zeroY} L${point[0]},${zeroY} Z`;
+    return { path, area, color };
+  });
+  const rawTicks = max > 0 && min < 0
+    ? [{ value: max }, { value: 0 }, { value: min }]
+    : max > 0 ? [{ value: max }, { value: 0 }] : [{ value: 0 }, { value: min }];
+  const ticks = rawTicks.filter((tick, index, all) =>
+    all.findIndex(candidate => formatMoney(candidate.value, currency) === formatMoney(tick.value, currency)) === index
+  );
   return (
     <div className="min-w-0">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary mb-1">Intraday cumulative P&amp;L</div>
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-[132px] overflow-visible" role="img" aria-label={`Cumulative P&L chart ending at ${formatMoney(totalPL, currency)}`}>
-        {axis.map((tick, index) => (
+        {ticks.map((tick, index) => (
           <g key={index}>
             <line x1={left} y1={y(tick.value)} x2={width - right} y2={y(tick.value)} stroke="currentColor" opacity={tick.value === 0 ? 0.34 : 0.18} strokeDasharray="3 3" />
-            <text x={left - 7} y={y(tick.value) + 3.5} textAnchor="end" fill="currentColor" opacity="0.72" fontSize="10">{tick.label}</text>
+            <text x={left - 7} y={y(tick.value) + 3.5} textAnchor="end" fill="currentColor" opacity="0.72" fontSize="10">{formatMoney(tick.value, currency)}</text>
           </g>
         ))}
-        <path d={area} fill={positive ? 'rgba(34,197,94,0.18)' : 'rgba(239,68,68,0.18)'} />
-        <path d={line} fill="none" stroke={positive ? '#22c55e' : '#ef4444'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        {points.length > 1 && <circle cx={points[points.length - 1][0]} cy={points[points.length - 1][1]} r="3.5" fill={positive ? '#22c55e' : '#ef4444'} />}
+        {segments.map((segment, index) => (
+          <g key={index}>
+            <path d={segment.area} fill={segment.color === 'positive' ? 'rgba(34,197,94,0.16)' : 'rgba(239,68,68,0.16)'} />
+            <path d={segment.path} fill="none" stroke={segment.color === 'positive' ? '#22c55e' : '#ef4444'} strokeWidth="2.5" strokeLinecap="round" />
+          </g>
+        ))}
+        {points.length > 1 && <circle cx={points[points.length - 1][0]} cy={points[points.length - 1][1]} r="3.5" fill={totalPL >= 0 ? '#22c55e' : '#ef4444'} />}
       </svg>
     </div>
   );
@@ -64,7 +76,7 @@ const DailyMetric = ({ label, value, valueClass = 'text-text-primary' }) => (
   </div>
 );
 
-const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport, tags, strategyRules }) => {
+const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport, tags, strategyRules, dailyNotes = [], onSaveNote, onDeleteNote }) => {
   const [searchTicker, setSearchTicker] = useState('');
   const [sortField, setSortField] = useState('exitTime');
   const [sortDir, setSortDir] = useState('desc');
@@ -87,7 +99,7 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [trackingView, setTrackingView] = useState('all');
-  const [expandedGroups, setExpandedGroups] = useState({});
+  const [expandedGroups, setExpandedGroups] = useState({});\n  const [editingNoteDate, setEditingNoteDate] = useState(null);\n  const [noteDraft, setNoteDraft] = useState('');\n  const [noteSaving, setNoteSaving] = useState(false);
 
   useEffect(() => {
     setSelectedTradeIds(new Set());
@@ -861,22 +873,26 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
                     const groupHasMixedCurrencies = group.currencyCodes.size > 1;
                     if (trackingView === 'day') {
                       const currency = [...group.currencyCodes][0] || 'USD';
+                      const existingNote = dailyNotes.find(note => note.date === group.key);
+                      const hasNote = Boolean(existingNote && existingNote.content);
                       return (
                         <tr key={'group-' + group.key} className="border-b border-border/60">
                           <td colSpan={visibleColCount} className="p-3">
                             <div className="rounded-xl border border-border bg-bg-surface overflow-hidden">
-                              <button type="button" onClick={() => toggleGroup(group.key)} aria-expanded={isOpen} className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-bg-input/40 transition-colors">
-                                <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-full flex items-center justify-between gap-3 px-4 py-3">
+                                <button type="button" onClick={() => toggleGroup(group.key)} aria-expanded={isOpen} className="flex items-center gap-3 min-w-0 text-left hover:opacity-80 transition-opacity">
                                   <span className="text-text-secondary">{isOpen ? '⌄' : '›'}</span>
-                                  <div className="min-w-0">
-                                    <div className="font-semibold text-text-primary text-sm">{group.label}</div>
-                                    <div className="text-[11px] text-text-tertiary mt-0.5">{group.trades.length} closed trades · {group.wins} wins · {group.losses} losses</div>
-                                  </div>
-                                </div>
-                                <div className={'font-mono text-lg font-bold whitespace-nowrap ' + (group.totalPL >= 0 ? 'text-positive' : 'text-negative')}>
-                                  {groupHasMixedCurrencies ? 'Mixed currencies' : (group.totalPL > 0 ? '+' : '') + formatMoney(group.totalPL, currency)}
-                                </div>
-                              </button>
+                                  <span className="font-semibold text-text-primary text-sm whitespace-nowrap">{group.label}</span>
+                                  <span className="text-text-tertiary">·</span>
+                                  <span className={'font-mono text-sm font-semibold whitespace-nowrap ' + (group.totalPL >= 0 ? 'text-positive' : 'text-negative')}>
+                                    {groupHasMixedCurrencies ? 'Mixed currencies' : 'Net P&L ' + (group.totalPL > 0 ? '+' : '') + formatMoney(group.totalPL, currency)}
+                                  </span>
+                                </button>
+                                <button type="button" onClick={() => { setEditingNoteDate(group.key); setNoteDraft(existingNote ? existingNote.content : ''); }} className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-accent transition-colors whitespace-nowrap" title={hasNote ? 'Edit day note' : 'Add day note'}>
+                                  <Icons.Edit className="w-3.5 h-3.5" /> {hasNote ? 'Edit note' : 'Add note'}
+                                  {hasNote && <span className="w-1.5 h-1.5 rounded-full bg-accent" />}
+                                </button>
+                              </div>
                               <div className="grid grid-cols-1 lg:grid-cols-[minmax(220px,0.9fr)_1.5fr] gap-5 px-4 pb-4 pt-1">
                                 <DailyPnlChart trades={group.trades} currency={currency} formatMoney={formatMoney} totalPL={group.totalPL} />
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-4 content-center">
@@ -1066,6 +1082,29 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
           </div>
         )}
       </div>
+
+      {editingNoteDate && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => !noteSaving && setEditingNoteDate(null)}>
+          <div className="bg-bg-surface border border-border rounded-xl p-5 w-full max-w-lg shadow-xl" onClick={event => event.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-text-primary font-semibold">Day note · {formatGroupDate(editingNoteDate, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</h3>
+              <button type="button" className="text-text-tertiary hover:text-text-primary" onClick={() => setEditingNoteDate(null)} disabled={noteSaving}><Icons.X /></button>
+            </div>
+            <textarea value={noteDraft} onChange={event => setNoteDraft(event.target.value)} rows={6} placeholder="What happened today? Record your observations, decisions or lessons..." className="w-full resize-y rounded-lg border border-border bg-bg-input text-text-primary text-sm p-3 focus:outline-none focus:border-accent" />
+            <div className="flex items-center justify-between gap-2 mt-3">
+              <div>
+                {dailyNotes.some(note => note.date === editingNoteDate) && (
+                  <button type="button" className="text-xs text-negative hover:underline disabled:opacity-50" disabled={noteSaving} onClick={async () => { setNoteSaving(true); await onDeleteNote(editingNoteDate); setNoteSaving(false); setEditingNoteDate(null); }}>Delete note</button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button type="button" className="px-3 py-2 text-xs text-text-secondary hover:text-text-primary" disabled={noteSaving} onClick={() => setEditingNoteDate(null)}>Cancel</button>
+                <button type="button" className="px-4 py-2 rounded-lg bg-accent text-accent-text text-xs font-semibold disabled:opacity-50" disabled={noteSaving || !noteDraft.trim()} onClick={async () => { setNoteSaving(true); await onSaveNote(editingNoteDate, noteDraft.trim()); setNoteSaving(false); setEditingNoteDate(null); }}>Save note</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {deleteConfirmId && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setDeleteConfirmId(null)}>
