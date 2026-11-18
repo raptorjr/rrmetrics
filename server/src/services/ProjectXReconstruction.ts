@@ -256,7 +256,11 @@ export function reconstructProjectXPositions(
       positions.splice(safePositionCount);
     }
 
-    if (current && netQuantity !== 0) {
+    // An open balance reconstructed after an inconsistency is not
+    // trustworthy. Quarantine it just like later completed positions; the
+    // broker's Position/searchOpen snapshot remains the authority for live
+    // exposure.
+    if (!instrumentHasWarnings && current && netQuantity !== 0) {
       openPositions.push({
         accountId: current.accountId,
         contractId: current.contractId,
