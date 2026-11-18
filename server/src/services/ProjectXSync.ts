@@ -25,6 +25,7 @@ export function reconcileProjectXHistory(
   contractNames: Record<string, string>,
   multiplier: number,
   connectionIsEval: boolean,
+  selectedAccountIds: number[],
 ): ProjectXSyncResult {
   const now = new Date().toISOString();
 
@@ -75,6 +76,14 @@ export function reconcileProjectXHistory(
       );
     }
 
+    // Remove raw histories for accounts that are no longer selected (or are
+    // no longer the copy-trade lead). Otherwise deselected accounts linger.
+    if (selectedAccountIds.length > 0) {
+      db.prepare(
+        `DELETE FROM projectx_trade_legs WHERE broker_connection_id = ? AND account_id NOT IN (${selectedAccountIds.map(() => '?').join(', ')})`,
+      ).run(connectionId, ...selectedAccountIds);
+    }
+
     const stored = readLegs.all(connectionId) as Array<{ raw_json: string }>;
     const allLegs = stored.map(row => JSON.parse(row.raw_json) as ProjectXRawTrade);
     const reconstruction = reconstructProjectXPositions(allLegs);
@@ -94,7 +103,7 @@ export function reconcileProjectXHistory(
       };
 
       insertPosition.run(
-        position.positionKey,
+        `px:${connectionId}:${position.positionKey}`,
         userId,
         ticker,
         position.enterTime,
@@ -107,7 +116,7 @@ export function reconcileProjectXHistory(
         scaled.fees,
         scaled.commissions,
         position.tradeIds.join(','),
-        position.positionKey,
+        `px:${connectionId}:${position.positionKey}`,
         connectionId,
         accountName,
         connectionIsEval || /EV/i.test(accountName) ? 1 : 0,
