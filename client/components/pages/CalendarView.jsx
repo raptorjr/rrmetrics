@@ -7,6 +7,7 @@ const ChangeIndicator = require("../shared/ChangeIndicator");
 const RuleChecklist = require("../shared/RuleChecklist");
 const { getTradePL, groupTradesByDate } = require("../../utils/analytics");
 const { formatDuration, formatFullDateEST, formatTimeEST } = require("../../utils/dateUtils");
+const { isBreakevenTrade } = require("../../utils/tickValues");
 const { calcPercentChange } = require("../../utils/periodUtils");
 const { SidePanelContext } = require("../../utils/contexts");
 const { useWindowWidth } = require("../../utils/hooks");
@@ -330,14 +331,14 @@ const DayDetailPanel = ({ dateKey, dayData, onClose, dailyNotes, onSaveNote, onD
 };
 
 // =====================================================
-// CALENDAR VIEW (with Daily / Heatmap / Monthly modes)
+// CALENDAR VIEW (with Daily / Heatmap / Monthly / Yearly modes)
 // =====================================================
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, strategyRules, onOpenAddTrade, onEditTrade, sidebarCollapsed }) => {
-  const [viewMode, setViewMode] = useState('daily'); // 'daily' | 'heatmap' | 'monthly'
+  const [viewMode, setViewMode] = useState('daily'); // 'daily' | 'heatmap' | 'monthly' | 'yearly'
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(null);
   const dailyData = groupTradesByDate(trades);
@@ -349,6 +350,7 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
     { id: 'daily', label: 'Daily', icon: Icons.Calendar },
     { id: 'heatmap', label: 'Heatmap', icon: Icons.Grid },
     { id: 'monthly', label: 'Monthly', icon: Icons.Layers },
+    { id: 'yearly', label: 'Yearly', icon: Icons.Layers },
   ];
 
   // Compute month P&L for the header badge (daily view only)
@@ -386,7 +388,7 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
           {viewMode !== 'heatmap' && (
             <button onClick={() => {
               if (viewMode === 'daily') setCurrentDate(new Date(year, month - 1, 1));
-              else setCurrentDate(new Date(year - 1, month, 1));
+              else setCurrentDate(new Date(year - 1, 0, 1));
             }} className="p-2 rounded-lg hover:bg-bg-input text-text-secondary transition-colors">
               <Icons.ChevronLeft />
             </button>
@@ -397,7 +399,7 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
           {viewMode !== 'heatmap' && (
             <button onClick={() => {
               if (viewMode === 'daily') setCurrentDate(new Date(year, month + 1, 1));
-              else setCurrentDate(new Date(year + 1, month, 1));
+              else setCurrentDate(new Date(year + 1, 0, 1));
             }} className="p-2 rounded-lg hover:bg-bg-input text-text-secondary transition-colors">
               <Icons.ChevronRight />
             </button>
@@ -473,6 +475,17 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
         <MonthlyGrid
           year={year}
           dailyData={dailyData}
+        />
+      )}
+
+      {viewMode === 'yearly' && (
+        <YearlyGrid
+          currentYear={year}
+          dailyData={dailyData}
+          onSelectMonth={(selectedYear, selectedMonth) => {
+            setCurrentDate(new Date(selectedYear, selectedMonth, 1));
+            setViewMode('daily');
+          }}
         />
       )}
 
@@ -802,6 +815,191 @@ const YearHeatmap = ({ year, dailyData, onSelectDay }) => {
             <span className="text-text-muted text-xs">/</span>
             <span className="font-mono text-sm font-bold text-negative">{lossDays}</span>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+// --- Yearly Calendar (monthly performance matrix) ---
+const YearlyGrid = ({ currentYear, dailyData, onSelectMonth }) => {
+  const [metric, setMetric] = useState('pl');
+
+  const monthStats = (year, month) => {
+    let totalPL = 0;
+    let tradeCount = 0;
+    let wins = 0;
+    let decisiveTrades = 0;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const dayData = dailyData[dateKey];
+      if (!dayData) continue;
+      totalPL += dayData.totalPL;
+      tradeCount += dayData.tradeCount;
+      dayData.trades.forEach(trade => {
+        if (isBreakevenTrade(trade)) return;
+        decisiveTrades++;
+        if (getTradePL(trade) > 0) wins++;
+      });
+    }
+
+    return {
+      totalPL,
+      tradeCount,
+      winRate: decisiveTrades > 0 ? (wins / decisiveTrades) * 100 : null,
+    };
+  };
+
+  const yearsWithTrades = Object.keys(dailyData)
+    .map(dateKey => Number(dateKey.slice(0, 4)))
+    .filter(Number.isFinite);
+  const minYear = yearsWithTrades.length ? Math.min(...yearsWithTrades) : currentYear;
+  const maxYear = Math.max(currentYear, ...(yearsWithTrades.length ? yearsWithTrades : [currentYear]));
+  const years = [];
+  for (let y = maxYear; y >= minYear; y--) years.push(y);
+
+  const rows = years.map(year => {
+    const months = MONTH_SHORT.map((name, month) => ({ name, ...monthStats(year, month), month }));
+    const total = months.reduce((acc, m) => ({
+      totalPL: acc.totalPL + m.totalPL,
+      tradeCount: acc.tradeCount + m.tradeCount,
+      wins: acc.wins + (m.winRate === null ? 0 : (m.winRate / 100) * m.decisiveTrades),
+    }), { totalPL: 0, tradeCount: 0, wins: 0 });
+    const allTrades = months.reduce((acc, m) => {
+      const datePrefix = `${year}-${String(m.month + 1).padStart(2, '0')}-`;
+      Object.entries(dailyData).forEach(([key, day]) => {
+        if (key.startsWith(datePrefix)) {
+          day.trades.forEach(trade => {
+            if (!isBreakevenTrade(trade)) {
+              acc.decisive++;
+              if (getTradePL(trade) > 0) acc.wins++;
+            }
+          });
+        }
+      });
+      return acc;
+    }, { decisive: 0, wins: 0 });
+    return {
+      year,
+      months,
+      totalPL: total.totalPL,
+      tradeCount: total.tradeCount,
+      winRate: allTrades.decisive > 0 ? (allTrades.wins / allTrades.decisive) * 100 : null,
+    };
+  });
+
+  const maxAbsPL = Math.max(1, ...rows.flatMap(row => row.months.map(m => Math.abs(m.totalPL))));
+  const maxTrades = Math.max(1, ...rows.flatMap(row => row.months.map(m => m.tradeCount)));
+  const formatMoney = value => {
+    const abs = Math.abs(value);
+    const formatted = abs >= 1000
+      ? `${(abs / 1000).toFixed(abs >= 10000 ? 0 : 1)}K`
+      : `${abs.toFixed(0)}`;
+    return value < 0 ? `-${formatted}` : formatted;
+  };
+  const cellStyle = (value, max, color) => ({
+    backgroundColor: value === 0 ? 'var(--bg-input)' : color === 'pl'
+      ? (value > 0
+        ? `rgba(34, 197, 94, ${0.10 + (Math.abs(value) / max) * 0.42})`
+        : `rgba(239, 68, 68, ${0.10 + (Math.abs(value) / max) * 0.42})`)
+      : `rgba(75, 105, 235, ${0.10 + (value / max) * 0.48})`,
+    borderColor: 'var(--border)',
+  });
+
+  const metrics = [
+    { id: 'pl', label: 'P&L' },
+    { id: 'winRate', label: 'Win rate' },
+    { id: 'trades', label: 'Trades' },
+  ];
+
+  const renderCell = (stats, year, month, isTotal = false) => {
+    const value = metric === 'pl' ? stats.totalPL : metric === 'winRate' ? stats.winRate : stats.tradeCount;
+    const hasTrades = stats.tradeCount > 0;
+    const intensityValue = metric === 'pl' ? Math.abs(value || 0) : (value || 0);
+    const intensityMax = metric === 'pl' ? maxAbsPL : metric === 'trades' ? maxTrades : 100;
+    const style = hasTrades ? cellStyle(intensityValue, intensityMax, metric) : {};
+    const content = !hasTrades ? '--' : metric === 'pl'
+      ? formatMoney(value)
+      : metric === 'winRate'
+        ? (value === null ? '--' : `${value.toFixed(1)}%`)
+        : String(value);
+
+    const colorClass = metric === 'pl' && hasTrades
+      ? (value >= 0 ? 'text-positive' : 'text-negative')
+      : 'text-text-primary';
+
+    const inner = (
+      <>
+        <div className={`font-mono text-sm font-bold ${colorClass}`}>{content}</div>
+        <div className="text-[10px] text-text-secondary mt-0.5">
+          {hasTrades ? `${stats.tradeCount} trade${stats.tradeCount !== 1 ? 's' : ''}` : ''}
+        </div>
+      </>
+    );
+
+    if (isTotal) {
+      return (
+        <div key="total" className="min-h-[76px] rounded-lg border border-border bg-bg-input flex flex-col items-center justify-center p-2">
+          {inner}
+        </div>
+      );
+    }
+
+    return (
+      <button
+        key={month}
+        type="button"
+        disabled={!hasTrades}
+        onClick={() => onSelectMonth(year, month)}
+        title={hasTrades ? `Open ${MONTH_NAMES[month]} ${year}` : 'No trades this month'}
+        style={style}
+        className={`min-h-[76px] rounded-lg border flex flex-col items-center justify-center p-2 transition-all ${hasTrades ? 'hover:brightness-125 cursor-pointer' : 'cursor-default'}`}
+      >
+        {inner}
+      </button>
+    );
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-3">
+        <h4 className="text-text-primary text-sm font-semibold">Yearly calendar</h4>
+        <div className="flex bg-bg-input rounded-lg p-0.5 gap-0.5">
+          {metrics.map(item => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setMetric(item.id)}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${metric === item.id ? 'bg-accent text-accent-text' : 'text-text-tertiary hover:text-text-primary'}`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <div className="min-w-[1050px]">
+          <div className="grid gap-1.5 mb-1.5" style={{ gridTemplateColumns: 'minmax(76px, 0.9fr) repeat(12, minmax(66px, 1fr)) minmax(76px, 0.9fr)' }}>
+            <div className="rounded-md border border-border bg-bg-input text-center text-[11px] font-semibold text-text-secondary py-2">Year</div>
+            {MONTH_SHORT.map(name => <div key={name} className="rounded-md border border-border bg-bg-input text-center text-[11px] font-semibold text-text-secondary py-2">{name}</div>)}
+            <div className="rounded-md border border-border bg-bg-input text-center text-[11px] font-semibold text-text-secondary py-2">Total</div>
+          </div>
+
+          {rows.map(row => (
+            <div key={row.year} className="grid gap-1.5 mb-1.5" style={{ gridTemplateColumns: 'minmax(76px, 0.9fr) repeat(12, minmax(66px, 1fr)) minmax(76px, 0.9fr)' }}>
+              <div className="min-h-[76px] rounded-lg border border-border bg-bg-input flex items-center justify-center text-sm font-semibold text-text-primary">{row.year}</div>
+              {row.months.map(m => renderCell(m, row.year, m.month))}
+              {renderCell({
+                totalPL: row.totalPL,
+                tradeCount: row.tradeCount,
+                winRate: row.winRate,
+              }, row.year, null, true)}
+            </div>
+          ))}
         </div>
       </div>
     </div>
