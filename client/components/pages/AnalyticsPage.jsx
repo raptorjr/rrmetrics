@@ -11,6 +11,7 @@ const ChangeIndicator = require("../shared/ChangeIndicator");
 const WinRateCard = require("../shared/WinRateCard");
 const PeriodFilter = require("../shared/PeriodFilter");
 const EvalFilterControl = require("../shared/EvalFilterControl");
+const CustomizableStats = require("../shared/CustomizableStats");
 
 
 
@@ -713,39 +714,31 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
         </div>
       ) : (<>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Total P/L" value={`$${stats.totalPL.toFixed(2)}`} color={stats.totalPL >= 0 ? 'text-positive' : 'text-negative'}
-          change={showChange ? calcPercentChange(stats.totalPL, prevStats.totalPL) : null} />
-        <WinRateCard wins={stats.wins} losses={stats.losses} breakevens={stats.breakevens} total={stats.totalTrades}
-          change={showChange ? calcPercentChange(stats.winRate, prevStats.winRate) : null} />
-        <StatCard label="Profit Factor" value={profitFactor.toFixed(2)} color="text-text-primary"
-          change={showChange ? calcPercentChange(profitFactor, prevProfitFactor) : null} />
-        <StatCard label="Expectancy" value={`$${expectancy.toFixed(2)}`} color={expectancy >= 0 ? 'text-positive' : 'text-negative'}
-          change={showChange ? calcPercentChange(expectancy, prevExpectancy) : null} />
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <StatCard label="Max Drawdown" value={`$${maxDrawdown.toFixed(2)}`} color="text-negative" />
-        <StatCard label="Breakeven Rate" value={`${stats.breakevenPct.toFixed(1)}%`} subValue={`${stats.breakevens} trades`} color="text-text-primary" />
-        <StatCard label="Sharpe Ratio" value={sharpeRatio === Infinity ? '∞' : sharpeRatio.toFixed(2)} color={sharpeRatio > 0 ? 'text-positive' : 'text-negative'}
-          tooltip={"Risk-adjusted return measuring reward per unit of total volatility.\n\nFormula: (Mean Daily P/L / Std Dev of Daily P/L) x √252\n\nAbove 1.0 = good, above 2.0 = excellent, below 0 = losing money on average."} />
-        <StatCard label="Sortino Ratio" value={sortinoRatio === Infinity ? '∞' : sortinoRatio.toFixed(2)} color={sortinoRatio > 0 ? 'text-positive' : 'text-negative'}
-          tooltip={"Like Sharpe but only penalizes downside volatility, ignoring upside swings.\n\nFormula: (Mean Daily P/L / Downside Deviation) x √252\n\nHigher is better. A Sortino much higher than Sharpe means your volatility is mostly upside."} />
-        <div className="bg-bg-surface border border-border rounded-xl p-5">
-          <div className="text-text-secondary text-xs font-medium uppercase tracking-wider mb-2">Kelly Optimal Risk</div>
-          <div className="font-mono text-2xl font-bold text-text-primary">${kelly.optimalRisk.toFixed(0)}</div>
-          <div className="text-text-tertiary text-xs mt-1">{kelly.kellyPct.toFixed(1)}% of drawdown</div>
-          <div className="flex items-center gap-2 mt-2">
-            <span className="text-text-tertiary text-xs">Max DD $</span>
-            <input
-              type="number"
-              value={kellyDrawdown}
-              onChange={(e) => setKellyDrawdown(Math.max(0, Number(e.target.value)))}
-              className="w-20 bg-bg-input border border-border rounded px-2 py-1 text-xs font-mono text-text-primary focus:outline-none focus:border-accent"
-            />
-          </div>
-        </div>
-      </div>
+      <CustomizableStats
+        storageKey="rrmetrics_analytics_tiles"
+        defaultOrder={['totalPL', 'winRate', 'profitFactor', 'expectancy', 'maxDrawdown', 'breakevenRate', 'sharpeRatio', 'sortinoRatio', 'kellyRisk']}
+        items={[
+          { id: 'totalPL', label: 'Total P/L', render: () => <StatCard label="Total P/L" value={`$${stats.totalPL.toFixed(2)}`} color={stats.totalPL >= 0 ? 'text-positive' : 'text-negative'} change={showChange ? calcPercentChange(stats.totalPL, prevStats.totalPL) : null} /> },
+          { id: 'winRate', label: 'Win Rate', render: () => <WinRateCard wins={stats.wins} losses={stats.losses} breakevens={stats.breakevens} total={stats.totalTrades} change={showChange ? calcPercentChange(stats.winRate, prevStats.winRate) : null} /> },
+          { id: 'profitFactor', label: 'Profit Factor', render: () => <StatCard label="Profit Factor" value={profitFactor.toFixed(2)} color="text-text-primary" change={showChange ? calcPercentChange(profitFactor, prevProfitFactor) : null} /> },
+          { id: 'expectancy', label: 'Expectancy', render: () => <StatCard label="Expectancy" value={`$${expectancy.toFixed(2)}`} color={expectancy >= 0 ? 'text-positive' : 'text-negative'} change={showChange ? calcPercentChange(expectancy, prevExpectancy) : null} /> },
+          { id: 'maxDrawdown', label: 'Max Drawdown', render: () => <StatCard label="Max Drawdown" value={`$${maxDrawdown.toFixed(2)}`} color="text-negative" /> },
+          { id: 'breakevenRate', label: 'Breakeven Rate', render: () => <StatCard label="Breakeven Rate" value={`${stats.breakevenPct.toFixed(1)}%`} subValue={`${stats.breakevens} trades`} color="text-text-primary" /> },
+          { id: 'sharpeRatio', label: 'Sharpe Ratio', render: () => <StatCard label="Sharpe Ratio" value={sharpeRatio === Infinity ? '∞' : sharpeRatio.toFixed(2)} color={sharpeRatio > 0 ? 'text-positive' : 'text-negative'} tooltip={"Risk-adjusted return measuring reward per unit of total volatility.\\n\\nFormula: (Mean Daily P/L / Std Dev of Daily P/L) x √252\\n\\nAbove 1.0 = good, above 2.0 = excellent, below 0 = losing money on average."} /> },
+          { id: 'sortinoRatio', label: 'Sortino Ratio', render: () => <StatCard label="Sortino Ratio" value={sortinoRatio === Infinity ? '∞' : sortinoRatio.toFixed(2)} color={sortinoRatio > 0 ? 'text-positive' : 'text-negative'} tooltip={"Like Sharpe but only penalizes downside volatility, ignoring upside swings.\\n\\nFormula: (Mean Daily P/L / Downside Deviation) x √252\\n\\nHigher is better. A Sortino much higher than Sharpe means your volatility is mostly upside."} /> },
+          { id: 'kellyRisk', label: 'Kelly Optimal Risk', render: () => (
+            <div className="bg-bg-surface border border-border rounded-xl p-5">
+              <div className="text-text-secondary text-xs font-medium uppercase tracking-wider mb-2">Kelly Optimal Risk</div>
+              <div className="font-mono text-2xl font-bold text-text-primary">${kelly.optimalRisk.toFixed(0)}</div>
+              <div className="text-text-tertiary text-xs mt-1">{kelly.kellyPct.toFixed(1)}% of drawdown</div>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-text-tertiary text-xs">Max DD $</span>
+                <input type="number" value={kellyDrawdown} onChange={(e) => setKellyDrawdown(Math.max(0, Number(e.target.value)))} className="w-20 bg-bg-input border border-border rounded px-2 py-1 text-xs font-mono text-text-primary focus:outline-none focus:border-accent" />
+              </div>
+            </div>
+          ) },
+        ]}
+      />
 
       {/* Long vs Short Breakdown */}
       {(() => {
