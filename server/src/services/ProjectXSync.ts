@@ -145,8 +145,9 @@ export function reconcileProjectXHistory(
         projectionId,
         connectionId,
         accountName,
-        accountSettings[String(position.accountId)]?.type === 'evaluation'
-          || (!accountSettings[String(position.accountId)] && (connectionIsEval || /EV/i.test(accountName))) ? 1 : 0,
+        accountSettings[String(position.accountId)]
+          ? (accountSettings[String(position.accountId)].type === 'evaluation' ? 1 : 0)
+          : (Object.keys(accountSettings).length === 0 && (connectionIsEval || /EV/i.test(accountName)) ? 1 : 0),
         now,
       );
     }
