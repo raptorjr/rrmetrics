@@ -6,7 +6,7 @@ This document describes the Topstep (ProjectX Gateway) changes maintained in the
 
 Topstep sync uses a rolling 24-hour window for normal operation. This applies to both manual **Sync Now** and scheduled automatic syncs.
 
-- **Initial sync:** fetches full available history (from 2020-01-01) to build the local execution history and imported positions.
+- **Initial sync:** fetches full available history (from 2020-01-01) to build the local execution history and imported positions. Adding or removing selected accounts, or changing the copy-trading lead account, also resets the checkpoint so the next sync performs a full import for the new account selection.
 - **Normal syncs:** fetch trades and orders from the last 24 hours. The overlap catches delayed fills and recent broker corrections without repeatedly downloading years of history.
 - **Weekly reconciliation:** the first sync after seven days since the last full-history pass automatically fetches full history again.
 - **Manual full reconciliation:** the **Full reconciliation** action explicitly requests all available history, regardless of the weekly schedule. It asks for confirmation because it uses more API requests.
@@ -17,7 +17,7 @@ The connection status shows when the last full-history reconciliation occurred. 
 
 ## Historical correction and order reconciliation
 
-The importer deliberately fetches the selected accounts' full trade history. This is intentional: broker history can be revised, including older executions being marked voided.
+Broker history can be revised, including older executions being marked voided. The weekly full-history reconciliation is retained to detect those older corrections; normal 24-hour syncs do not repeatedly download the complete history.
 
 The importer also requests order history as an independent cross-check. A voided trade-leg set is only reinstated in the narrow case where all of the following are true:
 
