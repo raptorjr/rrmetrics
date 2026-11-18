@@ -425,8 +425,12 @@ projectx.post(
       for (const trade of allTrades) mergedTrades.set(`${trade.accountId}:${trade.id}`, trade);
 
       const freshOrderOverrides = findFullyFilledVoidedOrderOverrides([...mergedTrades.values()], allOrders);
-      const reinstatedOrderKeys = new Set<string>(isFullHistory ? [] : (pxConn.reinstated_order_keys || []));
-      if (!isFullHistory) {
+      // If the Orders API is unavailable for any account during a full pass,
+      // retain previously corroborated overrides rather than dropping valid old fills.
+      const reinstatedOrderKeys = new Set<string>(
+        isFullHistory && orderCheckErrors.length === 0 ? [] : (pxConn.reinstated_order_keys || []),
+      );
+      if (!isFullHistory || orderCheckErrors.length > 0) {
         const refreshedOrderKeys = new Set(allOrders.map(order => `${order.accountId}:${order.id}`));
         for (const key of refreshedOrderKeys) reinstatedOrderKeys.delete(key);
       }
