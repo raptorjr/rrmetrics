@@ -26,7 +26,7 @@ git clone --branch development https://github.com/raptorjr/rrmetrics.git
 - Added an explicit **Full reconciliation** action for users who want to run a full-history pass before the weekly schedule.
 - Incremental broker responses are upserted into the retained local raw execution history; position reconstruction continues to use the complete locally stored history.
 - Persisted broker-verified voided-order overrides so incremental rebuilds do not accidentally drop older executions that were previously corroborated by the Orders API.
-- Added a visible last-full-reconciliation timestamp and reset it when imported data is explicitly cleared.
+- Added a visible last-full-reconciliation timestamp and reset it when imported data is explicitly cleared or the selected account / copy-trading lead selection changes.
 
 ### Topstep automatic sync
 
