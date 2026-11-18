@@ -2,7 +2,20 @@
 
 This document describes the Topstep (ProjectX Gateway) changes maintained in the `development` branch of `raptorjr/rrmetrics`.
 
-## Historical import and reconciliation
+## Incremental sync and historical reconciliation
+
+Topstep sync uses a rolling 24-hour window for normal operation. This applies to both manual **Sync Now** and scheduled automatic syncs.
+
+- **Initial sync:** fetches full available history (from 2020-01-01) to build the local execution history and imported positions.
+- **Normal syncs:** fetch trades and orders from the last 24 hours. The overlap catches delayed fills and recent broker corrections without repeatedly downloading years of history.
+- **Weekly reconciliation:** the first sync after seven days since the last full-history pass automatically fetches full history again.
+- **Manual full reconciliation:** the **Full reconciliation** action explicitly requests all available history, regardless of the weekly schedule. It asks for confirmation because it uses more API requests.
+
+Incremental responses are merged into the locally stored execution history by account and trade ID. Position reconstruction still uses the complete local history, not only the recent 24-hour response. Older raw executions are retained and are not deleted by an incremental sync. The locally stored history remains the source used to rebuild journal positions.
+
+The connection status shows when the last full-history reconciliation occurred. Clearing imported data resets that checkpoint, so the next sync performs a new initial full import.
+
+## Historical correction and order reconciliation
 
 The importer deliberately fetches the selected accounts' full trade history. This is intentional: broker history can be revised, including older executions being marked voided.
 
