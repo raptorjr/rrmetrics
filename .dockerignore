@@ -1,0 +1,12 @@
+# Never bake runtime secrets, account data, or local build output into the image.
+.env
+.env.*
+!.env.example
+data/
+node_modules/
+.git/
+.gitignore
+.DS_Store
+npm-debug.log*
+coverage/
+dist/
