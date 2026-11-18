@@ -364,6 +364,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
   const [pxApiKey, setPxApiKey] = useState('');
   const [pxConnecting, setPxConnecting] = useState(false);
   const [pxSyncingId, setPxSyncingId] = useState(null);
+  const [pxSyncResults, setPxSyncResults] = useState({});
   const [pxShowNewForm, setPxShowNewForm] = useState(false);
   // Per-connection editing state for ProjectX accounts
   const [pxEditingConnId, setPxEditingConnId] = useState(null);
@@ -597,6 +598,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
 
   const handlePxSync = async (connectionId) => {
     setPxSyncingId(connectionId);
+    setPxSyncResults(prev => ({ ...prev, [connectionId]: { type: 'info', text: 'Sync started. Waiting for ProjectX history and reconciliation...' } }));
     setMessage(null);
     try {
       const response = await authFetch('/api/projectx/sync', {
@@ -604,18 +606,28 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ connectionId }),
       });
-      const data = await response.json();
-      if (data.error) {
-        setMessage({ type: 'error', text: data.error });
-      } else {
-        setMessage({ type: 'success', text: data.message || 'Sync complete' });
-        fetchPxStatus();
-        if (onSyncComplete) onSyncComplete();
+      const responseText = await response.text();
+      let data = {};
+      try {
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        throw new Error(`Server returned an unreadable response (HTTP ${response.status}): ${responseText.slice(0, 300) || 'empty response'}`);
       }
+      if (!response.ok || data.error) {
+        throw new Error(data.error || `Sync request failed with HTTP ${response.status}`);
+      }
+      const resultText = data.message || 'Sync completed, but the server did not provide a summary.';
+      setPxSyncResults(prev => ({ ...prev, [connectionId]: { type: 'success', text: resultText, details: data } }));
+      setMessage({ type: 'success', text: resultText });
+      await fetchPxStatus();
+      if (onSyncComplete) onSyncComplete();
     } catch (err) {
-      setMessage({ type: 'error', text: 'Sync failed' });
+      const errorText = err?.message || String(err) || 'Unknown sync error';
+      setPxSyncResults(prev => ({ ...prev, [connectionId]: { type: 'error', text: errorText } }));
+      setMessage({ type: 'error', text: `ProjectX sync failed: ${errorText}` });
+    } finally {
+      setPxSyncingId(null);
     }
-    setPxSyncingId(null);
   };
 
   const handlePxClear = async (connectionId) => {
@@ -1013,6 +1025,29 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                 </div>
 
                                 {conn.lastSyncTime && <p className="text-xs text-text-muted">Last sync: {relativeTime(conn.lastSyncTime)}</p>}
+
+                                {pxSyncResults[conn.connectionId] && (
+                                  <div role="status" className={`rounded-lg border p-3 text-xs whitespace-pre-wrap break-words ${
+                                    pxSyncResults[conn.connectionId].type === 'error'
+                                      ? 'border-negative/40 bg-negative/10 text-negative'
+                                      : pxSyncResults[conn.connectionId].type === 'success'
+                                        ? 'border-positive/40 bg-positive/10 text-positive'
+                                        : 'border-border bg-bg-surface text-text-secondary'
+                                  }`}>
+                                    <div className="font-semibold mb-1">
+                                      {pxSyncResults[conn.connectionId].type === 'error' ? 'ProjectX sync failed' :
+                                       pxSyncResults[conn.connectionId].type === 'success' ? 'ProjectX sync complete' : 'ProjectX sync in progress'}
+                                    </div>
+                                    {pxSyncResults[conn.connectionId].text}
+                                    {pxSyncResults[conn.connectionId].details && (
+                                      <div className="mt-1">
+                                        Raw execution legs: {pxSyncResults[conn.connectionId].details.rawLegs ?? '—'} ·
+                                        Imported positions: {pxSyncResults[conn.connectionId].details.synced ?? '—'} ·
+                                        Open positions: {pxSyncResults[conn.connectionId].details.openPositions ?? '—'}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
 
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
