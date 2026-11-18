@@ -49,6 +49,27 @@ interface TradeResponse {
   errorMessage: string | null;
 }
 
+export interface ProjectXOrder {
+  id: number;
+  accountId: number;
+  contractId: string;
+  creationTimestamp: string;
+  updateTimestamp: string;
+  status: number;
+  type: number;
+  side: number;
+  size: number;
+  fillVolume: number | null;
+  filledPrice: number | null;
+}
+
+interface OrderResponse {
+  orders: ProjectXOrder[];
+  success: boolean;
+  errorCode: number;
+  errorMessage: string | null;
+}
+
 export interface OpenPosition {
   id: number;
   accountId: number;
@@ -209,6 +230,41 @@ export class ProjectXAPI {
     }
 
     return data.trades || [];
+  }
+
+  /**
+   * Search historical orders for an account. Filled order quantities are
+   * used only to cross-check anomalous voided trade legs.
+   */
+  async searchOrders(
+    token: string,
+    accountId: number,
+    startTimestamp: string,
+    endTimestamp?: string,
+  ): Promise<ProjectXOrder[]> {
+    const body: Record<string, unknown> = { accountId, startTimestamp };
+    if (endTimestamp) body.endTimestamp = endTimestamp;
+
+    const response = await fetch(`${BASE_URL}/Order/search`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        accept: 'text/plain',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch orders: ${response.status}`);
+    }
+
+    const data = (await response.json()) as OrderResponse;
+    if (!data.success || data.errorCode !== 0) {
+      throw new Error(data.errorMessage || 'Failed to fetch orders');
+    }
+
+    return data.orders || [];
   }
 
   /**
