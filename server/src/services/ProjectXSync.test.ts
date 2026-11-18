@@ -82,8 +82,8 @@ test('reconciles raw ProjectX legs into a net-P&L trade and is idempotent', () =
   assert.equal(row.projectx_source, 'projectx');
 
   reconcileProjectXHistory(...args);
-  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM trades').get().count, 1);
-  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM projectx_trade_legs').get().count, 2);
+  assert.equal((db.prepare('SELECT COUNT(*) AS count FROM trades').get() as { count: number }).count, 1);
+  assert.equal((db.prepare('SELECT COUNT(*) AS count FROM projectx_trade_legs').get() as { count: number }).count, 2);
   db.close();
 });
 
@@ -93,7 +93,7 @@ test('rebuilds an existing position when a broker leg is corrected or voided', (
     db, 'user-1', 'connection-1', legs,
     new Map([[7, 'Topstep Practice']]),
     { 'CON.F.US.MGC.Z6': 'MGC' },
-    1, false,
+    1, false, [7],
   ] as const;
 
   reconcileProjectXHistory(...args);
@@ -114,7 +114,7 @@ test('rebuilds an existing position when a broker leg is corrected or voided', (
   const voidedResult = reconcileProjectXHistory(
     db, 'user-1', 'connection-1', voided,
     new Map([[7, 'Topstep Practice']]),
-    { 'CON.F.US.MGC.Z6': 'MGC' }, 1, false,
+    { 'CON.F.US.MGC.Z6': 'MGC' }, 1, false, [7],
   );
   assert.equal(voidedResult.positions, 0);
   assert.equal(db.prepare('SELECT COUNT(*) AS count FROM trades').get().count, 0);
