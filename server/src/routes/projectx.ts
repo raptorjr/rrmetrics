@@ -387,11 +387,16 @@ projectx.post(
 
       const openPositionMismatch = positionCheckErrors.length === 0
         && brokerOpenPositions.length !== result.openPositions;
+      const positionSummary = positionCheckErrors.length > 0
+        ? ` Broker open-position check unavailable: ${positionCheckErrors.join('; ')}.`
+        : openPositionMismatch
+          ? ` IMPORTANT: ProjectX currently reports ${brokerOpenPositions.length} open position(s), but trade-history reconstruction reports ${result.openPositions}.`
+          : ` ProjectX and trade-history reconstruction both report ${result.openPositions} open position(s).`;
 
       return c.json({
-        message: result.warnings.length > 0
+        message: (result.warnings.length > 0
           ? `Partially imported ${result.positions} safe positions from ${result.rawLegs} execution legs. ${result.warnings.length} reconstruction warning(s); affected instrument history was held back.`
-          : `Reconciled ${result.positions} positions from ${result.rawLegs} raw execution legs`,
+          : `Reconciled ${result.positions} positions from ${result.rawLegs} raw execution legs`) + positionSummary,
         partial: result.warnings.length > 0,
         synced: result.positions,
         rawLegs: result.rawLegs,
