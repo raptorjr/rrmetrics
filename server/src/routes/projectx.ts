@@ -5,7 +5,7 @@ import * as pxConnDb from '../db/projectx-connections';
 import * as tradesDb from '../db/trades';
 import { encrypt, decrypt } from '../utils/crypto';
 import { ProjectXAPI } from '../services/ProjectXAPI';
-import { reconcileProjectXHistory } from '../services/ProjectXSync';
+import { clearProjectXImport, reconcileProjectXHistory } from '../services/ProjectXSync';
 import { requiresLogin } from '../middleware/auth';
 import { getDb } from '../db/connection';
 
@@ -375,6 +375,39 @@ projectx.post(
     }
   },
 );
+
+/**
+ * POST /api/projectx/clear
+ * Remove this connection's imported ProjectX trades and raw execution history,
+ * while preserving the connection credentials and selected account settings.
+ */
+projectx.post('/api/projectx/clear', requiresLogin, async (c) => {
+  const user = c.get('user');
+  const body = await c.req.json();
+  const { connectionId } = body as { connectionId?: string };
+
+  if (!connectionId) {
+    return c.json({ error: 'Missing connectionId' }, 400);
+  }
+
+  const db = getDb();
+  const connection = await brokerDb.findById(db, connectionId);
+  if (!connection || connection.owner !== user.id || connection.broker !== 'projectx') {
+    return c.json({ error: 'ProjectX connection not found' }, 404);
+  }
+
+  try {
+    const result = clearProjectXImport(db, user.id, connectionId);
+    return c.json({
+      message: 'ProjectX imported data cleared. Your connection and account settings are unchanged.',
+      deletedPositions: result.deletedPositions,
+      deletedRawLegs: result.deletedRawLegs,
+    });
+  } catch (err: any) {
+    console.error('ProjectX clear error:', err.message);
+    return c.json({ error: 'Failed to clear ProjectX imported data' }, 500);
+  }
+});
 
 /**
  * DELETE /api/projectx/connections/:connectionId
