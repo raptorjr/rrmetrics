@@ -1,12 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
-import { reconcileProjectXHistory } from './ProjectXSync';
+import { clearProjectXImport, reconcileProjectXHistory } from './ProjectXSync';
 import type { ProjectXRawTrade } from './ProjectXSync';
 
 function createDb() {
   const db = new Database(':memory:');
   db.exec(`
+    CREATE TABLE broker_connections (id TEXT PRIMARY KEY, owner TEXT NOT NULL, last_sync_time TEXT, updated_at TEXT);
     CREATE TABLE trades (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -122,5 +123,34 @@ test('rebuilds an existing position when a broker leg is corrected or voided', (
   assert.equal(voidedResult.positions, 0);
   assert.equal((db.prepare('SELECT COUNT(*) AS count FROM trades').get() as { count: number }).count, 0);
   assert.equal((db.prepare('SELECT COUNT(*) AS count FROM projectx_trade_legs').get() as { count: number }).count, 2);
+  db.close();
+});
+
+
+test('clears only the selected connection ProjectX import and keeps connection', () => {
+  const db = createDb();
+  db.prepare('INSERT INTO broker_connections (id, owner, last_sync_time, updated_at) VALUES (?, ?, ?, ?)').run(
+    'connection-1', 'user-1', '2026-11-18T10:00:00Z', '2026-11-18T10:00:00Z',
+  );
+  db.prepare('INSERT INTO broker_connections (id, owner, last_sync_time, updated_at) VALUES (?, ?, ?, ?)').run(
+    'connection-2', 'user-1', '2026-11-18T10:00:00Z', '2026-11-18T10:00:00Z',
+  );
+  reconcileProjectXHistory(
+    db, 'user-1', 'connection-1', legs,
+    new Map([[7, 'Topstep Practice']]), { 'CON.F.US.MGC.Z6': 'MGC' }, 1, false, [7],
+  );
+  db.prepare(`INSERT INTO projectx_trade_legs
+    (broker_connection_id, account_id, trade_id, contract_id, creation_timestamp, voided, raw_json, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      'connection-2', 8, 99, 'CON.F.US.MGC.Z6', '2026-11-02T10:00:00Z', 0, '{}', '2026-11-18T10:00:00Z',
+    );
+
+  const result = clearProjectXImport(db, 'user-1', 'connection-1');
+  assert.deepEqual(result, { deletedPositions: 1, deletedRawLegs: 2 });
+  assert.equal((db.prepare('SELECT COUNT(*) AS count FROM trades WHERE broker_connection_id = ?').get('connection-1') as { count: number }).count, 0);
+  assert.equal((db.prepare('SELECT COUNT(*) AS count FROM projectx_trade_legs WHERE broker_connection_id = ?').get('connection-1') as { count: number }).count, 0);
+  assert.equal((db.prepare('SELECT COUNT(*) AS count FROM projectx_trade_legs WHERE broker_connection_id = ?').get('connection-2') as { count: number }).count, 1);
+  assert.equal((db.prepare('SELECT last_sync_time FROM broker_connections WHERE id = ?').get('connection-1') as { last_sync_time: string | null }).last_sync_time, null);
+  assert.notEqual((db.prepare('SELECT last_sync_time FROM broker_connections WHERE id = ?').get('connection-2') as { last_sync_time: string | null }).last_sync_time, null);
   db.close();
 });
