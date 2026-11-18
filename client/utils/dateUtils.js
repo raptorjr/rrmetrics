@@ -39,7 +39,13 @@ const formatDateEST = (dateString) => {
 };
 
 const formatTimeEST = (dateString) => {
-  return new Date(dateString).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: EST_TZ });
+  let timeFormat = '12h';
+  try {
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('rrmetrics_time_format') === '24h') timeFormat = '24h';
+  } catch {}
+  return new Date(dateString).toLocaleTimeString('en-US', {
+    hour: '2-digit', minute: '2-digit', timeZone: EST_TZ, hour12: timeFormat !== '24h',
+  });
 };
 
 const formatFullDateEST = (dateString) => {
