@@ -58,7 +58,7 @@ export function reconcileProjectXHistory(
       quantity, manual_pl, gross_pl, fees, commissions, comments,
       projectx_trade_id, projectx_source, broker_connection_id, account,
       is_eval, created_date
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, 'projectx', ?, ?, ?, ?)
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'projectx', ?, ?, ?, ?)
   `);
 
   const result = db.transaction(() => {
