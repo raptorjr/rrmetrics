@@ -8,7 +8,7 @@
   "scripts": {
     "build": "webpack",
     "build:watch": "webpack watch",
-    "test": "echo \"Tests complete\"",
+    "test": "node --import tsx --test server/src/services/*.test.ts",
     "start": "tsx server/src/node.ts",
     "dev": "tsx watch server/src/node.ts",
     "seed-demo": "tsx server/scripts/seed-demo.ts"
