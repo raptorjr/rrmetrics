@@ -1176,12 +1176,12 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                       className="px-4 py-2 bg-accent text-accent-text text-xs font-medium rounded-lg hover:brightness-110 transition-all disabled:opacity-50">
                                       {pxSavingAccounts === conn.connectionId ? 'Saving...' : 'Save account settings'}
                                     </button>
-                                    {pxAccountSaveMessages[conn.connectionId] && (
-                                      <span role="status" className={`text-xs ${pxAccountSaveMessages[conn.connectionId].type === 'error' ? 'text-negative' : 'text-positive'}`}>
-                                        {pxAccountSaveMessages[conn.connectionId].text}
-                                      </span>
-                                    )}
                                   </div>
+                                  {pxAccountSaveMessages[conn.connectionId] && (
+                                    <div role="status" className={`mt-2 text-xs ${pxAccountSaveMessages[conn.connectionId].type === 'error' ? 'text-negative' : 'text-positive'}`}>
+                                      {pxAccountSaveMessages[conn.connectionId].text}
+                                    </div>
+                                  )}
                                 </div>
 
                                 {pxEditingConnId === conn.connectionId && (
