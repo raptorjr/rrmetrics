@@ -2,6 +2,21 @@
 
 This document describes the Topstep (ProjectX Gateway) changes maintained in the `development` branch of `raptorjr/rrmetrics`.
 
+## Execution reconstruction, partial exits, and costs
+
+Topstep's execution history is treated as a sequence of execution legs, not as a one-row-per-order trade list. The importer rebuilds positions separately for each account and contract.
+
+- Multiple entries are combined into one position using quantity-weighted entry price.
+- Partial exits are accumulated until the position is closed.
+- A reversal is split into the closing of the old position and the opening of a new position in the opposite direction.
+- Execution identifiers are used to group related legs; the broker's fill identifier is preferred when present, with order identity used as the fallback.
+- Fees and commissions are accumulated across opening and closing legs. The reconstructed journal P&L is net of both costs.
+- Updated copies of an execution replace older copies with the same account/trade ID, so broker corrections and voided-state changes can be applied during rebuilds.
+
+The importer validates the execution sequence. If an instrument's history contains an unmatched close, conflicting side, or another unsafe sequence, it reports a warning and quarantines later reconstructed positions for that instrument rather than inventing a plausible-looking result. Positions completed before the first inconsistency can be retained. An uncertain open balance is not published as a reconstructed open position; the broker's open-position snapshot remains the authority for current exposure.
+
+The raw execution history is retained locally so positions can be rebuilt after incremental syncs. The importer does not silently discard anomalous records to make the journal appear complete; inspect the detailed sync diagnostics when warnings are reported.
+
 ## Incremental sync and historical reconciliation
 
 Topstep sync uses a rolling 24-hour window for normal operation. This applies to both manual **Sync Now** and scheduled automatic syncs.

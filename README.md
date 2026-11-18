@@ -22,6 +22,7 @@ npm start
 
 The standard installation instructions below continue to describe the upstream project's default branch. If you want the fork's additional features, use the development-branch command above.
 
+[![CI](https://github.com/raptorjr/rrmetrics/actions/workflows/ci.yml/badge.svg?branch=development)](https://github.com/raptorjr/rrmetrics/actions/workflows/ci.yml?query=branch%3Adevelopment)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Node >= 20](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
