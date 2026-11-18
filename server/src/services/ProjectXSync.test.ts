@@ -60,12 +60,12 @@ const legs: ProjectXRawTrade[] = [
 
 test('reconciles raw ProjectX legs into a net-P&L trade and is idempotent', () => {
   const db = createDb();
-  const args = [
+  const args: Parameters<typeof reconcileProjectXHistory> = [
     db, 'user-1', 'connection-1', legs,
     new Map([[7, 'Topstep Practice']]),
     { 'CON.F.US.MGC.Z6': 'MGC' },
     1, false, [7],
-  ] as const;
+  ];
 
   const first = reconcileProjectXHistory(...args);
   assert.equal(first.rawLegs, 2);
