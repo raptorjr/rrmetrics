@@ -126,6 +126,7 @@ export interface ProjectXConnectionRow {
   auto_sync_enabled: boolean;
   auto_sync_interval_minutes: number;
   auto_sync_next_at: string | null;
+  auto_sync_started_at: string | null;
   auto_sync_last_attempt_at: string | null;
   auto_sync_last_error: string | null;
   auto_sync_last_result: Record<string, any> | null;
