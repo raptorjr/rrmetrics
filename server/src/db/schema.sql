@@ -243,6 +243,12 @@ CREATE TABLE IF NOT EXISTS projectx_connections (
   token_expires_at     TEXT,                              -- ISO timestamp
   selected_accounts    TEXT,                              -- JSON number[]
   copytrade_config     TEXT,                              -- JSON { leadAccountId, multiplier }
+  auto_sync_enabled    INTEGER NOT NULL DEFAULT 0,
+  auto_sync_interval_minutes INTEGER NOT NULL DEFAULT 5,
+  auto_sync_next_at    TEXT,
+  auto_sync_last_attempt_at TEXT,
+  auto_sync_last_error TEXT,
+  auto_sync_last_result TEXT,
   created_at           TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
