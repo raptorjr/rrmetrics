@@ -3,8 +3,6 @@ services:
     build: .
     container_name: rrmetrics
     restart: unless-stopped
-    env_file:
-      - .env
     ports:
       - "192.168.1.2:8459:8459"
     environment:
