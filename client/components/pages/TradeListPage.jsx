@@ -840,15 +840,15 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
                         <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider cursor-pointer" onClick={() => toggleSort('exitTime')}>Date <SortIcon field="exitTime" /></th>
                         <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider cursor-pointer" onClick={() => toggleSort('ticker')}>Ticker <SortIcon field="ticker" /></th>
                         {isCol('tags') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Tags</th>}
-                        {isCol('entry') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider>Entry</th>}
-                        {isCol('exit') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider>Exit</th>}
-                        {isCol('qty') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider>Qty</th>}
-                        {isCol('gross') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider>Gross P/L</th>}
-                        {isCol('fees') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider>Fees</th>}
-                        {isCol('commissions') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider>Commissions</th>}
+                        {isCol('entry') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Entry</th>}
+                        {isCol('exit') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Exit</th>}
+                        {isCol('qty') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Qty</th>}
+                        {isCol('gross') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Gross P/L</th>}
+                        {isCol('fees') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Fees</th>}
+                        {isCol('commissions') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Commissions</th>}
                         <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider cursor-pointer" onClick={() => toggleSort('pl')}>Net P/L <SortIcon field="pl" /></th>
-                        {isCol('duration') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider>Duration</th>}
-                        <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider>Actions</th>
+                        {isCol('duration') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Duration</th>}
+                        <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Actions</th>
                       </tr>
                     );
                   }
