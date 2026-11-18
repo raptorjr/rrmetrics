@@ -5,6 +5,7 @@ import * as pxConnDb from '../db/projectx-connections';
 import * as tradesDb from '../db/trades';
 import { encrypt, decrypt } from '../utils/crypto';
 import { ProjectXAPI } from '../services/ProjectXAPI';
+import { reconcileProjectXHistory } from '../services/ProjectXSync';
 import { requiresLogin } from '../middleware/auth';
 import { getDb } from '../db/connection';
 
@@ -244,7 +245,8 @@ projectx.post(
 
 /**
  * POST /api/projectx/sync
- * Incremental trade sync from ProjectX for a single connection.
+ * Full-history reconciliation from ProjectX. The broker can correct or void
+ * older records, so the sync deliberately re-fetches selected account history.
  */
 projectx.post(
   '/api/projectx/sync',
@@ -261,15 +263,13 @@ projectx.post(
 
     try {
       const serviceClient = getDb();
-
-      // Load connection data
       const brokerConn = await brokerDb.findById(serviceClient, connectionId);
       if (!brokerConn || brokerConn.owner !== user.id) {
         return c.json({ error: 'Connection not found' }, 404);
       }
 
       const pxConn = await pxConnDb.findByBrokerConnectionId(serviceClient, connectionId);
-      if (!pxConn || !pxConn.access_token) {
+      if (!pxConn?.access_token) {
         return c.json({ error: 'ProjectX not connected for this connection' }, 400);
       }
 
@@ -278,16 +278,10 @@ projectx.post(
         return c.json({ error: 'No accounts selected for sync' }, 400);
       }
 
-      const copytradeConfig = pxConn.copytrade_config;
-
-      // Decrypt token and re-auth if expired
       const api = new ProjectXAPI();
       let token: string;
-
       try {
         token = await decrypt(pxConn.access_token, c.env.ENCRYPTION_KEY);
-
-        // Check if token is expired and re-authenticate
         if (
           pxConn.token_expires_at &&
           new Date(pxConn.token_expires_at) < new Date()
@@ -313,116 +307,67 @@ projectx.post(
         );
       }
 
-      // Determine which accounts to sync
-      let accountsToSync = selectedAccounts;
-      if (copytradeConfig) {
-        // Only sync the lead account when copytrading
-        accountsToSync = [copytradeConfig.leadAccountId];
-      }
+      // A copytrade connection imports the configured lead account and applies
+      // the multiplier to reconstructed position size and P&L.
+      const accountsToSync = pxConn.copytrade_config
+        ? [pxConn.copytrade_config.leadAccountId]
+        : selectedAccounts;
+      const multiplier = pxConn.copytrade_config?.multiplier || 1;
 
-      // Resolve account IDs to names
       const accounts = await api.getAccounts(token);
-      const accountNameMap = new Map(accounts.map((a: any) => [a.id, a.name]));
+      const accountNameMap = new Map<number, string>(
+        accounts.map(account => [account.id, account.name]),
+      );
 
-      // Fetch trades from each account
-      const startTimestamp = brokerConn.last_sync_time || '2020-01-01T00:00:00Z';
-      const allTrades: Array<{
-        id: number;
-        contractId: string;
-        creationTimestamp: string;
-        price: number;
-        profitAndLoss: number;
-        fees: number | null;
-        side: number;
-        size: number;
-        orderId: number;
-      }> = [];
-
-      const tradeAccountMap = new Map<number, number>();
-
+      const allTrades: import('../services/ProjectXAPI').Trade[] = [];
       for (const accountId of accountsToSync) {
-        const trades = await api.searchTrades(token, accountId, startTimestamp);
-        // Filter: only completed trades (non-null P&L) and not voided
-        const completedTrades = trades.filter((t) => t.profitAndLoss !== null && !t.voided);
-        for (const t of completedTrades) {
-          tradeAccountMap.set(t.id, accountId);
-        }
-        allTrades.push(...(completedTrades as any[]));
+        // Full history is intentional: ProjectX can revise or void old trade IDs.
+        const history = await api.searchTrades(token, accountId, '2020-01-01T00:00:00Z');
+        allTrades.push(...history.map(trade => ({
+          ...trade,
+          commissions: trade.commissions ?? null,
+          fillId: trade.fillId ?? null,
+        })));
       }
 
-      if (allTrades.length === 0) {
-        await brokerDb.updateById(serviceClient, connectionId, {
-          last_sync_time: new Date().toISOString(),
-        });
-        return c.json({ message: 'No new trades found', synced: 0 });
-      }
-
-      // Dedup: check which trade IDs already exist
-      const tradeIds = allTrades.map((t) => String(t.id));
-      const existingIds = new Set(
-        await pxConnDb.findByProjectXTradeIds(db, user.id, tradeIds),
-      );
-
-      const newTrades = allTrades.filter((t) => !existingIds.has(String(t.id)));
-
-      if (newTrades.length === 0) {
-        await brokerDb.updateById(serviceClient, connectionId, {
-          last_sync_time: new Date().toISOString(),
-        });
-        return c.json({ message: 'No new trades found', synced: 0 });
-      }
-
-      // Resolve contract IDs to ticker names
-      const uniqueContractIds = [...new Set(newTrades.map((t) => t.contractId))];
       const contractNames: Record<string, string> = {};
-      await Promise.all(
-        uniqueContractIds.map(async (contractId) => {
-          try {
-            const contract = await api.searchContract(token, contractId);
-            if (contract) {
-              // Extract base symbol (e.g., "NQU5" -> "NQ", "MESU5" -> "MES")
-              const name = contract.name || contractId;
-              // Strip trailing expiration code (letter + digit(s))
-              const ticker = name.replace(/[A-Z]\d+$/i, '').toUpperCase();
-              contractNames[contractId] = ticker || name.toUpperCase();
-            } else {
-              contractNames[contractId] = contractId;
-            }
-          } catch {
+      const contractIds = [...new Set(allTrades.map(trade => trade.contractId))];
+      await Promise.all(contractIds.map(async contractId => {
+        try {
+          const contract = await api.searchContract(token, contractId);
+          if (!contract) {
             contractNames[contractId] = contractId;
+            return;
           }
-        }),
+          const name = contract.name || contractId;
+          contractNames[contractId] = name.replace(/[A-Z]\\d+$/i, '').toUpperCase() || name.toUpperCase();
+        } catch {
+          contractNames[contractId] = contractId;
+        }
+      }));
+
+      const result = reconcileProjectXHistory(
+        db,
+        user.id,
+        connectionId,
+        allTrades,
+        accountNameMap,
+        contractNames,
+        multiplier,
+        brokerConn.is_eval,
       );
-
-      // Apply copytrade multiplier
-      const multiplier = copytradeConfig ? copytradeConfig.multiplier : 1;
-
-      // Build trade objects for bulk insert
-      const tradesToInsert = newTrades.map((t) => {
-        const acctName = accountNameMap.get(tradeAccountMap.get(t.id) || 0) || 'Topstep';
-        return {
-          ticker: contractNames[t.contractId] || t.contractId,
-          enterTime: new Date(t.creationTimestamp).toISOString(),
-          exitTime: new Date(t.creationTimestamp).toISOString(),
-          enterPrice: t.price,
-          exitPrice: t.price,
-          quantity: t.size * multiplier,
-          manualPL: t.profitAndLoss * multiplier,
-          projectxTradeId: String(t.id),
-          projectxSource: 'projectx',
-          brokerConnectionId: connectionId,
-          account: acctName,
-          isEval: brokerConn.is_eval || /EV/i.test(acctName),
-        };
-      });
-
-      const result = await tradesDb.bulkInsertTrades(db, user.id, tradesToInsert);
 
       await brokerDb.updateById(serviceClient, connectionId, {
         last_sync_time: new Date().toISOString(),
       });
 
-      return c.json({ message: `Synced ${result.imported} new trades`, synced: result.imported });
+      return c.json({
+        message: `Reconciled ${result.positions} positions from ${result.rawLegs} raw execution legs`,
+        synced: result.positions,
+        rawLegs: result.rawLegs,
+        openPositions: result.openPositions,
+        warnings: result.warnings,
+      });
     } catch (err: any) {
       console.error('ProjectX sync error:', err.message);
       return c.json({ error: `Sync failed: ${err.message}` }, 500);
