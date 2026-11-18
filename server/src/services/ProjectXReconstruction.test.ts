@@ -106,6 +106,18 @@ test('keeps positions completed before an instrument warning and quarantines lat
   assert.equal(result.warnings.length, 1);
 });
 
+test('does not publish an open position from an instrument with reconstruction warnings', () => {
+  const result = reconstructProjectXPositions([
+    leg(1, 0, 1, 100, null, 10, '2026-11-01T10:00:00Z'),
+    // This same-side closing leg cannot close the existing long.
+    leg(2, 0, 1, 101, 10, 11, '2026-11-01T10:01:00Z'),
+  ]);
+
+  assert.equal(result.warnings.length, 1);
+  assert.equal(result.positions.length, 0);
+  assert.equal(result.openPositions.length, 0);
+});
+
 test('latest voided version of a trade ID is excluded', () => {
   const original = leg(
     1, 0, 1, 100, null, 10, '2026-11-01T10:00:00Z', 1, 0.5
