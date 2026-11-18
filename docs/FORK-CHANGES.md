@@ -80,6 +80,13 @@ cd rrmetrics
 - The Yearly view's GitHub Actions CI run passed; interactive verification in the Babylon self-hosted installation is still pending.
 
 
+### Consistent metric tiles and explanations
+
+- Standardized shared metric-card styling across Dashboard, Analytics, and Trades, using Dashboard as the visual reference.
+- Extracted the Dashboard Avg Win / Loss visualization into a shared component and reused it in Analytics and Trades so the ratio, comparison bar, amounts, spacing, and help text match.
+- Added a consistent, keyboard- and touch-accessible question-mark tooltip to metric cards. Explanatory copy is shown in the tooltip rather than taking up permanent tile space.
+- Added concise definitions for Profit Factor, Expectancy, Drawdown, Breakeven Rate, Sharpe / Sortino, Kelly risk, and other metrics where a definition helps interpretation.
+
 ### Trades tracking views and overview tiles
 
 - Added Day, Week, and All tracking views to the Trades page, with All remaining the default view to preserve the existing trade-table workflow.

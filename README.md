@@ -8,7 +8,7 @@
 
 This repository is a public fork of [Snoe0/rrmetrics](https://github.com/Snoe0/rrmetrics). The `main` branch is kept aligned with upstream; additional work is developed on the `development` branch.
 
-The `development` branch includes additional Topstep import reconciliation and configurable server-side automatic syncing, account-level Topstep settings, customizable Dashboard and Analytics metric tiles, display time preferences, and an expanded calendar with a yearly performance matrix, and per-account currency metadata for Topstep, and Day / Week / All Trades tracking views with customizable performance tiles. These changes are documented in [Fork changes](docs/FORK-CHANGES.md), with detailed guides for [Topstep sync](docs/TOPSTEP-SYNC.md) and [calendar and display preferences](docs/CALENDAR-AND-PREFERENCES.md).
+The `development` branch includes additional Topstep import reconciliation and configurable server-side automatic syncing, account-level Topstep settings, customizable Dashboard and Analytics metric tiles, display time preferences, and an expanded calendar with a yearly performance matrix, and per-account currency metadata for Topstep, and Day / Week / All Trades tracking views with customizable performance tiles with consistent metric styling and explanations. These changes are documented in [Fork changes](docs/FORK-CHANGES.md), with detailed guides for [Topstep sync](docs/TOPSTEP-SYNC.md) and [calendar and display preferences](docs/CALENDAR-AND-PREFERENCES.md).
 
 To try the fork-specific changes, clone the `development` branch explicitly:
 

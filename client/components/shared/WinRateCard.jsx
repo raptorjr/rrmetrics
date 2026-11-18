@@ -1,7 +1,8 @@
 const React = require('react');
 const ChangeIndicator = require('./ChangeIndicator');
+const InfoTooltip = require('./InfoTooltip');
 
-const WinRateCard = ({ wins, losses, breakevens = 0, total, change }) => {
+const WinRateCard = ({ wins, losses, breakevens = 0, total, change, tooltip = 'Win rate is winning trades divided by winning plus losing trades. Breakeven trades are excluded from the percentage but included in the trade count.' }) => {
   const neutral = breakevens || Math.max(0, total - wins - losses);
   const decisive = wins + losses;
   const winRate = decisive > 0 ? (wins / decisive * 100) : 0;
@@ -18,7 +19,7 @@ const WinRateCard = ({ wins, losses, breakevens = 0, total, change }) => {
   const losStartDeg = 180 + (total > 0 ? ((wins + neutral) / total) * 180 : 0);
   return (
     <div className="bg-bg-surface border border-border rounded-xl p-5 relative">
-      <div className="text-text-secondary text-xs font-medium uppercase tracking-wider mb-2">Win Rate</div>
+      <div className="text-text-secondary text-xs font-medium uppercase tracking-wider mb-2 flex items-center gap-1.5">Win Rate <InfoTooltip text={tooltip} /></div>
       <div className="flex items-baseline gap-2">
         <div className="font-mono text-2xl font-bold text-text-primary">{winRate.toFixed(1)}%</div>
         {change !== null && change !== undefined && <ChangeIndicator value={change} />}

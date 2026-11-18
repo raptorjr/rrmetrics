@@ -6,6 +6,7 @@ const { getTradePL, calculateAnalytics } = require('../../utils/analytics');
 const CustomizableStats = require('../shared/CustomizableStats');
 const StatCard = require('../shared/StatCard');
 const WinRateCard = require('../shared/WinRateCard');
+const AvgWinLossCard = require('../shared/AvgWinLossCard');
 const { formatDuration, formatDateEST, formatTimeEST } = require('../../utils/dateUtils');
 const { TAG_COLOR_PRESETS } = require('../../utils/tagConstants');
 const Icons = require('../shared/Icons');
@@ -483,11 +484,7 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
               return <StatCard label="Profit factor" value={hasMixedCurrencies ? '—' : factor === Infinity ? '∞' : factor.toFixed(2)} color="text-text-primary" subValue={hasMixedCurrencies ? 'Multiple currencies' : 'Gross wins ÷ gross losses'} />;
             } },
             { id: 'winRate', label: 'Trade win %', render: () => <WinRateCard wins={calculateAnalytics(filtered).wins} losses={calculateAnalytics(filtered).losses} breakevens={calculateAnalytics(filtered).breakevens} total={filtered.length} /> },
-            { id: 'avgWinLoss', label: 'Average win/loss', render: () => {
-              const stats = calculateAnalytics(filtered);
-              const ratio = Math.abs(stats.avgLoss) > 0 ? (stats.avgWin / Math.abs(stats.avgLoss)).toFixed(2) : '∞';
-              return <StatCard label="Avg win / loss" value={hasMixedCurrencies ? '—' : ratio} color="text-text-primary" subValue={hasMixedCurrencies ? 'Multiple currencies' : formatMoney(stats.avgWin) + ' avg win · ' + formatMoney(Math.abs(stats.avgLoss)) + ' avg loss'} />;
-            } },
+            { id: 'avgWinLoss', label: 'Avg Win / Loss', render: () => <AvgWinLossCard avgWin={calculateAnalytics(filtered).avgWin} avgLoss={calculateAnalytics(filtered).avgLoss} /> },
             { id: 'totalTrades', label: 'Total trades', render: () => <StatCard label="Total trades" value={filtered.length} color="text-text-primary" /> },
             { id: 'bestTrade', label: 'Best trade', render: () => <StatCard label="Best trade" value={hasMixedCurrencies ? '—' : formatMoney(filtered.length ? Math.max(...filtered.map(getTradePL)) : 0)} color="text-positive" /> },
             { id: 'worstTrade', label: 'Worst trade', render: () => <StatCard label="Worst trade" value={hasMixedCurrencies ? '—' : formatMoney(filtered.length ? Math.min(...filtered.map(getTradePL)) : 0)} color="text-negative" /> },

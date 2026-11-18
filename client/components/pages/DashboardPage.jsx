@@ -3,6 +3,7 @@ const { useState } = React;
 
 const ChangeIndicator = require('../shared/ChangeIndicator');
 const WinRateCard = require('../shared/WinRateCard');
+const AvgWinLossCard = require('../shared/AvgWinLossCard');
 const StatCard = require('../shared/StatCard');
 const PeriodFilter = require('../shared/PeriodFilter');
 const EvalFilterControl = require('../shared/EvalFilterControl');
@@ -13,35 +14,6 @@ const Icons = require('../shared/Icons');
 const { getDateRange, getPreviousDateRange, filterTradesByDateRange, calcPercentChange } = require('../../utils/periodUtils');
 const { getTradePL, calculateAnalytics, applyEvalFilter, calculateSharpeRatio, calculateSortinoRatio, calculateKellyCriterion } = require('../../utils/analytics');
 const { formatDuration } = require('../../utils/dateUtils');
-
-
-const AvgWinLossCard = ({ avgWin, avgLoss }) => {
-  const absLoss = Math.abs(avgLoss);
-  const total = avgWin + absLoss;
-  const ratio = absLoss > 0 ? (avgWin / absLoss).toFixed(2) : avgWin > 0 ? '∞' : '0.00';
-  const winPct = total > 0 ? (avgWin / total) * 100 : 50;
-  return (
-    <div className="bg-bg-surface border border-border rounded-xl p-5">
-      <div className="flex items-center gap-4">
-        <div>
-          <div className="text-text-secondary text-xs font-medium uppercase tracking-wider mb-2">Avg Win / Loss</div>
-          <div className="font-mono text-2xl font-bold text-text-primary">{ratio}</div>
-        </div>
-        <div className="flex-1 flex flex-col gap-3 ml-8">
-          <div className="flex h-2 rounded-full overflow-hidden">
-            <div className="bg-positive" style={{ width: `${winPct}%` }} />
-            <div className="bg-negative flex-1" />
-          </div>
-          <div className="flex justify-between text-[12px] font-mono">
-            <span className="text-positive">${avgWin.toFixed(0)}</span>
-            <span className="text-negative">-${absLoss.toFixed(0)}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 
 
 const DashboardPage = ({ trades, onOpenForm, onOpenImport, onManualSync, brokerStatuses, onOpenAddTrade, onEditTrade, dailyNotes, onSaveNote, onDeleteNote, tags, strategyRules, evalFilter, setEvalFilter, sidebarCollapsed }) => {
@@ -141,19 +113,19 @@ const DashboardPage = ({ trades, onOpenForm, onOpenImport, onManualSync, brokerS
         defaultOrder={['totalPL', 'winRate', 'totalTrades', 'avgDuration', 'avgWinLoss', 'bestTrade', 'worstTrade', 'breakevenRate', 'profitFactor', 'expectancy', 'maxDrawdown', 'sharpeRatio', 'sortinoRatio', 'kellyRisk']}
         defaultVisible={['totalPL', 'winRate', 'totalTrades', 'avgDuration', 'avgWinLoss', 'bestTrade', 'worstTrade', 'breakevenRate']}
         items={[
-          { id: 'totalPL', label: 'Total P/L', render: () => <StatCard label="Total P/L" value={`$${stats.totalPL.toFixed(2)}`} color={stats.totalPL >= 0 ? 'text-positive' : 'text-negative'} change={showChange ? calcPercentChange(stats.totalPL, prevStats.totalPL) : null} /> },
+          { id: 'totalPL', label: 'Total P/L', render: () => <StatCard label="Total P/L" tooltip="Net profit or loss across the selected trades, after fees and commissions." value={`$${stats.totalPL.toFixed(2)}`} color={stats.totalPL >= 0 ? 'text-positive' : 'text-negative'} change={showChange ? calcPercentChange(stats.totalPL, prevStats.totalPL) : null} /> },
           { id: 'winRate', label: 'Win Rate', render: () => <WinRateCard wins={stats.wins} losses={stats.losses} total={stats.totalTrades} change={showChange ? calcPercentChange(stats.winRate, prevStats.winRate) : null} /> },
-          { id: 'totalTrades', label: 'Total Trades', render: () => <StatCard label="Total Trades" value={stats.totalTrades} color="text-text-primary" subValue={`${stats.avgTradesPerDay.toFixed(1)} avg/day`} change={showChange ? calcPercentChange(stats.totalTrades, prevStats.totalTrades) : null} /> },
-          { id: 'avgDuration', label: 'Avg Duration', render: () => <StatCard label="Avg Duration" value={formatDuration(stats.avgDuration)} color="text-text-primary" /> },
+          { id: 'totalTrades', label: 'Total Trades', render: () => <StatCard label="Total Trades" tooltip="Number of closed trades in the selected period." value={stats.totalTrades} color="text-text-primary" subValue={`${stats.avgTradesPerDay.toFixed(1)} avg/day`} change={showChange ? calcPercentChange(stats.totalTrades, prevStats.totalTrades) : null} /> },
+          { id: 'avgDuration', label: 'Avg Duration', render: () => <StatCard label="Avg Duration" tooltip="Average time between entry and exit across the selected trades." value={formatDuration(stats.avgDuration)} color="text-text-primary" /> },
           { id: 'avgWinLoss', label: 'Avg Win / Loss', render: () => <AvgWinLossCard avgWin={stats.avgWin} avgLoss={stats.avgLoss} /> },
-          { id: 'bestTrade', label: 'Best Trade', render: () => <StatCard label="Best Trade" value={`$${stats.bestTrade.toFixed(2)}`} color="text-positive" change={showChange ? calcPercentChange(stats.bestTrade, prevStats.bestTrade) : null} /> },
-          { id: 'worstTrade', label: 'Worst Trade', render: () => <StatCard label="Worst Trade" value={`$${stats.worstTrade.toFixed(2)}`} color="text-negative" /> },
-          { id: 'breakevenRate', label: 'Breakeven Rate', render: () => <StatCard label="Breakeven Rate" value={`${stats.breakevenPct.toFixed(1)}%`} subValue={`${stats.breakevens} trades`} color="text-text-primary" /> },
-          { id: 'profitFactor', label: 'Profit Factor', render: () => <StatCard label="Profit Factor" value={profitFactor.toFixed(2)} color="text-text-primary" /> },
-          { id: 'expectancy', label: 'Expectancy', render: () => <StatCard label="Expectancy" value={`${expectancy.toFixed(2)}`} color={expectancy >= 0 ? 'text-positive' : 'text-negative'} /> },
-          { id: 'maxDrawdown', label: 'Max Drawdown', render: () => <StatCard label="Max Drawdown" value={`${maxDrawdown.toFixed(2)}`} color="text-negative" /> },
-          { id: 'sharpeRatio', label: 'Sharpe Ratio', render: () => <StatCard label="Sharpe Ratio" value={sharpeRatio === Infinity ? '∞' : sharpeRatio.toFixed(2)} color={sharpeRatio > 0 ? 'text-positive' : 'text-negative'} /> },
-          { id: 'sortinoRatio', label: 'Sortino Ratio', render: () => <StatCard label="Sortino Ratio" value={sortinoRatio === Infinity ? '∞' : sortinoRatio.toFixed(2)} color={sortinoRatio > 0 ? 'text-positive' : 'text-negative'} /> },
+          { id: 'bestTrade', label: 'Best Trade', render: () => <StatCard label="Best Trade" tooltip="The highest net P&L from a single trade in the selected period." value={`$${stats.bestTrade.toFixed(2)}`} color="text-positive" change={showChange ? calcPercentChange(stats.bestTrade, prevStats.bestTrade) : null} /> },
+          { id: 'worstTrade', label: 'Worst Trade', render: () => <StatCard label="Worst Trade" tooltip="The lowest net P&L from a single trade in the selected period." value={`$${stats.worstTrade.toFixed(2)}`} color="text-negative" /> },
+          { id: 'breakevenRate', label: 'Breakeven Rate', render: () => <StatCard label="Breakeven Rate" tooltip="Percentage of all closed trades that finished at or near zero P&L." value={`${stats.breakevenPct.toFixed(1)}%`} subValue={`${stats.breakevens} trades`} color="text-text-primary" /> },
+          { id: 'profitFactor', label: 'Profit Factor', render: () => <StatCard label="Profit Factor" tooltip="Gross profit divided by gross loss. Above 1.00 means gross profits exceed gross losses; below 1.00 means gross losses are larger." value={profitFactor.toFixed(2)} color="text-text-primary" /> },
+          { id: 'expectancy', label: 'Expectancy', render: () => <StatCard label="Expectancy" tooltip="Average amount won or lost per trade over the selected sample. Positive expectancy means the average trade is profitable." value={`${expectancy.toFixed(2)}`} color={expectancy >= 0 ? 'text-positive' : 'text-negative'} /> },
+          { id: 'maxDrawdown', label: 'Max Drawdown', render: () => <StatCard label="Max Drawdown" tooltip="Largest peak-to-trough decline in cumulative P&L during the selected period." value={`${maxDrawdown.toFixed(2)}`} color="text-negative" /> },
+          { id: 'sharpeRatio', label: 'Sharpe Ratio', render: () => <StatCard label="Sharpe Ratio" tooltip="Risk-adjusted return relative to total variability in results. Higher is generally better; negative values indicate negative average performance." value={sharpeRatio === Infinity ? '∞' : sharpeRatio.toFixed(2)} color={sharpeRatio > 0 ? 'text-positive' : 'text-negative'} /> },
+          { id: 'sortinoRatio', label: 'Sortino Ratio', render: () => <StatCard label="Sortino Ratio" tooltip="Risk-adjusted return that focuses on downside variability rather than penalizing upside fluctuations. Higher is generally better." value={sortinoRatio === Infinity ? '∞' : sortinoRatio.toFixed(2)} color={sortinoRatio > 0 ? 'text-positive' : 'text-negative'} /> },
           { id: 'kellyRisk', label: 'Kelly Optimal Risk', render: () => (
             <div className="bg-bg-surface border border-border rounded-xl p-5">
               <div className="text-text-secondary text-xs font-medium uppercase tracking-wider mb-2">Kelly Optimal Risk</div>
