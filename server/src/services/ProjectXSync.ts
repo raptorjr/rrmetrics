@@ -28,6 +28,7 @@ export function reconcileProjectXHistory(
   connectionIsEval: boolean,
   selectedAccountIds: number[],
   reinstatedVoidedOrderKeys: Set<string> = new Set(),
+  accountSettings: Record<string, { type: 'evaluation' | 'xfa' | 'live_funded' | 'other'; displayName: string }> = {},
 ): ProjectXSyncResult {
   const now = new Date().toISOString();
 
@@ -144,7 +145,8 @@ export function reconcileProjectXHistory(
         projectionId,
         connectionId,
         accountName,
-        connectionIsEval || /EV/i.test(accountName) ? 1 : 0,
+        accountSettings[String(position.accountId)]?.type === 'evaluation'
+          || (!accountSettings[String(position.accountId)] && (connectionIsEval || /EV/i.test(accountName))) ? 1 : 0,
         now,
       );
     }
