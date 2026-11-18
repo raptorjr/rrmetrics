@@ -4,6 +4,24 @@
 
 **Website:** [rrmetrics.com](https://rrmetrics.com)
 
+## This fork: Topstep improvements
+
+This repository is a public fork of [Snoe0/rrmetrics](https://github.com/Snoe0/rrmetrics). The `main` branch is kept aligned with upstream; additional work is developed on the `development` branch.
+
+The `development` branch includes additional Topstep import reconciliation and configurable server-side automatic syncing. These changes are documented in [Fork changes](docs/FORK-CHANGES.md), with setup and behaviour details in [Topstep sync](docs/TOPSTEP-SYNC.md).
+
+To try the fork-specific changes, clone the `development` branch explicitly:
+
+```bash
+git clone --branch development https://github.com/raptorjr/rrmetrics.git
+cd rrmetrics
+npm install
+npm run build
+npm start
+```
+
+The standard installation instructions below continue to describe the upstream project's default branch. If you want the fork's additional features, use the development-branch command above.
+
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Node >= 20](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
