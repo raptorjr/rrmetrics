@@ -99,7 +99,10 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [trackingView, setTrackingView] = useState('all');
-  const [expandedGroups, setExpandedGroups] = useState({});\n  const [editingNoteDate, setEditingNoteDate] = useState(null);\n  const [noteDraft, setNoteDraft] = useState('');\n  const [noteSaving, setNoteSaving] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState({});
+  const [editingNoteDate, setEditingNoteDate] = useState(null);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [noteSaving, setNoteSaving] = useState(false);
 
   useEffect(() => {
     setSelectedTradeIds(new Set());
