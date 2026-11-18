@@ -19,30 +19,40 @@ const DailyPnlChart = ({ trades, currency, formatMoney, totalPL }) => {
   const values = [0, ...ordered.map(trade => { running += getTradePL(trade); return running; })];
   const min = Math.min(0, ...values);
   const max = Math.max(0, ...values);
-  const range = max - min || 1;
-  const width = 320;
-  const height = 112;
-  const pad = 7;
-  const x = index => pad + (values.length <= 1 ? 0 : index / (values.length - 1)) * (width - pad * 2);
-  const y = value => pad + ((max - value) / range) * (height - pad * 2);
+  const span = max - min || 1;
+  const width = 360;
+  const height = 132;
+  const left = 54;
+  const right = 8;
+  const top = 9;
+  const bottom = 9;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+  const x = index => left + (values.length <= 1 ? 0 : index / (values.length - 1)) * plotWidth;
+  const y = value => top + ((max - value) / span) * plotHeight;
+  const zeroY = y(0);
   const points = values.map((value, index) => [x(index), y(value)]);
   const line = points.map((point, index) => (index === 0 ? 'M' : 'L') + point[0].toFixed(1) + ',' + point[1].toFixed(1)).join(' ');
-  const area = line + ' L' + points[points.length - 1][0].toFixed(1) + ',' + (height - pad) + ' L' + points[0][0].toFixed(1) + ',' + (height - pad) + ' Z';
-  const zeroY = y(0);
+  const area = line + ' L' + points[points.length - 1][0].toFixed(1) + ',' + zeroY.toFixed(1) + ' L' + points[0][0].toFixed(1) + ',' + zeroY.toFixed(1) + ' Z';
   const positive = totalPL >= 0;
+  const mixed = min < 0 && max > 0;
+  const axis = mixed ? [{ value: max, label: formatMoney(max, currency) }, { value: 0, label: formatMoney(0, currency) }, { value: min, label: formatMoney(min, currency) }]
+    : max > 0 ? [{ value: max, label: formatMoney(max, currency) }, { value: 0, label: formatMoney(0, currency) }]
+    : [{ value: 0, label: formatMoney(0, currency) }, { value: min, label: formatMoney(min, currency) }];
   return (
     <div className="min-w-0">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">Intraday cumulative P&amp;L</span>
-        <span className="text-[10px] text-text-muted">{ordered.length} closes</span>
-      </div>
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-[112px]" role="img" aria-label={`Cumulative P&L chart ending at ${formatMoney(totalPL, currency)}`}>
-        <line x1={pad} y1={zeroY} x2={width - pad} y2={zeroY} stroke="currentColor" opacity="0.22" strokeDasharray="3 3" />
-        <path d={area} fill={positive ? 'rgba(34,197,94,0.13)' : 'rgba(239,68,68,0.13)'} />
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary mb-1">Intraday cumulative P&amp;L</div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-[132px] overflow-visible" role="img" aria-label={`Cumulative P&L chart ending at ${formatMoney(totalPL, currency)}`}>
+        {axis.map((tick, index) => (
+          <g key={index}>
+            <line x1={left} y1={y(tick.value)} x2={width - right} y2={y(tick.value)} stroke="currentColor" opacity={tick.value === 0 ? 0.34 : 0.18} strokeDasharray="3 3" />
+            <text x={left - 7} y={y(tick.value) + 3.5} textAnchor="end" fill="currentColor" opacity="0.72" fontSize="10">{tick.label}</text>
+          </g>
+        ))}
+        <path d={area} fill={positive ? 'rgba(34,197,94,0.18)' : 'rgba(239,68,68,0.18)'} />
         <path d={line} fill="none" stroke={positive ? '#22c55e' : '#ef4444'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
         {points.length > 1 && <circle cx={points[points.length - 1][0]} cy={points[points.length - 1][1]} r="3.5" fill={positive ? '#22c55e' : '#ef4444'} />}
       </svg>
-      <div className="flex justify-between text-[10px] text-text-muted"><span>{formatMoney(min, currency)}</span><span>{formatMoney(max, currency)}</span></div>
     </div>
   );
 };
@@ -439,11 +449,13 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
   })();
   const displayRows = trackingView === 'all'
     ? filtered.map(trade => ({ type: 'trade', trade }))
-    : groupedTrades.flatMap(group => [
-        { type: 'group', group },
-        ...(expandedGroups[group.key] === false ? [] : (trackingView === 'day' ? [...group.trades].sort((a, b) => new Date(a.exitTime) - new Date(b.exitTime)) : group.trades).map(trade => ({ type: 'trade', trade }))),
-      ]);
-  const toggleGroup = key => setExpandedGroups(current => ({ ...current, [key]: current[key] === false ? true : false }));
+    : groupedTrades.flatMap(group => {
+        const isExpanded = trackingView === 'day' ? expandedGroups[group.key] === true : expandedGroups[group.key] !== false;
+        if (!isExpanded) return [{ type: 'group', group }];
+        const orderedTrades = trackingView === 'day' ? [...group.trades].sort((a, b) => new Date(a.exitTime) - new Date(b.exitTime)) : group.trades;
+        return [{ type: 'group', group }, ...(trackingView === 'day' ? [{ type: 'dayHeader', key: group.key }] : []), ...orderedTrades.map(trade => ({ type: 'trade', trade }))];
+      });
+  const toggleGroup = key => setExpandedGroups(current => ({ ...current, [key]: trackingView === 'day' ? current[key] !== true : current[key] === false }));
 
   const toggleSort = (field) => {
     if (sortField === field) {
@@ -783,7 +795,7 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead>
+              {trackingView !== 'day' && <thead>
                 <tr className="border-b border-border">
                   <th className="px-4 py-3 w-10">
                     <input
@@ -818,12 +830,31 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
                   {isCol('duration') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Duration</th>}
                   <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Actions</th>
                 </tr>
-              </thead>
+              </thead>}
               <tbody>
                 {displayRows.map(item => {
+                  if (item.type === 'dayHeader') {
+                    return (
+                      <tr key={'day-header-' + item.key} className="bg-bg-input/70 border-y border-border">
+                        <th className="px-4 py-3 w-10"><input type="checkbox" className="rounded border-border accent-accent" checked={filtered.length > 0 && filtered.every(t => selectedTradeIds.has(t._id))} onChange={e => setSelectedTradeIds(e.target.checked ? new Set(filtered.map(t => t._id)) : new Set())} /></th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider cursor-pointer" onClick={() => toggleSort('exitTime')}>Date <SortIcon field="exitTime" /></th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider cursor-pointer" onClick={() => toggleSort('ticker')}>Ticker <SortIcon field="ticker" /></th>
+                        {isCol('tags') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Tags</th>}
+                        {isCol('entry') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider>Entry</th>}
+                        {isCol('exit') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider>Exit</th>}
+                        {isCol('qty') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider>Qty</th>}
+                        {isCol('gross') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider>Gross P/L</th>}
+                        {isCol('fees') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider>Fees</th>}
+                        {isCol('commissions') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider>Commissions</th>}
+                        <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider cursor-pointer" onClick={() => toggleSort('pl')}>Net P/L <SortIcon field="pl" /></th>
+                        {isCol('duration') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider>Duration</th>}
+                        <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider>Actions</th>
+                      </tr>
+                    );
+                  }
                   if (item.type === 'group') {
                     const group = item.group;
-                    const isOpen = expandedGroups[group.key] !== false;
+                    const isOpen = trackingView === 'day' ? expandedGroups[group.key] === true : expandedGroups[group.key] !== false;
                     const decisive = group.wins + group.losses;
                     const winRate = decisive > 0 ? (group.wins / decisive) * 100 : 0;
                     const profitFactor = group.grossLosses > 0 ? group.grossWins / group.grossLosses : group.grossWins > 0 ? Infinity : 0;
