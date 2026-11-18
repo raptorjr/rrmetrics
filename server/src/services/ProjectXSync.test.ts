@@ -191,3 +191,25 @@ test('clears only the selected connection ProjectX import and keeps connection',
   assert.notEqual((db.prepare('SELECT last_sync_time FROM broker_connections WHERE id = ?').get('connection-2') as { last_sync_time: string | null }).last_sync_time, null);
   db.close();
 });
+
+
+test('applies per-account Topstep type and friendly display name', () => {
+  const db = createDb();
+  const evalLegs = legs.map(leg => ({ ...leg, accountId: 7 }));
+  const xfaLegs = legs.map(leg => ({ ...leg, id: leg.id + 100, accountId: 8, orderId: leg.orderId + 100 }));
+  reconcileProjectXHistory(
+    db, 'user-1', 'connection-1', [...evalLegs, ...xfaLegs],
+    new Map([[7, 'Topstep original EV'], [8, 'Topstep original XFA']]),
+    { 'CON.F.US.MGC.Z6': 'MGC' }, 1, false, [7, 8], new Set(),
+    {
+      '7': { type: 'evaluation', displayName: 'Gold Evaluation' },
+      '8': { type: 'xfa', displayName: 'Main XFA' },
+    },
+  );
+  const rows = db.prepare('SELECT account, is_eval FROM trades ORDER BY account').all() as Array<{ account: string; is_eval: number }>;
+  assert.deepEqual(rows, [
+    { account: 'Gold Evaluation', is_eval: 1 },
+    { account: 'Main XFA', is_eval: 0 },
+  ]);
+  db.close();
+});
