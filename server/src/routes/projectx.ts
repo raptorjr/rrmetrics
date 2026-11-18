@@ -135,10 +135,10 @@ projectx.get(
           connectionId: bc.id,
           environment: bc.environment,
           label: bc.label,
-          isEval: bc.is_eval,
           configured: hasToken && !tokenExpired,
           expired: hasToken && tokenExpired,
           selectedAccounts: pxConn?.selected_accounts || [],
+          accountSettings: pxConn?.account_settings || {},
           copytradeConfig: pxConn?.copytrade_config || null,
           lastSyncTime: bc.last_sync_time,
           autoSyncEnabled: pxConn?.auto_sync_enabled || false,
@@ -174,10 +174,11 @@ projectx.post(
   async (c) => {
     const user = c.get('user');
     const body = await c.req.json();
-    const { connectionId, selectedAccounts, copytradeConfig } = body as {
+    const { connectionId, selectedAccounts, copytradeConfig, accountSettings } = body as {
       connectionId?: string;
       selectedAccounts?: number[];
       copytradeConfig?: { leadAccountId: number; multiplier: number } | null;
+      accountSettings?: Record<string, { type: 'evaluation' | 'xfa' | 'live_funded' | 'other'; displayName: string }>;
     };
 
     if (!connectionId) {
@@ -209,6 +210,7 @@ projectx.post(
 
       await pxConnDb.updateByBrokerConnectionId(serviceClient, connectionId, {
         selected_accounts: selectedAccounts as any,
+        ...(accountSettings ? { account_settings: accountSettings as any } : {}),
         copytrade_config: copytradeConfig as any,
       });
 
@@ -415,12 +417,13 @@ projectx.post(
         user.id,
         connectionId,
         allTrades,
-        accountNameMap,
+        new Map(accounts.map(account => [account.id, pxConn.account_settings?.[String(account.id)]?.displayName?.trim() || account.name])),
         contractNames,
         multiplier,
         brokerConn.is_eval,
         accountsToSync,
         findFullyFilledVoidedOrderOverrides(allTrades, allOrders),
+        pxConn.account_settings || {},
       );
 
       await brokerDb.updateById(serviceClient, connectionId, {
