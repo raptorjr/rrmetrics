@@ -35,6 +35,9 @@ CREATE TABLE IF NOT EXISTS trades (
   exit_price           REAL NOT NULL,
   quantity             REAL NOT NULL,
   manual_pl            REAL,
+  gross_pl             REAL,
+  fees                 REAL NOT NULL DEFAULT 0,
+  commissions          REAL NOT NULL DEFAULT 0,
   image_attachments    TEXT NOT NULL DEFAULT '[]',        -- JSON string[]
   screenshot           TEXT,
   comments             TEXT NOT NULL DEFAULT '',
