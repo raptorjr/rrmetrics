@@ -26,7 +26,7 @@ interface AccountResponse {
   errorMessage: string | null;
 }
 
-interface Trade {
+export interface Trade {
   id: number;
   accountId: number;
   contractId: string;
@@ -34,10 +34,12 @@ interface Trade {
   price: number;
   profitAndLoss: number | null;
   fees: number | null;
+  commissions: number | null;
   side: number;
   size: number;
   voided: boolean;
   orderId: number;
+  fillId: number | null;
 }
 
 interface TradeResponse {
