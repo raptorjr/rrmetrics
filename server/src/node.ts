@@ -64,7 +64,13 @@ const main = async () => {
       autoSyncInProgress.add(id);
       const attemptedAt = new Date().toISOString();
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), PROJECTX_AUTO_SYNC_TIMEOUT_MS);
+      let timeout: ReturnType<typeof setTimeout>;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => {
+          controller.abort();
+          reject(new Error(`Automatic sync timed out after ${PROJECTX_AUTO_SYNC_TIMEOUT_MS / 1000} seconds.`));
+        }, PROJECTX_AUTO_SYNC_TIMEOUT_MS);
+      });
 
       try {
         // Persist the attempt and in-progress state before starting the API work.
@@ -75,12 +81,15 @@ const main = async () => {
           auto_sync_last_error: null,
         });
 
-        const response = await app.fetch(new Request('http://localhost/api/projectx/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ connectionId: id }),
-          signal: controller.signal,
-        }), env);
+        const response = await Promise.race([
+          app.fetch(new Request('http://localhost/api/projectx/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ connectionId: id }),
+            signal: controller.signal,
+          }), env),
+          timeoutPromise,
+        ]);
         const result = await response.json() as Record<string, any>;
         await pxConnDb.updateByBrokerConnectionId(db, id, {
           auto_sync_started_at: null,
@@ -89,9 +98,7 @@ const main = async () => {
           auto_sync_last_result: result,
         });
       } catch (error: any) {
-        const errorMessage = error?.name === 'AbortError'
-          ? `Automatic sync timed out after ${PROJECTX_AUTO_SYNC_TIMEOUT_MS / 1000} seconds.`
-          : (error?.message || String(error));
+        const errorMessage = error?.message || String(error);
         await pxConnDb.updateByBrokerConnectionId(db, id, {
           auto_sync_started_at: null,
           auto_sync_next_at: new Date(Date.now() + intervalMs).toISOString(),
