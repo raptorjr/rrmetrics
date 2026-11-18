@@ -26,6 +26,7 @@ export function reconcileProjectXHistory(
   multiplier: number,
   connectionIsEval: boolean,
   selectedAccountIds: number[],
+  reinstatedVoidedOrderKeys: Set<string> = new Set(),
 ): ProjectXSyncResult {
   const now = new Date().toISOString();
 
@@ -107,7 +108,7 @@ export function reconcileProjectXHistory(
 
     const stored = readLegs.all(connectionId) as Array<{ raw_json: string }>;
     const allLegs = stored.map(row => JSON.parse(row.raw_json) as ProjectXRawTrade);
-    const reconstruction = reconstructProjectXPositions(allLegs);
+    const reconstruction = reconstructProjectXPositions(allLegs, reinstatedVoidedOrderKeys);
 
     clearCurrentIds.run();
 
