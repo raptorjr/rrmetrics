@@ -484,7 +484,7 @@ projectx.post(
           : ` ProjectX and trade-history reconstruction both report ${result.openPositions} open position(s).`;
 
       return c.json({
-        message: (result.warnings.length > 0
+        message: `${isFullHistory ? 'Full-history reconciliation' : 'Incremental sync'}: ` + (result.warnings.length > 0
           ? `Partially imported ${result.positions} safe positions from ${result.rawLegs} execution legs. ${result.warnings.length} reconstruction warning(s); affected instrument history was held back.`
           : `Reconciled ${result.positions} positions from ${result.rawLegs} raw execution legs`)
           + (result.reinstatedVoidedOrders > 0
