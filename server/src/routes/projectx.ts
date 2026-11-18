@@ -500,6 +500,7 @@ projectx.post(
           + positionSummary,
         partial: result.warnings.length > 0,
         synced: result.positions,
+        newTradesImported: result.newTradesImported,
         rawLegs: result.rawLegs,
         openPositions: result.openPositions,
         brokerOpenPositions: brokerOpenPositions.length,
