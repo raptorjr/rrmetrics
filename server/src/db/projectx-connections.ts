@@ -18,6 +18,7 @@ function rowFromDb(row: any): ProjectXConnectionRow {
   return {
     ...row,
     selected_accounts: parseJson<number[]>(row.selected_accounts),
+    account_settings: parseJson<Record<string, { type: 'evaluation' | 'xfa' | 'live_funded' | 'other'; displayName: string }>>(row.account_settings),
     copytrade_config: parseJson<{ leadAccountId: number; multiplier: number }>(row.copytrade_config),
     auto_sync_enabled: !!row.auto_sync_enabled,
     auto_sync_last_result: parseJson<Record<string, any>>(row.auto_sync_last_result),
@@ -70,7 +71,7 @@ export async function create(
 export async function updateByBrokerConnectionId(
   db: Db,
   brokerConnectionId: string,
-  updates: Partial<Pick<ProjectXConnectionRow, 'username' | 'api_key' | 'access_token' | 'token_expires_at' | 'selected_accounts' | 'copytrade_config' | 'auto_sync_enabled' | 'auto_sync_interval_minutes' | 'auto_sync_next_at' | 'auto_sync_last_attempt_at' | 'auto_sync_last_error' | 'auto_sync_last_result'>>,
+  updates: Partial<Pick<ProjectXConnectionRow, 'username' | 'api_key' | 'access_token' | 'token_expires_at' | 'selected_accounts' | 'account_settings' | 'copytrade_config' | 'auto_sync_enabled' | 'auto_sync_interval_minutes' | 'auto_sync_next_at' | 'auto_sync_last_attempt_at' | 'auto_sync_last_error' | 'auto_sync_last_result'>>,
 ): Promise<void> {
   const columns: string[] = [];
   const values: unknown[] = [];
@@ -94,6 +95,10 @@ export async function updateByBrokerConnectionId(
   if (updates.selected_accounts !== undefined) {
     columns.push('selected_accounts = ?');
     values.push(updates.selected_accounts == null ? null : JSON.stringify(updates.selected_accounts));
+  }
+  if (updates.account_settings !== undefined) {
+    columns.push('account_settings = ?');
+    values.push(updates.account_settings == null ? null : JSON.stringify(updates.account_settings));
   }
   if (updates.copytrade_config !== undefined) {
     columns.push('copytrade_config = ?');
