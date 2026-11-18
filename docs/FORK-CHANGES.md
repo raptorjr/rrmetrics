@@ -10,6 +10,15 @@ git clone --branch development https://github.com/raptorjr/rrmetrics.git
 
 ## 2026-11-18
 
+### Topstep account management
+
+- Replaced the connection-wide Eval classification control with per-account classification: Evaluation, Express Funded (XFA), Live Funded, and Other / Practice.
+- Added an optional friendly display name for each account while retaining the original Topstep account ID and broker name for matching.
+- Kept account selection and account classification visible inline in the Topstep integration panel rather than behind a separate Settings button.
+- The available account list is fetched from Topstep after connecting and refreshed with connection status.
+- Added additive SQLite storage for per-account settings. Existing imported trade rows are not rewritten just by saving account settings; the next sync rebuilds the imported projection using the saved account names and Eval classification.
+- Evaluation is reflected in RR Metrics' existing `is_eval` trade flag. XFA and Live Funded are stored as distinct account types, but both currently map to non-Eval in the existing trade model.
+
 ### Topstep automatic sync
 
 - Added server-side automatic syncing for each Topstep connection.
