@@ -320,6 +320,17 @@ projectx.post(
       );
 
       const allTrades: import('../services/ProjectXAPI').Trade[] = [];
+      const brokerOpenPositions: Array<{
+        accountId: number;
+        accountName: string;
+        contractId: string;
+        type: number;
+        size: number;
+        averagePrice: number;
+        creationTimestamp: string;
+      }> = [];
+      const positionCheckErrors: string[] = [];
+
       for (const accountId of accountsToSync) {
         // Full history is intentional: ProjectX can revise or void old trade IDs.
         const history = await api.searchTrades(token, accountId, '2020-01-01T00:00:00Z');
@@ -328,6 +339,18 @@ projectx.post(
           commissions: trade.commissions ?? null,
           fillId: trade.fillId ?? null,
         })));
+
+        // Independently query the broker's live position snapshot. This helps
+        // distinguish a reconstruction problem from a genuinely open position.
+        try {
+          const currentPositions = await api.searchOpenPositions(token, accountId);
+          brokerOpenPositions.push(...currentPositions.map(position => ({
+            ...position,
+            accountName: accountNameMap.get(accountId) || `ProjectX ${accountId}`,
+          })));
+        } catch (error: any) {
+          positionCheckErrors.push(`Account ${accountId}: ${error.message}`);
+        }
       }
 
       const contractNames: Record<string, string> = {};
@@ -362,6 +385,9 @@ projectx.post(
         last_sync_time: new Date().toISOString(),
       });
 
+      const openPositionMismatch = positionCheckErrors.length === 0
+        && brokerOpenPositions.length !== result.openPositions;
+
       return c.json({
         message: result.warnings.length > 0
           ? `Partially imported ${result.positions} safe positions from ${result.rawLegs} execution legs. ${result.warnings.length} reconstruction warning(s); affected instrument history was held back.`
@@ -370,6 +396,10 @@ projectx.post(
         synced: result.positions,
         rawLegs: result.rawLegs,
         openPositions: result.openPositions,
+        brokerOpenPositions: brokerOpenPositions.length,
+        brokerOpenPositionDetails: brokerOpenPositions,
+        openPositionMismatch,
+        positionCheckErrors,
         warnings: result.warnings,
       });
     } catch (err: any) {
