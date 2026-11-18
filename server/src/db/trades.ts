@@ -10,6 +10,9 @@ interface TradeAPI {
   exitPrice: number;
   quantity: number;
   manualPL: number | null;
+  grossPL: number | null;
+  fees: number;
+  commissions: number;
   imageAttachments: string[];
   screenshot: string | null;
   comments: string;
@@ -47,6 +50,9 @@ function rowToAPI(row: any, tagIds: string[] = []): TradeAPI {
     exitPrice: row.exit_price,
     quantity: row.quantity,
     manualPL: row.manual_pl,
+    grossPL: row.gross_pl ?? null,
+    fees: row.fees ?? 0,
+    commissions: row.commissions ?? 0,
     imageAttachments: parseJsonArray(row.image_attachments),
     screenshot: row.screenshot,
     comments: row.comments || '',
