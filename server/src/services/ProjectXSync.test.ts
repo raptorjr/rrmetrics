@@ -213,3 +213,45 @@ test('applies per-account Topstep type and friendly display name', () => {
   ]);
   db.close();
 });
+
+
+test('incremental updates retain older locally stored executions when rebuilding positions', () => {
+  const db = createDb();
+  reconcileProjectXHistory(
+    db, 'user-1', 'connection-1', legs,
+    new Map([[7, 'Topstep Practice']]),
+    { 'CON.F.US.MGC.Z6': 'MGC' }, 1, false, [7],
+  );
+
+  const correctedRecentLeg = { ...legs[1], profitAndLoss: 12 };
+  const result = reconcileProjectXHistory(
+    db, 'user-1', 'connection-1', [correctedRecentLeg],
+    new Map([[7, 'Topstep Practice']]),
+    { 'CON.F.US.MGC.Z6': 'MGC' }, 1, false, [7],
+  );
+
+  assert.equal(result.rawLegs, 1);
+  assert.equal((db.prepare('SELECT COUNT(*) AS count FROM projectx_trade_legs').get() as { count: number }).count, 2);
+  assert.equal(result.positions, 1);
+  assert.equal((db.prepare('SELECT gross_pl FROM trades').get() as { gross_pl: number }).gross_pl, 12);
+  db.close();
+});
+
+test('verified voided-order overrides remain effective during incremental reconstruction', () => {
+  const db = createDb();
+  const voidedLegs = legs.map(leg => ({ ...leg, voided: true }));
+  const verifiedOverride = new Set(['7:10', '7:11']);
+  reconcileProjectXHistory(
+    db, 'user-1', 'connection-1', voidedLegs,
+    new Map([[7, 'Topstep Practice']]),
+    { 'CON.F.US.MGC.Z6': 'MGC' }, 1, false, [7], verifiedOverride,
+  );
+
+  const result = reconcileProjectXHistory(
+    db, 'user-1', 'connection-1', [],
+    new Map([[7, 'Topstep Practice']]),
+    { 'CON.F.US.MGC.Z6': 'MGC' }, 1, false, [7], verifiedOverride,
+  );
+  assert.equal(result.positions, 1);
+  db.close();
+});
