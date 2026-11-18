@@ -66,6 +66,13 @@ interface ContractResponse {
   errorMessage: string | null;
 }
 
+interface ContractByIdResponse {
+  contract: Contract | null;
+  success: boolean;
+  errorCode: number;
+  errorMessage: string | null;
+}
+
 export class ProjectXAPI {
   private token: string | null = null;
 
@@ -192,30 +199,25 @@ export class ProjectXAPI {
    * contractId from trades looks like "CON.F.US.MNQ.Z25" — we search by the symbol portion.
    */
   async searchContract(token: string, contractId: string): Promise<Contract | null> {
-    // Extract symbol from contractId (e.g., "CON.F.US.MNQ.Z25" -> "MNQ")
-    const parts = contractId.split('.');
-    const searchText = parts.length >= 4 ? parts[3] : contractId;
-
-    const response = await fetch(`${BASE_URL}/Contract/search`, {
+    const response = await fetch(`${BASE_URL}/Contract/searchById`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         accept: 'text/plain',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ searchText, live: false }),
+      body: JSON.stringify({ contractId }),
     });
 
     if (!response.ok) {
       throw new Error(`Failed to fetch contract: ${response.status}`);
     }
 
-    const data = (await response.json()) as ContractResponse;
+    const data = (await response.json()) as ContractByIdResponse;
     if (!data.success || data.errorCode !== 0) {
       return null;
     }
 
-    // Find the exact contract by ID, or return the first active one
-    return data.contracts?.find((c) => c.id === contractId) || data.contracts?.[0] || null;
+    return data.contract || null;
   }
 }
