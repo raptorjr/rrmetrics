@@ -361,6 +361,61 @@ const App = () => {
     autoSync();
   }, []);
 
+  // Observe the server-side Topstep scheduler and announce only completed
+  // automatic attempts. The status endpoint is read-only; it never starts a sync.
+  useEffect(() => {
+    let active = true;
+    let checking = false;
+    let initialized = false;
+    const lastSeenAttempts = {};
+
+    const checkTopstepAutoSync = async () => {
+      if (checking) return;
+      checking = true;
+      try {
+        const response = await authFetch('/api/projectx/status');
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!active) return;
+
+        for (const connection of data.connections || []) {
+          const attemptedAt = connection.autoSyncLastAttemptAt;
+          if (!attemptedAt) continue;
+
+          const previousAttempt = lastSeenAttempts[connection.connectionId];
+          lastSeenAttempts[connection.connectionId] = attemptedAt;
+          if (!initialized || !previousAttempt || previousAttempt === attemptedAt) continue;
+
+          const result = connection.autoSyncLastResult || {};
+          if (result.error) {
+            setSyncNotification(`Topstep automatic sync failed: ${result.error}`);
+          } else {
+            const imported = Number(result.newTradesImported || 0);
+            setSyncNotification(imported > 0
+              ? `Topstep: ${imported} new trade${imported === 1 ? '' : 's'} imported`
+              : 'Topstep automatic sync complete — no new trades');
+            if (imported > 0) triggerReload();
+          }
+          setTimeout(() => {
+            if (active) setSyncNotification(null);
+          }, 6000);
+        }
+        initialized = true;
+      } catch (err) {
+        console.error('Failed to check Topstep automatic sync status:', err);
+      } finally {
+        checking = false;
+      }
+    };
+
+    checkTopstepAutoSync();
+    const intervalId = setInterval(checkTopstepAutoSync, 15000);
+    return () => {
+      active = false;
+      clearInterval(intervalId);
+    };
+  }, []);
+
   const handleManualSync = async () => {
     const hasExpired = brokerStatuses.some(b =>
       (b.connections || []).some(c => c.expired)
