@@ -47,6 +47,14 @@ git clone --branch development https://github.com/raptorjr/rrmetrics.git
 - Kept the sync resilient when the optional order-history cross-check is unavailable.
 - Restored and retained the detailed per-connection sync diagnostics and the imported-data clear control.
 
+### Customizable Dashboard and Analytics metric tiles
+
+- Added a shared metric-tile customization component used by Dashboard and Analytics.
+- Users can show or hide supported metric tiles, drag them into a preferred order, and reset each page to its original layout.
+- Dashboard and Analytics preferences are stored independently in browser local storage.
+- Existing default tile sets are preserved for users who have not customized either page.
+- The change affects presentation only; metric calculations, trade data, filters, charts, and other analytics sections remain unchanged.
+
 ## Deployment notes
 
 - Changes are developed on `development`; upstream's `main` branch is not the deployment target for these fork additions.
