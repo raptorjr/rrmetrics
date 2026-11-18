@@ -210,10 +210,19 @@ projectx.post(
         return c.json({ error: 'Connection not found' }, 404);
       }
 
+      const existingPxConn = await pxConnDb.findByBrokerConnectionId(serviceClient, connectionId);
+      const previousAccounts = [...(existingPxConn?.selected_accounts || [])].sort((a, b) => a - b);
+      const nextAccounts = [...selectedAccounts].sort((a, b) => a - b);
+      const accountSelectionChanged = JSON.stringify(previousAccounts) !== JSON.stringify(nextAccounts);
+      const previousLead = existingPxConn?.copytrade_config?.leadAccountId ?? null;
+      const nextLead = copytradeConfig?.leadAccountId ?? null;
+      const copytradeSourceChanged = previousLead !== nextLead;
+
       await pxConnDb.updateByBrokerConnectionId(serviceClient, connectionId, {
         selected_accounts: selectedAccounts as any,
         ...(accountSettings ? { account_settings: accountSettings as any } : {}),
         copytrade_config: copytradeConfig as any,
+        ...(accountSelectionChanged || copytradeSourceChanged ? { last_full_sync_time: null } : {}),
       });
 
       return c.json({ message: 'Account settings saved' });
