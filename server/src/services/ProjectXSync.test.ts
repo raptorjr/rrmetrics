@@ -72,6 +72,7 @@ test('reconciles raw ProjectX legs into a net-P&L trade and is idempotent', () =
   const first = reconcileProjectXHistory(...args);
   assert.equal(first.rawLegs, 2);
   assert.equal(first.positions, 1);
+  assert.equal(first.newTradesImported, 1);
   assert.equal(first.openPositions, 0);
 
   const row = db.prepare('SELECT * FROM trades').get() as any;
@@ -84,7 +85,8 @@ test('reconciles raw ProjectX legs into a net-P&L trade and is idempotent', () =
   assert.equal(row.projectx_source, 'projectx');
 
   db.prepare('INSERT INTO trade_tags (trade_id, tag_id) VALUES (?, ?)').run(row.id, 'strategy-tag');
-  reconcileProjectXHistory(...args);
+  const repeated = reconcileProjectXHistory(...args);
+  assert.equal(repeated.newTradesImported, 0);
   assert.equal((db.prepare('SELECT COUNT(*) AS count FROM trades').get() as { count: number }).count, 1);
   assert.equal((db.prepare('SELECT COUNT(*) AS count FROM trade_tags WHERE trade_id = ?').get(row.id) as { count: number }).count, 1);
   assert.equal((db.prepare('SELECT COUNT(*) AS count FROM projectx_trade_legs').get() as { count: number }).count, 2);
