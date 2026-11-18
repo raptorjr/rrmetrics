@@ -55,9 +55,10 @@ export function reconcileProjectXHistory(
   const insertPosition = db.prepare(`
     INSERT INTO trades (
       id, user_id, ticker, enter_time, exit_time, enter_price, exit_price,
-      quantity, manual_pl, comments, projectx_trade_id, projectx_source,
-      broker_connection_id, account, is_eval, created_date
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, 'projectx', ?, ?, ?, ?)
+      quantity, manual_pl, gross_pl, fees, commissions, comments,
+      projectx_trade_id, projectx_source, broker_connection_id, account,
+      is_eval, created_date
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, 'projectx', ?, ?, ?, ?)
   `);
 
   const result = db.transaction(() => {
@@ -102,6 +103,9 @@ export function reconcileProjectXHistory(
         position.exitPrice,
         scaled.quantity,
         scaled.netPL,
+        scaled.grossPL,
+        scaled.fees,
+        scaled.commissions,
         position.tradeIds.join(','),
         position.positionKey,
         connectionId,
