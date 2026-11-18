@@ -64,7 +64,7 @@ const main = async () => {
       autoSyncInProgress.add(id);
       const attemptedAt = new Date().toISOString();
       const controller = new AbortController();
-      let timeout: ReturnType<typeof setTimeout>;
+      let timeout: ReturnType<typeof setTimeout> | null = null;
       const timeoutPromise = new Promise<never>((_, reject) => {
         timeout = setTimeout(() => {
           controller.abort();
@@ -106,7 +106,7 @@ const main = async () => {
           auto_sync_last_result: { error: errorMessage },
         });
       } finally {
-        clearTimeout(timeout);
+        if (timeout) clearTimeout(timeout);
         autoSyncInProgress.delete(id);
       }
     }
