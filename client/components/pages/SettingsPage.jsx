@@ -419,6 +419,20 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
       const response = await authFetch('/api/projectx/status');
       const data = await response.json();
       setPxConnections(data.connections || []);
+      setPxSyncResults(prev => {
+        const next = { ...prev };
+        (data.connections || []).forEach(conn => {
+          if (conn.autoSyncLastResult) {
+            const result = conn.autoSyncLastResult;
+            next[conn.connectionId] = {
+              ...result,
+              type: result.error ? 'error' : (result.partial || result.openPositionMismatch || result.positionCheckErrors?.length || result.warnings?.length ? 'warning' : 'success'),
+              text: result.message || result.error || 'Automatic sync completed.',
+            };
+          }
+        });
+        return next;
+      });
       setPxConnectionsUsed(data.connectionsUsed || 0);
       setPxConnectionLimit(data.connectionLimit || 0);
     } catch (err) {
