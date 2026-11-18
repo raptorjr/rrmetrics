@@ -16,6 +16,7 @@ type HonoEnv = {
 };
 
 const projectx = new Hono<HonoEnv>();
+const activeSyncs = new Set<string>();
 
 /**
  * POST /api/projectx/connect
@@ -140,6 +141,12 @@ projectx.get(
           selectedAccounts: pxConn?.selected_accounts || [],
           copytradeConfig: pxConn?.copytrade_config || null,
           lastSyncTime: bc.last_sync_time,
+          autoSyncEnabled: pxConn?.auto_sync_enabled || false,
+          autoSyncIntervalMinutes: pxConn?.auto_sync_interval_minutes || 5,
+          autoSyncNextAt: pxConn?.auto_sync_next_at || null,
+          autoSyncLastAttemptAt: pxConn?.auto_sync_last_attempt_at || null,
+          autoSyncLastError: pxConn?.auto_sync_last_error || null,
+          autoSyncLastResult: pxConn?.auto_sync_last_result || null,
           accounts,
         });
       }
@@ -244,6 +251,23 @@ projectx.post(
   },
 );
 
+projectx.post('/api/projectx/auto-sync', requiresLogin, async (c) => {
+  const user = c.get('user');
+  const body = await c.req.json();
+  const { connectionId, enabled, intervalMinutes } = body as { connectionId?: string; enabled?: boolean; intervalMinutes?: number };
+  if (!connectionId || typeof enabled !== 'boolean') return c.json({ error: 'Missing connectionId or enabled' }, 400);
+  const interval = intervalMinutes ?? 5;
+  if (![1, 5, 10, 15, 30].includes(interval)) return c.json({ error: 'Interval must be 1, 5, 10, 15, or 30 minutes' }, 400);
+  const db = getDb();
+  const connection = await brokerDb.findById(db, connectionId);
+  if (!connection || connection.owner !== user.id || connection.broker !== 'projectx') return c.json({ error: 'Topstep connection not found' }, 404);
+  const pxConn = await pxConnDb.findByBrokerConnectionId(db, connectionId);
+  if (!pxConn?.access_token) return c.json({ error: 'Topstep is not connected' }, 400);
+  const nextAt = enabled ? new Date(Date.now() + interval * 60_000).toISOString() : null;
+  await pxConnDb.updateByBrokerConnectionId(db, connectionId, { auto_sync_enabled: enabled, auto_sync_interval_minutes: interval, auto_sync_next_at: nextAt, auto_sync_last_error: null });
+  return c.json({ message: enabled ? 'Automatic sync enabled' : 'Automatic sync disabled', nextAt });
+});
+
 /**
  * POST /api/projectx/sync
  * Full-history reconciliation from ProjectX. The broker can correct or void
@@ -262,6 +286,8 @@ projectx.post(
       return c.json({ error: 'Missing connectionId' }, 400);
     }
 
+    if (activeSyncs.has(connectionId)) return c.json({ error: 'A sync is already running for this Topstep connection' }, 409);
+    activeSyncs.add(connectionId);
     try {
       const serviceClient = getDb();
       const brokerConn = await brokerDb.findById(serviceClient, connectionId);
@@ -433,6 +459,8 @@ projectx.post(
     } catch (err: any) {
       console.error('ProjectX sync error:', err.message);
       return c.json({ error: `Sync failed: ${err.message}` }, 500);
+    } finally {
+      activeSyncs.delete(connectionId);
     }
   },
 );
