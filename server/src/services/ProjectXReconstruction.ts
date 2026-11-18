@@ -31,6 +31,60 @@ export interface ReconstructedPosition {
   tradeIds: number[];
 }
 
+export interface ProjectXOrderSnapshot {
+  id: number;
+  accountId: number;
+  contractId: string;
+  status: number;
+  side: number;
+  fillVolume: number | null;
+}
+
+/**
+ * Find the narrow exception where the Trades API marks every leg of an order
+ * voided, while the Orders API still reports the complete quantity as filled.
+ * The raw voided records remain unchanged; this set only allows reconstruction
+ * to account for a fully corroborated simulated-account execution.
+ */
+export function findFullyFilledVoidedOrderOverrides(
+  trades: ProjectXTradeLeg[],
+  orders: ProjectXOrderSnapshot[],
+): Set<string> {
+  const tradesByOrder = new Map<string, ProjectXTradeLeg[]>();
+  for (const trade of trades) {
+    const key = `${trade.accountId}:${trade.orderId}`;
+    const legs = tradesByOrder.get(key) || [];
+    legs.push(trade);
+    tradesByOrder.set(key, legs);
+  }
+
+  const overrides = new Set<string>();
+  for (const order of orders) {
+    const key = `${order.accountId}:${order.id}`;
+    const legs = tradesByOrder.get(key) || [];
+    if (
+      order.status !== 2
+      || order.fillVolume == null
+      || order.fillVolume <= 0
+      || legs.length === 0
+      || !legs.every(leg =>
+        leg.voided
+        && leg.contractId === order.contractId
+        && leg.side === order.side
+      )
+    ) {
+      continue;
+    }
+
+    const legQuantity = legs.reduce((total, leg) => total + leg.size, 0);
+    if (legQuantity === order.fillVolume) {
+      overrides.add(key);
+    }
+  }
+
+  return overrides;
+}
+
 export interface ReconstructionResult {
   positions: ReconstructedPosition[];
   openPositions: Array<{
@@ -62,6 +116,7 @@ interface WorkingPosition {
 
 export function reconstructProjectXPositions(
   input: ProjectXTradeLeg[],
+  reinstatedVoidedOrderKeys: Set<string> = new Set(),
 ): ReconstructionResult {
   const warnings: string[] = [];
   const latestById = new Map<string, ProjectXTradeLeg>();
@@ -74,7 +129,9 @@ export function reconstructProjectXPositions(
   }
 
   // Keep voided records in the source data, but never count them.
-  const active = [...latestById.values()].filter(leg => !leg.voided);
+  const active = [...latestById.values()].filter(leg =>
+    !leg.voided || reinstatedVoidedOrderKeys.has(`${leg.accountId}:${leg.orderId}`)
+  );
 
   // First separate accounts and contracts. They must never share inventory.
   const instruments = new Map<string, ProjectXTradeLeg[]>();
