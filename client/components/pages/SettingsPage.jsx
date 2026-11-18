@@ -358,6 +358,15 @@ const RobinhoodBrokerSection = ({ hook, expandedBroker, toggleBroker, brokerHead
 const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, customColors, tags, triggerReload }) => {
   const [activeTab, setActiveTab] = useState('brokers');
   const [message, setMessage] = useState(null);
+  const [timeFormat, setTimeFormat] = useState(() => {
+    try { return localStorage.getItem('rrmetrics_time_format') === '24h' ? '24h' : '12h'; }
+    catch { return '12h'; }
+  });
+
+  const handleTimeFormatChange = (format) => {
+    setTimeFormat(format);
+    try { localStorage.setItem('rrmetrics_time_format', format); } catch {}
+  };
 
   // --- ProjectX multi-connection state ---
   const [pxConnections, setPxConnections] = useState([]);
@@ -1429,6 +1438,28 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
       {activeTab === 'preferences' && (
         <div className="bg-bg-surface border border-border rounded-xl p-6">
           <h3 className="text-text-primary font-semibold mb-4">Preferences</h3>
+
+          {/* Time format */}
+          <div className="flex items-center justify-between py-3 border-b border-border">
+            <div>
+              <div className="text-text-primary text-sm font-medium">Time format</div>
+              <div className="text-text-tertiary text-xs mt-0.5">Choose how trade times are displayed throughout the app</div>
+            </div>
+            <div className="flex gap-1 bg-bg-input rounded-lg p-1">
+              <button
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${timeFormat === '12h' ? 'bg-bg-surface text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
+                onClick={() => handleTimeFormatChange('12h')}
+              >
+                12-hour
+              </button>
+              <button
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${timeFormat === '24h' ? 'bg-bg-surface text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
+                onClick={() => handleTimeFormatChange('24h')}
+              >
+                24-hour
+              </button>
+            </div>
+          </div>
 
           {/* Dark / Light toggle */}
           <div className="flex items-center justify-between py-3">
