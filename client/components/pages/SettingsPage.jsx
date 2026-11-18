@@ -920,100 +920,62 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
             </div>
           )}
 
-          {/* ============== Direct Brokers ============== */}
-          {TRADOVATE_BROKERS.filter(b => !b.subtitle.includes('Prop')).map(b => (
-            <TradovateBrokerSection
-              key={b.key}
-              hook={brokerHooks[b.key]}
-              expandedBroker={expandedBroker}
-              toggleBroker={toggleBroker}
-              brokerHeaderBadge={brokerHeaderBadge}
-              statusDot={statusDot}
-            />
-          ))}
-
-          {/* ============== Robinhood — Coming Soon ============== */}
-          <div className="bg-bg-surface border border-border rounded-xl overflow-hidden opacity-75">
-            <div className="flex items-center justify-between p-5">
-              <div className="flex items-center gap-3">
-                <img src={BROKER_CONFIGS.robinhood.icon} alt="Robinhood" className="w-10 h-10 rounded-lg object-contain" />
-                <div>
-                  <h3 className="text-text-primary font-semibold text-sm">Robinhood</h3>
-                  <p className="text-text-tertiary text-xs">{BROKER_CONFIGS.robinhood.subtitle}</p>
-                </div>
-              </div>
-              <span className="text-xs px-2.5 py-1 rounded-full bg-accent/10 text-accent font-medium">Coming Soon</span>
-            </div>
-          </div>
-
-          {/* ============== Webull — Coming Soon ============== */}
-          <div className="bg-bg-surface border border-border rounded-xl overflow-hidden opacity-75">
-            <div className="flex items-center justify-between p-5">
-              <div className="flex items-center gap-3">
-                <img src={BROKER_CONFIGS.webull.icon} alt="Webull" className="w-10 h-10 rounded-lg object-contain" />
-                <div>
-                  <h3 className="text-text-primary font-semibold text-sm">Webull</h3>
-                  <p className="text-text-tertiary text-xs">{BROKER_CONFIGS.webull.subtitle}</p>
-                </div>
-              </div>
-              <span className="text-xs px-2.5 py-1 rounded-full bg-accent/10 text-accent font-medium">Coming Soon</span>
-            </div>
-          </div>
-
-          {/* ============== Prop Firms Grid ============== */}
-          <div className="pt-2">
-            <h3 className="text-text-secondary text-xs font-semibold uppercase tracking-wider mb-3">Prop Firms</h3>
-          </div>
-
+          {/* Unified broker and prop-firm grid */}
           {(() => {
-            const propFirms = [
-              ...TRADOVATE_BROKERS.filter(b => b.subtitle.includes('Prop')),
+            const providers = [
+              ...TRADOVATE_BROKERS,
               { key: 'projectx', label: 'Topstep', icon: '/assets/img/topstep.png', subtitle: 'Prop trading firm' },
+              { key: 'robinhood', label: 'Robinhood', icon: BROKER_CONFIGS.robinhood.icon, subtitle: BROKER_CONFIGS.robinhood.subtitle, comingSoon: true },
+              { key: 'webull', label: 'Webull', icon: BROKER_CONFIGS.webull.icon, subtitle: BROKER_CONFIGS.webull.subtitle, comingSoon: true },
             ];
-            const cols = 3;
-            const rows = [];
-            for (let i = 0; i < propFirms.length; i += cols) {
-              rows.push(propFirms.slice(i, i + cols));
-            }
-            const expandedRowIdx = rows.findIndex(row => row.some(b => b.key === expandedBroker));
 
-            const getPropFirmStatus = (b) => {
-              if (b.key === 'projectx') {
-                const configured = pxConnections.filter(c => c.configured && !c.expired).length;
-                const expired = pxConnections.filter(c => c.expired).length;
-                return { configured, expired };
+            const getProviderStatus = (provider) => {
+              if (provider.key === 'projectx') {
+                return {
+                  configured: pxConnections.filter(c => c.configured && !c.expired).length,
+                  expired: pxConnections.filter(c => c.expired).length,
+                };
               }
-              const hook = brokerHooks[b.key];
-              const conns = hook?.connections || [];
+              const conns = brokerHooks[provider.key]?.connections || [];
               return {
                 configured: conns.filter(c => c.configured && !c.expired).length,
                 expired: conns.filter(c => c.expired).length,
               };
             };
 
-            return rows.map((row, rowIdx) => (
-              <React.Fragment key={rowIdx}>
-                <div className={`grid grid-cols-2 lg:grid-cols-3 gap-3 ${rowIdx > 0 ? 'mt-3' : ''}`}>
-                  {row.map(b => {
-                    const { configured, expired } = getPropFirmStatus(b);
-                    const isExpanded = expandedBroker === b.key;
+            const sortedProviders = providers
+              .map(provider => ({ ...provider, ...getProviderStatus(provider) }))
+              .sort((a, b) => {
+                const aConnected = a.configured > 0 ? 1 : 0;
+                const bConnected = b.configured > 0 ? 1 : 0;
+                return bConnected - aConnected || a.label.localeCompare(b.label);
+              });
 
+            return (
+              <>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                  {sortedProviders.map(provider => {
+                    const isExpanded = expandedBroker === provider.key;
                     return (
                       <button
-                        key={b.key}
-                        onClick={() => toggleBroker(b.key)}
-                        className={`bg-bg-surface border rounded-xl p-4 flex flex-col items-center gap-2 text-center transition-all cursor-pointer hover:bg-bg-page/50 ${
-                          isExpanded ? 'border-accent ring-1 ring-accent/20' : 'border-border hover:border-accent/40'
+                        key={provider.key}
+                        onClick={() => toggleBroker(provider.key)}
+                        disabled={provider.comingSoon}
+                        className={`bg-bg-surface border rounded-xl p-4 flex flex-col items-center gap-2 text-center transition-all ${
+                          provider.comingSoon ? 'opacity-75 cursor-not-allowed border-border' :
+                          isExpanded ? 'border-accent ring-1 ring-accent/20 cursor-pointer' : 'border-border hover:border-accent/40 hover:bg-bg-page/50 cursor-pointer'
                         }`}
                       >
-                        <img src={b.icon} alt={b.label} className="w-10 h-10 rounded-lg object-contain" />
-                        <span className="text-text-primary font-semibold text-sm leading-tight">{b.label}</span>
-                        {configured > 0 ? (
+                        <img src={provider.icon} alt={provider.label} className="w-10 h-10 rounded-lg object-contain" />
+                        <span className="text-text-primary font-semibold text-sm leading-tight">{provider.label}</span>
+                        {provider.comingSoon ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium">Coming Soon</span>
+                        ) : provider.configured > 0 ? (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-positive/10 text-positive font-medium">
-                            {configured} Connected{expired > 0 ? `, ${expired} Expired` : ''}
+                            {provider.configured} Connected{provider.expired > 0 ? `, ${provider.expired} Expired` : ''}
                           </span>
-                        ) : expired > 0 ? (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-warning/10 text-warning font-medium">{expired} Expired</span>
+                        ) : provider.expired > 0 ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-warning/10 text-warning font-medium">{provider.expired} Expired</span>
                         ) : (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-text-secondary/10 text-text-secondary">Not Connected</span>
                         )}
@@ -1021,7 +983,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                     );
                   })}
                 </div>
-                {expandedRowIdx === rowIdx && expandedBroker !== 'projectx' && brokerHooks[expandedBroker] && (
+                {expandedBroker && expandedBroker !== 'projectx' && brokerHooks[expandedBroker] && (
                   <div className="mt-3">
                     <TradovateBrokerSection
                       hook={brokerHooks[expandedBroker]}
@@ -1032,7 +994,9 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                     />
                   </div>
                 )}
-                {expandedRowIdx === rowIdx && expandedBroker === 'projectx' && (
+                {expandedBroker === 'projectx' && (
+                  <div className="mt-3">
+                {expandedBroker === 'projectx' && (
                   <div className="mt-3">
                     <div className="bg-bg-surface border border-border rounded-xl overflow-hidden">
                       <div className="flex items-center justify-between p-5">
@@ -1318,10 +1282,12 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                     </div>
                   </div>
                 )}
-              </React.Fragment>
-            ));
-          })()}
 
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
 
