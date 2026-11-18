@@ -1,0 +1,13 @@
+services:
+  rrmetrics:
+    build: .
+    container_name: rrmetrics
+    restart: unless-stopped
+    ports:
+      - "192.168.1.2:8459:8459"
+    environment:
+      PORT: 8459
+      DATA_DIR: /app/data
+      APP_URL: http://192.168.1.2:8459
+    volumes:
+      - /mnt/user/appdata/RRMetrics/data:/app/data
