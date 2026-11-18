@@ -460,7 +460,7 @@ projectx.post(
 
       const syncedAt = new Date().toISOString();
       await brokerDb.updateById(serviceClient, connectionId, { last_sync_time: syncedAt });
-      const fullReconciliationCompleted = isFullHistory && result.warnings.length === 0 && orderCheckErrors.length === 0;
+      const fullReconciliationCompleted = isFullHistory;
       await pxConnDb.updateByBrokerConnectionId(serviceClient, connectionId, {
         reinstated_order_keys: [...reinstatedOrderKeys],
         ...(fullReconciliationCompleted ? { last_full_sync_time: syncedAt } : {}),
