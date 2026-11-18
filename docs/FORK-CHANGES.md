@@ -69,3 +69,8 @@ Add a dated entry here whenever a user-visible feature, importer/reconciliation 
 ### Time format preference
 - Added a global 12-hour / 24-hour time format preference in Settings → Preferences.
 - The selected format is saved in browser local storage and is used by shared trade-time formatting, including the calendar day detail popup. The default remains 12-hour to preserve existing display behaviour.
+
+### Time zone preference
+- Added a global display time zone preference in Settings → Preferences, with an Automatic option that follows the browser's detected IANA time zone and a manual IANA time zone selector.
+- The selected time zone is saved in browser local storage and is applied to shared trade date/time display formatting, including the calendar day detail popup and trade list.
+- Trading-session calculations and market-day grouping remain anchored to America/New_York; only displayed timestamps are converted.

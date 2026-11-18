@@ -34,17 +34,35 @@ const toEST = (date) => {
   };
 };
 
-const formatDateEST = (dateString) => {
-  return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: EST_TZ });
+// Resolve the user's display time zone. Trading-session calculations remain on EST_TZ.
+const getDisplayTimeZone = () => {
+  let preference = 'auto';
+  try {
+    if (typeof localStorage !== 'undefined') preference = localStorage.getItem('rrmetrics_time_zone') || 'auto';
+  } catch {}
+  if (preference !== 'auto') {
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: preference });
+      return preference;
+    } catch {}
+  }
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || EST_TZ; }
+  catch { return EST_TZ; }
 };
 
+// Legacy name retained for existing imports; display dates use the selected user time zone.
+const formatDateEST = (dateString) => {
+  return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: getDisplayTimeZone() });
+};
+
+// Legacy name retained for existing imports; trade times use the selected user time zone.
 const formatTimeEST = (dateString) => {
   let timeFormat = '12h';
   try {
     if (typeof localStorage !== 'undefined' && localStorage.getItem('rrmetrics_time_format') === '24h') timeFormat = '24h';
   } catch {}
   return new Date(dateString).toLocaleTimeString('en-US', {
-    hour: '2-digit', minute: '2-digit', timeZone: EST_TZ, hour12: timeFormat !== '24h',
+    hour: '2-digit', minute: '2-digit', timeZone: getDisplayTimeZone(), hour12: timeFormat !== '24h',
   });
 };
 
@@ -62,4 +80,4 @@ const getESTOffset = (date) => {
   return diffHours === -4 ? '-04:00' : '-05:00';
 };
 
-module.exports = { formatDuration, EST_TZ, toEST, formatDateEST, formatTimeEST, formatFullDateEST, getESTOffset };
+module.exports = { formatDuration, EST_TZ, toEST, getDisplayTimeZone, formatDateEST, formatTimeEST, formatFullDateEST, getESTOffset };

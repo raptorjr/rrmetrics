@@ -5,6 +5,15 @@ const { TAG_COLOR_PRESETS } = require('../../utils/tagConstants');
 const Icons = require('../shared/Icons');
 const { useBrokerConnection, TRADOVATE_BROKERS, BROKER_CONFIGS } = require('../../hooks/useBrokerConnection');
 
+const TIME_ZONE_OPTIONS = (() => {
+  try {
+    if (typeof Intl.supportedValuesOf === 'function') {
+      return [...new Set(['UTC', ...Intl.supportedValuesOf('timeZone')])].sort((a, b) => a.localeCompare(b));
+    }
+  } catch {}
+  return ['UTC', 'Europe/London', 'Europe/Oslo', 'Europe/Stockholm', 'Europe/Berlin', 'Europe/Paris', 'America/Los_Angeles', 'America/Denver', 'America/Chicago', 'America/New_York', 'Asia/Dubai', 'Asia/Singapore', 'Asia/Tokyo', 'Australia/Sydney'];
+})();
+
 // Helper: relative time string from ISO date
 const relativeTime = (iso) => {
   if (!iso) return null;
@@ -366,6 +375,20 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
   const handleTimeFormatChange = (format) => {
     setTimeFormat(format);
     try { localStorage.setItem('rrmetrics_time_format', format); } catch {}
+  };
+
+  const [timeZone, setTimeZone] = useState(() => {
+    try { return localStorage.getItem('rrmetrics_time_zone') || 'auto'; }
+    catch { return 'auto'; }
+  });
+  const detectedTimeZone = (() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; }
+    catch { return 'UTC'; }
+  })();
+
+  const handleTimeZoneChange = (zone) => {
+    setTimeZone(zone);
+    try { localStorage.setItem('rrmetrics_time_zone', zone); } catch {}
   };
 
   // --- ProjectX multi-connection state ---
@@ -1459,6 +1482,22 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                 24-hour
               </button>
             </div>
+          </div>
+
+          {/* Time zone */}
+          <div className="flex flex-wrap items-center justify-between gap-3 py-3 border-b border-border">
+            <div>
+              <div className="text-text-primary text-sm font-medium">Time zone</div>
+              <div className="text-text-tertiary text-xs mt-0.5">Choose the time zone used for displayed trade dates and times</div>
+            </div>
+            <select
+              value={timeZone}
+              onChange={(e) => handleTimeZoneChange(e.target.value)}
+              className="min-w-56 max-w-full px-3 py-2 bg-bg-input border border-border rounded-lg text-sm text-text-primary focus:outline-none focus:border-accent"
+            >
+              <option value="auto">Automatic ({detectedTimeZone})</option>
+              {TIME_ZONE_OPTIONS.map(zone => <option key={zone} value={zone}>{zone.replace(/_/g, ' ')}</option>)}
+            </select>
           </div>
 
           {/* Dark / Light toggle */}
