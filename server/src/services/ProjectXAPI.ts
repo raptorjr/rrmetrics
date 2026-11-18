@@ -49,6 +49,23 @@ interface TradeResponse {
   errorMessage: string | null;
 }
 
+export interface OpenPosition {
+  id: number;
+  accountId: number;
+  contractId: string;
+  creationTimestamp: string;
+  type: number;
+  size: number;
+  averagePrice: number;
+}
+
+interface OpenPositionResponse {
+  positions: OpenPosition[];
+  success: boolean;
+  errorCode: number;
+  errorMessage: string | null;
+}
+
 interface Contract {
   id: string;
   name: string;
@@ -192,6 +209,33 @@ export class ProjectXAPI {
     }
 
     return data.trades || [];
+  }
+
+  /**
+   * Fetch the broker's current open positions for an account.
+   * This is used as an independent check against reconstructed trade history.
+   */
+  async searchOpenPositions(token: string, accountId: number): Promise<OpenPosition[]> {
+    const response = await fetch(`${BASE_URL}/Position/searchOpen`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        accept: 'text/plain',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ accountId }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch open positions: ${response.status}`);
+    }
+
+    const data = (await response.json()) as OpenPositionResponse;
+    if (!data.success || data.errorCode !== 0) {
+      throw new Error(data.errorMessage || 'Failed to fetch open positions');
+    }
+
+    return data.positions || [];
   }
 
   /**
