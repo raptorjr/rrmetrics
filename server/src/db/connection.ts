@@ -39,6 +39,7 @@ export function getDb(): Db {
   if (!projectxColumns.has('auto_sync_enabled')) db.exec('ALTER TABLE projectx_connections ADD COLUMN auto_sync_enabled INTEGER NOT NULL DEFAULT 0');
   if (!projectxColumns.has('auto_sync_interval_minutes')) db.exec('ALTER TABLE projectx_connections ADD COLUMN auto_sync_interval_minutes INTEGER NOT NULL DEFAULT 5');
   if (!projectxColumns.has('auto_sync_next_at')) db.exec('ALTER TABLE projectx_connections ADD COLUMN auto_sync_next_at TEXT');
+  if (!projectxColumns.has('auto_sync_started_at')) db.exec('ALTER TABLE projectx_connections ADD COLUMN auto_sync_started_at TEXT');
   if (!projectxColumns.has('auto_sync_last_attempt_at')) db.exec('ALTER TABLE projectx_connections ADD COLUMN auto_sync_last_attempt_at TEXT');
   if (!projectxColumns.has('auto_sync_last_error')) db.exec('ALTER TABLE projectx_connections ADD COLUMN auto_sync_last_error TEXT');
   if (!projectxColumns.has('auto_sync_last_result')) db.exec('ALTER TABLE projectx_connections ADD COLUMN auto_sync_last_result TEXT');
