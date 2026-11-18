@@ -7,6 +7,7 @@ export interface ProjectXRawTrade extends ProjectXTradeLeg {}
 export interface ProjectXSyncResult {
   rawLegs: number;
   positions: number;
+  newTradesImported: number;
   openPositions: number;
   warnings: string[];
   reinstatedVoidedOrders: number;
@@ -112,6 +113,10 @@ export function reconcileProjectXHistory(
     const allLegs = stored.map(row => JSON.parse(row.raw_json) as ProjectXRawTrade);
     const reconstruction = reconstructProjectXPositions(allLegs, reinstatedVoidedOrderKeys);
 
+    const existingPositionIds = new Set(
+      (db.prepare(`SELECT id FROM trades WHERE user_id = ? AND broker_connection_id = ? AND projectx_source = 'projectx'`).all(userId, connectionId) as Array<{ id: string }>).map(row => row.id),
+    );
+    let newTradesImported = 0;
     clearCurrentIds.run();
 
     for (const position of reconstruction.positions) {
@@ -128,6 +133,7 @@ export function reconcileProjectXHistory(
 
       const projectionId = `px:${connectionId}:${position.positionKey}`;
       rememberCurrentId.run(projectionId);
+      if (!existingPositionIds.has(projectionId)) newTradesImported += 1;
       insertPosition.run(
         projectionId,
         userId,
@@ -158,12 +164,13 @@ export function reconcileProjectXHistory(
     if (reconstruction.warnings.length === 0) {
       deleteStaleProjection.run(userId, connectionId);
     }
-    return reconstruction;
+    return { ...reconstruction, newTradesImported };
   })();
 
   return {
     rawLegs: trades.length,
     positions: result.positions.length,
+    newTradesImported: result.newTradesImported,
     openPositions: result.openPositions.length,
     warnings: result.warnings,
     reinstatedVoidedOrders: reinstatedVoidedOrderKeys.size,
