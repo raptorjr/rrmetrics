@@ -109,6 +109,9 @@ export function reconcileProjectXHistory(
     const stored = readLegs.all(connectionId) as Array<{ raw_json: string }>;
     const allLegs = stored.map(row => JSON.parse(row.raw_json) as ProjectXRawTrade);
     const reconstruction = reconstructProjectXPositions(allLegs);
+    if (reconstruction.warnings.length > 0) {
+      throw new Error(`ProjectX reconstruction produced ${reconstruction.warnings.length} warning(s): ${reconstruction.warnings.join('; ')}`);
+    }
 
     clearCurrentIds.run();
 
