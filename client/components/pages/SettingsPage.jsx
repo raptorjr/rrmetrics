@@ -618,6 +618,35 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
     setPxSyncingId(null);
   };
 
+  const handlePxClear = async (connectionId) => {
+    const confirmed = window.confirm(
+      'Clear all imported Topstep trades and raw execution history for this connection? Your Topstep login and selected accounts will be kept. This cannot be undone.'
+    );
+    if (!confirmed) return;
+
+    setMessage(null);
+    try {
+      const response = await authFetch('/api/projectx/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connectionId }),
+      });
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        setMessage({ type: 'error', text: data.error || 'Failed to clear imported data' });
+      } else {
+        setMessage({
+          type: 'success',
+          text: `Cleared ${data.deletedPositions} imported trades and ${data.deletedRawLegs} raw execution records. Your connection is still active.`,
+        });
+        fetchPxStatus();
+        if (onSyncComplete) onSyncComplete();
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Failed to clear imported data' });
+    }
+  };
+
   const handlePxDisconnect = async (connectionId) => {
     if (!confirm('Disconnect this Topstep connection?')) return;
     setMessage(null);
@@ -1078,6 +1107,8 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                           className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-bg-surface rounded-lg transition-colors">Settings</button>
                                       </>
                                     )}
+                                    <button onClick={() => handlePxClear(conn.connectionId)}
+                                      className="px-3 py-1.5 text-negative text-xs font-medium hover:bg-negative/10 rounded-lg transition-colors">Clear imported data</button>
                                     <button onClick={() => handlePxDisconnect(conn.connectionId)}
                                       className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-negative hover:bg-negative/10 rounded-lg transition-colors">Disconnect</button>
                                   </div>
