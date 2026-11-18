@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  findFullyFilledVoidedOrderOverrides,
   reconstructProjectXPositions,
   type ProjectXTradeLeg,
 } from './ProjectXReconstruction';
@@ -116,6 +117,58 @@ test('does not publish an open position from an instrument with reconstruction w
   assert.equal(result.warnings.length, 1);
   assert.equal(result.positions.length, 0);
   assert.equal(result.openPositions.length, 0);
+});
+
+test('reinstates only fully filled orders whose complete trade-leg set is voided', () => {
+  const voidedBuy = leg(1, 0, 2, 4371, -16, 100, '2026-09-22T14:01:26Z', 1.42, 0.5, true);
+  const voidedSellA = leg(2, 1, 2, 4370.9, 4, 101, '2026-09-22T14:39:12Z', 1.42, 0.5, true);
+  const voidedSellB = { ...voidedSellA, id: 3, profitAndLoss: 6 };
+  const voidedSellC = { ...voidedSellA, id: 4, profitAndLoss: 18 };
+  const overrides = findFullyFilledVoidedOrderOverrides(
+    [voidedBuy, voidedSellA, voidedSellB, voidedSellC],
+    [
+      { id: 100, accountId: 1, contractId: 'MGC', status: 2, side: 0, fillVolume: 2 },
+      { id: 101, accountId: 1, contractId: 'MGC', status: 2, side: 1, fillVolume: 6 },
+    ],
+  );
+
+  assert.deepEqual([...overrides].sort(), ['1:100', '1:101']);
+  const reconstructed = reconstructProjectXPositions([
+    leg(5, 1, 2, 4370.2, null, 99, '2026-09-22T13:39:48Z'),
+    voidedBuy,
+    leg(6, 0, 2, 4370.7, null, 102, '2026-09-22T14:01:55Z'),
+    leg(7, 0, 2, 4370.6, null, 103, '2026-09-22T14:02:49Z'),
+    leg(8, 0, 2, 4370, null, 104, '2026-09-22T14:04:14Z'),
+    voidedSellA,
+    voidedSellB,
+    voidedSellC,
+  ], overrides);
+
+  assert.equal(reconstructed.warnings.length, 0);
+  assert.equal(reconstructed.openPositions.length, 0);
+  assert.equal(reconstructed.positions.length, 2);
+});
+
+test('does not reinstate partially voided, cancelled, or quantity-mismatched orders', () => {
+  const voided = leg(1, 0, 2, 100, -10, 100, '2026-11-01T10:00:00Z', 0, 0, true);
+  const active = leg(2, 0, 1, 100, null, 100, '2026-11-01T10:00:00Z');
+  const overrides = findFullyFilledVoidedOrderOverrides(
+    [voided, active],
+    [{ id: 100, accountId: 1, contractId: 'MGC', status: 2, side: 0, fillVolume: 3 }],
+  );
+  assert.equal(overrides.size, 0);
+
+  const cancelled = findFullyFilledVoidedOrderOverrides(
+    [voided],
+    [{ id: 100, accountId: 1, contractId: 'MGC', status: 3, side: 0, fillVolume: 2 }],
+  );
+  assert.equal(cancelled.size, 0);
+
+  const mismatch = findFullyFilledVoidedOrderOverrides(
+    [voided],
+    [{ id: 100, accountId: 1, contractId: 'MGC', status: 2, side: 0, fillVolume: 3 }],
+  );
+  assert.equal(mismatch.size, 0);
 });
 
 test('latest voided version of a trade ID is excluded', () => {
