@@ -8,7 +8,7 @@ const readLayout = (storageKey, defaults, defaultVisible, availableIds) => {
     const valid = new Set(availableIds);
     const newIds = defaults.filter(id => !saved.order.includes(id));
     const order = [...saved.order.filter(id => valid.has(id)), ...newIds];
-    return { order, hidden: [...saved.hidden.filter(id => valid.has(id)), ...newIds] };
+    return { order, hidden: [...saved.hidden.filter(id => valid.has(id)), ...newIds.filter(id => !defaultVisible.includes(id))] };
   } catch {
     return { order: defaults, hidden: [] };
   }
@@ -114,7 +114,7 @@ const CustomizableStats = ({ storageKey, items, defaultOrder, defaultVisible = d
             onDragOver={editing ? event => event.preventDefault() : undefined}
             onDrop={editing ? event => { event.preventDefault(); moveItem(draggedId, item.id); setDraggedId(null); } : undefined}
             onDragEnd={editing ? () => setDraggedId(null) : undefined}
-            className={editing ? `relative rounded-xl outline outline-1 outline-dashed outline-accent cursor-grab ${draggedId === item.id ? 'opacity-50' : ''}` : ''}
+            className={`${item.defaultColumns >= 4 ? 'col-span-2 md:col-span-4' : item.defaultColumns === 2 ? 'col-span-2' : 'col-span-1'} ${editing ? `relative rounded-xl outline outline-1 outline-dashed outline-accent cursor-grab ${draggedId === item.id ? 'opacity-50' : ''}` : ''}`}
           >
             {editing && <span className="absolute z-10 top-1 right-1 rounded bg-bg-page/90 px-1.5 py-0.5 text-[10px] text-text-secondary pointer-events-none">⠿ Move</span>}
             {item.render()}
