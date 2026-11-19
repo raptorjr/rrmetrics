@@ -218,7 +218,7 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
       return new Date(timestamp).toISOString();
     };
     const parseDisplayDateTime = (dateValue, timeValue) => {
-      const dateMatch = dateValue.trim().match(/^(\d{2})\\.(\d{2})\\.(\d{4})$/);
+      const dateMatch = dateValue.trim().match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
       if (!dateMatch) return null;
       const [, day, month, year] = dateMatch;
       let hour, minute, second = 0;
