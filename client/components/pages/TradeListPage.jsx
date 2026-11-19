@@ -20,33 +20,40 @@ const DailyPnlChart = ({ trades, currency, formatMoney, totalPL }) => {
   const min = Math.min(0, ...values);
   const max = Math.max(0, ...values);
   const span = max - min || 1;
-  const width = 360, height = 132, left = 58, right = 8, top = 10, bottom = 10;
+  const width = 360, height = 132, left = 68, right = 8, top = 10, bottom = 10;
   const plotWidth = width - left - right, plotHeight = height - top - bottom;
   const x = index => left + (values.length <= 1 ? 0 : index / (values.length - 1)) * plotWidth;
   const y = value => top + ((max - value) / span) * plotHeight;
   const zeroY = y(0);
-  const points = values.map((value, index) => [x(index), y(value)]);
-  const segmentPath = (index) => {
-    const p0 = points[Math.max(0, index - 1)], p1 = points[index];
-    const p2 = points[index + 1], p3 = points[Math.min(points.length - 1, index + 2)];
-    const c1x = p1[0] + (p2[0] - p0[0]) / 6;
-    const c1y = p1[1] + (p2[1] - p0[1]) / 6;
-    const c2x = p2[0] - (p3[0] - p1[0]) / 6;
-    const c2y = p2[1] - (p3[1] - p1[1]) / 6;
-    return `M${p1[0]},${p1[1]} C${c1x},${c1y} ${c2x},${c2y} ${p2[0]},${p2[1]}`;
-  };
+  const originalPoints = values.map((value, index) => ({ x: x(index), y: y(value), value }));
+  // Insert exact zero-crossing points so both the stroke and fill change colour at zero.
+  const points = [];
+  originalPoints.forEach((point, index) => {
+    if (index === 0) { points.push(point); return; }
+    const previous = originalPoints[index - 1];
+    if ((previous.value < 0 && point.value > 0) || (previous.value > 0 && point.value < 0)) {
+      const ratio = Math.abs(previous.value) / (Math.abs(previous.value) + Math.abs(point.value));
+      points.push({ x: previous.x + (point.x - previous.x) * ratio, y: zeroY, value: 0 });
+    }
+    points.push(point);
+  });
   const segments = points.slice(0, -1).map((point, index) => {
     const next = points[index + 1];
-    const color = ((values[index] + values[index + 1]) / 2) >= 0 ? 'positive' : 'negative';
-    const path = segmentPath(index);
-    const area = path + ` L${next[0]},${zeroY} L${point[0]},${zeroY} Z`;
-    return { path, area, color };
+    const midX = (point.x + next.x) / 2;
+    const midY = (point.y + next.y) / 2;
+    const positive = (point.value + next.value) >= 0;
+    const path = `M${point.x},${point.y} Q${midX},${midY} ${next.x},${next.y}`;
+    const area = path + ` L${next.x},${zeroY} L${point.x},${zeroY} Z`;
+    return { path, area, positive };
   });
-  const rawTicks = max > 0 && min < 0
-    ? [{ value: max }, { value: 0 }, { value: min }]
-    : max > 0 ? [{ value: max }, { value: 0 }] : [{ value: 0 }, { value: min }];
-  const ticks = rawTicks.filter((tick, index, all) =>
-    all.findIndex(candidate => formatMoney(candidate.value, currency) === formatMoney(tick.value, currency)) === index
+  // Keep zero visible and suppress extreme labels that would collide with it.
+  const candidates = [
+    ...(max > 0 ? [{ value: max, priority: 1 }] : []),
+    { value: 0, priority: 0 },
+    ...(min < 0 ? [{ value: min, priority: 1 }] : []),
+  ];
+  const ticks = candidates.sort((a, b) => a.priority - b.priority).filter((tick, index, all) =>
+    all.slice(0, index).every(kept => Math.abs(y(kept.value) - y(tick.value)) >= 19)
   );
   return (
     <div className="min-w-0">
@@ -59,11 +66,11 @@ const DailyPnlChart = ({ trades, currency, formatMoney, totalPL }) => {
         ))}
         {segments.map((segment, index) => (
           <g key={index}>
-            <path d={segment.area} fill={segment.color === 'positive' ? 'rgba(34,197,94,0.16)' : 'rgba(239,68,68,0.16)'} />
-            <path d={segment.path} fill="none" stroke={segment.color === 'positive' ? '#22c55e' : '#ef4444'} strokeWidth="2.5" strokeLinecap="round" />
+            <path d={segment.area} fill={segment.positive ? 'rgba(34,197,94,0.16)' : 'rgba(239,68,68,0.16)'} />
+            <path d={segment.path} fill="none" stroke={segment.positive ? '#22c55e' : '#ef4444'} strokeWidth="2.5" strokeLinecap="round" />
           </g>
         ))}
-        {points.length > 1 && <circle cx={points[points.length - 1][0]} cy={points[points.length - 1][1]} r="3.5" fill={totalPL >= 0 ? '#22c55e' : '#ef4444'} />}
+        {points.length > 1 && <circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r="3.5" fill={totalPL >= 0 ? '#22c55e' : '#ef4444'} />}
       </svg>
     </div>
   );

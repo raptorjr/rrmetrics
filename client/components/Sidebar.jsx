@@ -66,13 +66,13 @@ const Sidebar = ({ currentPage, onNavigate, onCollapsedChange, onWidthChange, tr
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Icons.Home },
+    { id: 'trades', label: 'Trades', icon: Icons.List },
     { id: 'analytics', label: 'Analytics', icon: Icons.BarChart },
     { id: 'strategy', label: 'Strategy', icon: Icons.Target },
     { id: 'premarket', label: 'Pre-Market', icon: Icons.Sunrise },
   ];
 
   const secondaryNavItems = [
-    { id: 'trades', label: 'Trades', icon: Icons.List },
     { id: 'settings', label: 'Settings', icon: Icons.Settings },
   ];
 
