@@ -3,6 +3,7 @@ import type { Env, AuthContext } from '../bindings';
 import { requiresLogin } from '../middleware/auth';
 import { generateId } from '../utils/id';
 import {
+  matchTradeZellaRows,
   matchTradeZellaRowsAcrossAccounts,
   parseTradeZellaRows,
   summarizeTradeZellaAccounts,
