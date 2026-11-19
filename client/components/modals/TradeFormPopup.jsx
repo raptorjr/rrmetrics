@@ -40,11 +40,14 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
   const setSidePanelOffset = React.useContext(SidePanelContext);
   const tradeRules = strategyRules ? strategyRules.filter(r => r.type === 'trade') : [];
   useEffect(() => {
+    // A calendar edit modal sits above the existing daily-trades panel.
+    // Leave that panel's layout offset untouched so the dashboard does not resize.
+    if (forceModal) return;
     if (!isOpen) { setSidePanelOffset(0); return; }
     if (isSidePanel) setSidePanelOffset(520);
     else setSidePanelOffset(0);
     return () => setSidePanelOffset(0);
-  }, [isOpen, isSidePanel, setSidePanelOffset]);
+  }, [isOpen, isSidePanel, forceModal, setSidePanelOffset]);
 
   const handleQuickCreateTag = async () => {
     if (!quickTagName.trim() || creatingTag) return;
