@@ -369,6 +369,16 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
  * cross-account duplicate candidate for manual review rather than importing
  * another copy (important for umbrella exports such as Practice).
  */
+// Cross-account checks must be stricter than same-account diagnostics. A shared
+// instrument/side/exit timestamp is only a weak lead: different accounts can
+// trade the same market at the same time. Preserve reviews for genuinely
+// ambiguous exact, strong, aggregated, partial-exit, or merged-episode matches.
+function isCredibleCrossAccountCandidate(match: MatchResult): boolean {
+  return match.status === 'matched'
+    || (match.status === 'review'
+      && !match.reason.startsWith('Similar position found;'));
+}
+
 export function matchTradeZellaRowsAcrossAccounts(
   rows: TradeZellaRow[],
   existing: ExistingTrade[],
@@ -411,7 +421,7 @@ export function matchTradeZellaRowsAcrossAccounts(
       }));
     const sourceMatches = matchTradeZellaRows(newRows, sourceCandidates);
     for (const match of sourceMatches) {
-      if (match.status === 'new') continue;
+      if (!isCredibleCrossAccountCandidate(match)) continue;
       for (const sourceRow of match.sourceRows) {
         const item = possibleByRow.get(sourceRow) || { ids: new Set<string>(), accounts: new Set<string>() };
         match.existingTradeIds.forEach(id => item.ids.add(id));
@@ -428,7 +438,7 @@ export function matchTradeZellaRowsAcrossAccounts(
   if (alreadyLinkedInTarget.length) {
     const linkedMatches = matchTradeZellaRows(newRows, alreadyLinkedInTarget);
     for (const match of linkedMatches) {
-      if (match.status === 'new') continue;
+      if (!isCredibleCrossAccountCandidate(match)) continue;
       for (const sourceRow of match.sourceRows) {
         const item = possibleByRow.get(sourceRow) || { ids: new Set<string>(), accounts: new Set<string>() };
         match.existingTradeIds.forEach(id => item.ids.add(id));
@@ -448,7 +458,7 @@ export function matchTradeZellaRowsAcrossAccounts(
       crossAccountExisting.filter(trade => trade.account === account),
     );
     for (const match of crossMatches) {
-      if (match.status === 'new') continue;
+      if (!isCredibleCrossAccountCandidate(match)) continue;
       for (const sourceRow of match.sourceRows) {
         const item = possibleByRow.get(sourceRow) || { ids: new Set<string>(), accounts: new Set<string>() };
         match.existingTradeIds.forEach(id => item.ids.add(id));
