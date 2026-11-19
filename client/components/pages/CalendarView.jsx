@@ -405,7 +405,7 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
           )}
           {viewMode === 'daily' && (
             <div className="flex bg-bg-input rounded-lg p-0.5">
-              <button type="button" onClick={() => setCurrentDate(new Date())} className="px-3 py-1.5 rounded-md bg-bg-surface text-xs font-medium text-accent shadow-sm transition-colors hover:bg-bg-surface">
+              <button type="button" onClick={() => setCurrentDate(new Date())} className="px-3 py-1.5 rounded-md text-xs font-medium transition-all text-text-tertiary hover:text-text-secondary">
                 This month
               </button>
             </div>
