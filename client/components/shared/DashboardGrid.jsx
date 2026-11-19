@@ -57,6 +57,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const [layout, setLayout] = useState(() => readLayout(storageKey, defaultOrder, defaultVisible, items));
   const [editing, setEditing] = useState(false);
   const [draggedId, setDraggedId] = useState(null);
+  const [dropTarget, setDropTarget] = useState(null);
   const [columns, setColumns] = useState(12);
   const [templates, setTemplates] = useState(() => {
     try { return JSON.parse(localStorage.getItem(`${storageKey}_templates`) || '[]'); }
@@ -112,7 +113,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     }));
   };
 
-  const moveItem = (fromId, toId) => {
+  const moveItem = (fromId, toId, position = 'before') => {
     if (!fromId || !toId || fromId === toId) return;
     setLayout(current => {
       const order = [...current.order];
@@ -120,7 +121,9 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       const to = order.indexOf(toId);
       if (from < 0 || to < 0) return current;
       order.splice(from, 1);
-      order.splice(to, 0, fromId);
+      const target = order.indexOf(toId);
+      if (target < 0) return current;
+      order.splice(target + (position === 'after' ? 1 : 0), 0, fromId);
       return { ...current, order };
     });
   };
@@ -220,7 +223,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-semibold text-text-primary">Dashboard tile catalogue</h3>
-              <p className="text-xs text-text-tertiary mt-1">Add or remove tiles, drag them to reorder, and resize them directly on the grid.</p>
+              <p className="text-xs text-text-tertiary mt-1">Add or remove tiles, drag them to reorder, and resize them directly on the grid. A highlighted edge shows where a tile will be placed.</p>
             </div>
             <button type="button" onClick={reset} className="text-xs text-text-secondary hover:text-text-primary underline">Reset layout</button>
           </div>
@@ -343,23 +346,49 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
               draggable={editing}
               onDragStart={editing ? event => {
                 setDraggedId(item.id);
+                setDropTarget(null);
                 event.dataTransfer.effectAllowed = 'move';
                 event.dataTransfer.setData('text/plain', item.id);
               } : undefined}
-              onDragOver={editing ? event => event.preventDefault() : undefined}
+              onDragOver={editing ? event => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
+                if (!draggedId || draggedId === item.id) {
+                  setDropTarget(null);
+                  return;
+                }
+                const bounds = event.currentTarget.getBoundingClientRect();
+                const position = event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after';
+                setDropTarget(current => current && current.id === item.id && current.position === position
+                  ? current
+                  : { id: item.id, position });
+              } : undefined}
+              onDragLeave={editing ? event => {
+                if (!event.currentTarget.contains(event.relatedTarget)) {
+                  setDropTarget(current => current && current.id === item.id ? null : current);
+                }
+              } : undefined}
               onDrop={editing ? event => {
                 event.preventDefault();
                 const fromId = event.dataTransfer.getData('text/plain') || draggedId;
-                moveItem(fromId, item.id);
+                const position = dropTarget && dropTarget.id === item.id ? dropTarget.position : 'before';
+                moveItem(fromId, item.id, position);
                 setDraggedId(null);
+                setDropTarget(null);
               } : undefined}
-              onDragEnd={editing ? () => setDraggedId(null) : undefined}
-              className={`relative min-w-0 h-full [&>*]:h-full ${editing ? `rounded-xl outline outline-1 outline-dashed outline-accent cursor-grab ${draggedId === item.id ? 'opacity-50' : ''}` : ''}`}
+              onDragEnd={editing ? () => { setDraggedId(null); setDropTarget(null); } : undefined}
+              className={`relative min-w-0 h-full [&>*]:h-full ${editing ? `rounded-xl outline outline-1 outline-dashed outline-accent cursor-grab ${draggedId === item.id ? 'opacity-35' : ''} ${dropTarget && dropTarget.id === item.id ? 'bg-accent/10' : ''}` : ''}`}
               style={{
                 gridColumn: `span ${getColumnSpan(size)} / span ${getColumnSpan(size)}`,
                 gridRow: `span ${size.h} / span ${size.h}`,
               }}
             >
+              {editing && dropTarget && dropTarget.id === item.id && (
+                <div
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute z-40 left-1 right-1 ${dropTarget.position === 'before' ? 'top-0' : 'bottom-0'} h-1.5 rounded-full bg-accent shadow-[0_0_0_3px_rgba(99,102,241,0.18)]`}
+                />
+              )}
               {editing && (
                 <div className="absolute z-20 top-2 right-2 flex items-center gap-1 rounded-md bg-bg-page/95 border border-border px-1.5 py-1 text-[10px] text-text-secondary">
                   <span className="select-none pointer-events-none">⠿ Move</span>
