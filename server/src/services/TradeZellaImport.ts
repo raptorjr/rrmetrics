@@ -43,7 +43,7 @@ const epoch = (value: string) => new Date(value).getTime() / 1000;
 export function parseTradeZellaTimestamp(dateValue: unknown, timeValue: unknown): string | null {
   const date = String(dateValue || '').trim();
   const time = String(timeValue || '').trim();
-  const match = time.match(/^(\d{1,2}:\d{2}:\d{2})(?:\\s+(CET|CEST))?$/i);
+  const match = time.match(/^(\d{1,2}:\d{2}:\d{2})(?:\s+(CET|CEST))?$/i);
   if (!date || !match) return null;
   const [hour, minute, second] = match[1].split(':').map(Number);
   const [year, month, day] = date.split('-').map(Number);
