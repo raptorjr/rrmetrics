@@ -185,7 +185,33 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     });
   };
 
-  const reset = () => setLayout(readLayoutFromValue(null, defaultOrder, defaultVisible, items));
+  const reset = () => {
+    setLayout(readLayoutFromValue(null, defaultOrder, defaultVisible, items));
+    setSelectedTemplate('');
+  };
+
+  const selectedTemplateData = templates.find(template => template.name === selectedTemplate);
+  const selectedTemplateLayout = selectedTemplateData
+    ? readLayoutFromValue(selectedTemplateData.layout, defaultOrder, defaultVisible, items)
+    : null;
+  const selectedTemplateHasChanges = Boolean(selectedTemplateLayout && (
+    JSON.stringify(selectedTemplateLayout.order) !== JSON.stringify(layout.order)
+    || JSON.stringify(selectedTemplateLayout.hidden) !== JSON.stringify(layout.hidden)
+    || items.some(item => {
+      const savedSize = selectedTemplateLayout.sizes[item.id];
+      const currentSize = layout.sizes[item.id];
+      return !savedSize || !currentSize || savedSize.w !== currentSize.w || savedSize.h !== currentSize.h;
+    })
+  ));
+
+  const updateSelectedTemplate = () => {
+    if (!selectedTemplate || !selectedTemplateHasChanges) return;
+    const next = templates.map(template => template.name === selectedTemplate
+      ? { ...template, layout: JSON.parse(JSON.stringify(layout)) }
+      : template);
+    setTemplates(next);
+    localStorage.setItem(`${storageKey}_templates`, JSON.stringify(next));
+  };
 
   const saveTemplate = () => {
     const name = templateName.trim();
@@ -339,6 +365,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                 {templates.map(template => <option key={template.name} value={template.name}>{template.name}</option>)}
               </select>
               <button type="button" onClick={applyTemplate} disabled={!selectedTemplate} className="rounded-md border border-border px-3 py-2 text-xs text-text-primary disabled:opacity-40">Load</button>
+              <button type="button" onClick={updateSelectedTemplate} disabled={!selectedTemplateHasChanges} title={selectedTemplateHasChanges ? 'Save the current dashboard over the selected template' : 'No unsaved changes to this template'} className="rounded-md border border-border px-3 py-2 text-xs text-text-primary disabled:opacity-40">Update</button>
               <button type="button" onClick={deleteTemplate} disabled={!selectedTemplate} className="rounded-md border border-border px-3 py-2 text-xs text-text-secondary disabled:opacity-40">Delete</button>
             </div>
           </div>
