@@ -2,20 +2,21 @@ const React = require('react');
 const { useEffect, useMemo, useRef, useState } = React;
 
 const MAX_COLUMNS = 4;
+const MAX_ROWS = 8;
 const GRID_GAP = 16;
 const ROW_UNIT = 128;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const getDefaultSize = (item) => ({
-  w: clamp(Number(item.defaultColumns) || 1, Number(item.minColumns) || 1, MAX_COLUMNS),
-  h: Math.max(Number(item.minRows) || 1, Number(item.defaultRows) || 1),
+  w: clamp(Math.trunc(Number(item.defaultColumns) || 1), Number(item.minColumns) || 1, MAX_COLUMNS),
+  h: clamp(Math.trunc(Number(item.defaultRows) || 1), Number(item.minRows) || 1, MAX_ROWS),
 });
 
 const readLayout = (storageKey, defaultOrder, defaultVisible, items) => {
   const ids = items.map(item => item.id);
   const valid = new Set(ids);
-  const defaults = [...defaultOrder.filter(id => valid.has(id)), ...ids.filter(id => !defaultOrder.includes(id))];
+  const defaults = [...new Set(defaultOrder.filter(id => valid.has(id))), ...ids.filter(id => !defaultOrder.includes(id))];
 
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey));
@@ -27,18 +28,19 @@ const readLayout = (storageKey, defaultOrder, defaultVisible, items) => {
       };
     }
 
-    const newIds = defaults.filter(id => !saved.order.includes(id));
-    const order = [...saved.order.filter(id => valid.has(id)), ...newIds];
-    const hidden = [
+    const savedOrder = [...new Set(saved.order.filter(id => valid.has(id)))];
+    const newIds = defaults.filter(id => !savedOrder.includes(id));
+    const order = [...savedOrder, ...newIds];
+    const hidden = [...new Set([
       ...saved.hidden.filter(id => valid.has(id)),
       ...newIds.filter(id => !defaultVisible.includes(id)),
-    ];
+    ])];
     const sizes = Object.fromEntries(items.map(item => {
       const fallback = getDefaultSize(item);
       const savedSize = saved.sizes && saved.sizes[item.id];
       return [item.id, {
-        w: clamp(Number(savedSize && savedSize.w) || fallback.w, Number(item.minColumns) || 1, MAX_COLUMNS),
-        h: Math.max(Number(item.minRows) || 1, Number(savedSize && savedSize.h) || fallback.h),
+        w: clamp(Math.trunc(Number(savedSize && savedSize.w) || fallback.w), Number(item.minColumns) || 1, MAX_COLUMNS),
+        h: clamp(Math.trunc(Number(savedSize && savedSize.h) || fallback.h), Number(item.minRows) || 1, MAX_ROWS),
       }];
     }));
 
@@ -198,7 +200,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       w: widthDelta === 0
         ? start.startW
         : clamp(Math.min(start.startW, columns === 2 ? 2 : MAX_COLUMNS) + widthDelta, minW, columns === 2 ? 2 : MAX_COLUMNS),
-      h: Math.max(minH, start.startH + heightDelta),
+      h: clamp(start.startH + heightDelta, minH, MAX_ROWS),
     };
     setLayout(current => ({
       ...current,
@@ -214,7 +216,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
 
   const adjustSize = (item, dimension, delta) => {
     const min = dimension === 'w' ? Number(item.minColumns) || 1 : Number(item.minRows) || 1;
-    const max = dimension === 'w' ? (columns === 2 ? 2 : MAX_COLUMNS) : 8;
+    const max = dimension === 'w' ? (columns === 2 ? 2 : MAX_COLUMNS) : MAX_ROWS;
     setLayout(current => {
       const size = current.sizes[item.id] || getDefaultSize(item);
       const nextValue = clamp(size[dimension] + delta, min, max);
@@ -444,12 +446,12 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                     }}
                     className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30"
                   >↓</button>
-                  <span className="select-none pointer-events-none">{size.w}×{size.h}</span>
+                  <span className="select-none pointer-events-none">{Math.min(size.w, columns === 2 ? 2 : MAX_COLUMNS)}×{size.h}</span>
                   <span className="flex items-center gap-0.5 border-l border-border pl-1">
                     <button type="button" onClick={() => adjustSize(item, 'w', -1)} disabled={size.w <= (Number(item.minColumns) || 1)} aria-label={`Make ${item.label} narrower`} title="Narrower" className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30">−</button>
                     <button type="button" onClick={() => adjustSize(item, 'w', 1)} disabled={size.w >= (columns === 2 ? 2 : MAX_COLUMNS)} aria-label={`Make ${item.label} wider`} title="Wider" className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30">＋</button>
                     <button type="button" onClick={() => adjustSize(item, 'h', -1)} disabled={size.h <= (Number(item.minRows) || 1)} aria-label={`Make ${item.label} shorter`} title="Shorter" className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30">−</button>
-                    <button type="button" onClick={() => adjustSize(item, 'h', 1)} disabled={size.h >= 8} aria-label={`Make ${item.label} taller`} title="Taller" className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30">＋</button>
+                    <button type="button" onClick={() => adjustSize(item, 'h', 1)} disabled={size.h >= MAX_ROWS} aria-label={`Make ${item.label} taller`} title="Taller" className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30">＋</button>
                   </span>
                 </div>
               )}
