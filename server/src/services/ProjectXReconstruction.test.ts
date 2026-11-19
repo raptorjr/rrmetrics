@@ -120,6 +120,24 @@ test('does not publish an open position from an instrument with reconstruction w
   assert.equal(result.openPositions.length, 0);
 });
 
+test('identifies only the instrument quarantined by a reconstruction warning', () => {
+  const unsafe = [
+    leg(1, 0, 1, 100, null, 10, '2026-11-01T10:00:00Z'),
+    leg(2, 0, 1, 101, 10, 11, '2026-11-01T10:01:00Z'),
+  ];
+  const safe = [
+    { ...leg(3, 0, 1, 200, null, 12, '2026-11-01T10:00:00Z'), contractId: 'MNQ' },
+    { ...leg(4, 1, 1, 201, 10, 13, '2026-11-01T10:01:00Z'), contractId: 'MNQ' },
+  ];
+
+  const result = reconstructProjectXPositions([...unsafe, ...safe]);
+
+  assert.equal(result.warnings.length, 1);
+  assert.deepEqual(result.unsafeInstrumentKeys, ['1:MGC']);
+  assert.equal(result.positions.length, 1);
+  assert.equal(result.positions[0].contractId, 'MNQ');
+});
+
 test('reinstates only fully filled orders whose complete trade-leg set is voided', () => {
   const voidedBuy = leg(1, 0, 2, 4371, -16, 100, '2026-09-22T14:01:26Z', 1.42, 0.5, true);
   const voidedSellA = leg(2, 1, 2, 4370.9, 4, 101, '2026-09-22T14:39:12Z', 1.42, 0.5, true);
