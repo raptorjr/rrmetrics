@@ -4,8 +4,7 @@ const { Popover, PopoverTrigger, PopoverContent } = require('../ui/popover');
 const { Avatar, AvatarFallback } = require('../ui/avatar');
 const { Check, ChevronsUpDown } = require('lucide-react');
 const { cn } = require('../../lib/utils');
-
-const NO_ACCOUNTS = '__rrmetrics_no_accounts__';
+const { NO_ACCOUNTS, getTradeAccountKey, getTradeAccountEntries } = require('../../utils/accountIdentity');
 
 const BROKER_ICONS = {
   tradovate: { icon: '/assets/img/tradovate.png', label: 'Tradovate' },
@@ -28,34 +27,22 @@ const AccountSwitcher = ({ trades, selectedAccounts, setSelectedAccounts, collap
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 
-  const accounts = useMemo(() => [...new Set((trades || []).map(t => t.account || 'Manual'))].sort(), [trades]);
-  const accountProvider = useMemo(() => {
-    const result = {};
-    for (const trade of trades || []) {
-      const name = trade.account || 'Manual';
-      if (accountBrokers?.[name]) result[name] = accountBrokers[name];
-      else if (trade.tradovate_source === 'tradezella') result[name] = 'tradezella';
-      else if (!result[name]) result[name] = 'manual';
-    }
-    return result;
-  }, [trades, accountBrokers]);
+  const accountEntries = useMemo(() => getTradeAccountEntries(trades || [], accountBrokers || {}), [trades, accountBrokers]);
+  const accounts = accountEntries;
 
   const groups = useMemo(() => {
     const grouped = {};
-    for (const account of accounts) {
-      const key = accountProvider[account] || 'manual';
-      (grouped[key] ||= []).push(account);
-    }
+    for (const account of accountEntries) (grouped[account.provider] ||= []).push(account);
     return Object.entries(grouped).sort((a, b) => {
       const labelA = BROKER_ICONS[a[0]]?.label || (a[0] === 'manual' ? 'Manual / Other' : a[0]);
       const labelB = BROKER_ICONS[b[0]]?.label || (b[0] === 'manual' ? 'Manual / Other' : b[0]);
       return labelA.localeCompare(labelB);
     });
-  }, [accounts, accountProvider]);
+  }, [accountEntries]);
 
   const isAllSelected = selectedAccounts.length === 0;
   const isNoneSelected = selectedAccounts.includes(NO_ACCOUNTS);
-  const selectedSet = new Set(isAllSelected ? accounts : selectedAccounts.filter(a => a !== NO_ACCOUNTS));
+  const selectedSet = new Set(isAllSelected ? accounts.map(account => account.key) : selectedAccounts.filter(a => a !== NO_ACCOUNTS));
 
   const selectAll = () => {
     setSelectedAccounts([]);
@@ -64,24 +51,24 @@ const AccountSwitcher = ({ trades, selectedAccounts, setSelectedAccounts, collap
 
   const toggleAccount = (account) => {
     setSelectedAccounts(prev => {
-      const next = new Set(prev.length === 0 ? accounts : prev.filter(a => a !== NO_ACCOUNTS));
-      if (next.has(account)) next.delete(account); else next.add(account);
+      const next = new Set(prev.length === 0 ? accounts.map(item => item.key) : prev.filter(a => a !== NO_ACCOUNTS));
+      if (next.has(account.key)) next.delete(account.key); else next.add(account.key);
       return next.size ? [...next] : [NO_ACCOUNTS];
     });
   };
 
   const toggleProvider = (providerAccounts) => {
     setSelectedAccounts(prev => {
-      const next = new Set(prev.length === 0 ? accounts : prev.filter(a => a !== NO_ACCOUNTS));
-      const allInGroupSelected = providerAccounts.every(account => next.has(account));
-      if (allInGroupSelected) providerAccounts.forEach(account => next.delete(account));
-      else providerAccounts.forEach(account => next.add(account));
+      const next = new Set(prev.length === 0 ? accounts.map(item => item.key) : prev.filter(a => a !== NO_ACCOUNTS));
+      const allInGroupSelected = providerAccounts.every(account => next.has(account.key));
+      if (allInGroupSelected) providerAccounts.forEach(account => next.delete(account.key));
+      else providerAccounts.forEach(account => next.add(account.key));
       return next.size ? [...next] : [NO_ACCOUNTS];
     });
   };
 
-  const filteredGroups = groups.map(([key, list]) => [key, list.filter(account => !search || account.toLowerCase().includes(search.toLowerCase()))]).filter(([, list]) => list.length);
-  const label = isAllSelected ? 'All Accounts' : isNoneSelected ? 'No Accounts' : selectedAccounts.length === 1 ? selectedAccounts[0] : `${selectedAccounts.length} of ${accounts.length} accounts`;
+  const filteredGroups = groups.map(([key, list]) => [key, list.filter(account => !search || account.name.toLowerCase().includes(search.toLowerCase()))]).filter(([, list]) => list.length);
+  const label = isAllSelected ? 'All Accounts' : isNoneSelected ? 'No Accounts' : selectedAccounts.length === 1 ? (accounts.find(account => account.key === selectedAccounts[0])?.name || '1 account') : `${selectedAccounts.length} of ${accounts.length} accounts`;
 
   if (accounts.length <= 1) return null;
 
@@ -108,8 +95,8 @@ const AccountSwitcher = ({ trades, selectedAccounts, setSelectedAccounts, collap
           {filteredGroups.length === 0 ? <div className="px-2 py-3 text-center text-text-tertiary text-xs">No accounts found</div> : filteredGroups.map(([provider, providerAccounts]) => {
             const broker = BROKER_ICONS[provider];
             const providerLabel = broker?.label || (provider === 'manual' ? 'Manual / Other' : provider);
-            const checked = !isNoneSelected && providerAccounts.every(account => selectedSet.has(account));
-            const some = !isNoneSelected && providerAccounts.some(account => selectedSet.has(account));
+            const checked = !isNoneSelected && providerAccounts.every(account => selectedSet.has(account.key));
+            const some = !isNoneSelected && providerAccounts.some(account => selectedSet.has(account.key));
             return (
               <div key={provider} className="mt-1">
                 <button onClick={() => toggleProvider(providerAccounts)} className="flex items-center gap-2 w-full px-2 py-2 border-b border-border/70 text-left hover:bg-bg-input/60">
@@ -122,9 +109,9 @@ const AccountSwitcher = ({ trades, selectedAccounts, setSelectedAccounts, collap
                   <span className="text-[10px] text-text-muted">{providerAccounts.length}</span>
                 </button>
                 {providerAccounts.map(account => (
-                  <button key={account} onClick={() => toggleAccount(account)} className={cn('flex items-center gap-2 w-full pl-8 pr-2 py-2 rounded text-sm text-left transition-colors hover:bg-bg-input', selectedSet.has(account) && !isNoneSelected && 'bg-bg-input')}>
-                    <span className="flex-1 truncate text-text-secondary">{account}</span>
-                    {selectedSet.has(account) && !isNoneSelected && <Check className="w-3.5 h-3.5 text-accent flex-shrink-0" />}
+                  <button key={account.key} onClick={() => toggleAccount(account)} className={cn('flex items-center gap-2 w-full pl-8 pr-2 py-2 rounded text-sm text-left transition-colors hover:bg-bg-input', selectedSet.has(account.key) && !isNoneSelected && 'bg-bg-input')}>
+                    <span className="flex-1 truncate text-text-secondary">{account.name}</span>
+                    {selectedSet.has(account.key) && !isNoneSelected && <Check className="w-3.5 h-3.5 text-accent flex-shrink-0" />}
                   </button>
                 ))}
               </div>
