@@ -189,8 +189,31 @@ account.post('/api/account/managed-accounts/action', requiresLogin, async (c) =>
   const db = c.get('db');
   const body = await c.req.json();
   const { id, action } = body as { id?: string; action?: string };
-  if (!id || !['clear', 'delete'].includes(action || '')) return c.json({ error: 'A valid account and action are required.' }, 400);
+  if (!id || !['clear', 'delete', 'rename'].includes(action || '')) return c.json({ error: 'A valid account and action are required.' }, 400);
   try {
+    if (action === 'rename') {
+      const displayName = typeof body.displayName === 'string' ? body.displayName.trim() : '';
+      if (!displayName || displayName.length > 100) return c.json({ error: 'A display name between 1 and 100 characters is required.' }, 400);
+      if (id.startsWith('tradezella::')) {
+        const sourceName = id.slice('tradezella::'.length);
+        const changed = db.prepare('UPDATE tradezella_accounts SET display_name = ? WHERE user_id = ? AND source_account_name = ?').run(displayName, user.id, sourceName).changes;
+        if (!changed) return c.json({ error: 'TradeZella account not found.' }, 404);
+      } else if (id.startsWith('projectx::')) {
+        const [, connectionId, accountId] = id.split('::');
+        const row = db.prepare("SELECT pc.account_settings FROM projectx_connections pc JOIN broker_connections bc ON bc.id = pc.broker_connection_id WHERE pc.broker_connection_id = ? AND bc.owner = ? AND bc.broker = 'projectx'").get(connectionId, user.id) as any;
+        if (!row) return c.json({ error: 'Topstep account not found.' }, 404);
+        let settings: Record<string, any> = {};
+        try { settings = row.account_settings ? JSON.parse(row.account_settings) : {}; } catch {}
+        settings[accountId] = { ...(settings[accountId] || {}), displayName };
+        db.prepare('UPDATE projectx_connections SET account_settings = ? WHERE broker_connection_id = ?').run(JSON.stringify(settings), connectionId);
+      } else if (id.startsWith('broker::')) {
+        const [, connectionId, oldName] = id.split('::');
+        const owned = db.prepare('SELECT id FROM broker_connections WHERE id = ? AND owner = ?').get(connectionId, user.id);
+        if (!owned) return c.json({ error: 'Broker account not found.' }, 404);
+        db.prepare('UPDATE trades SET account = ? WHERE user_id = ? AND broker_connection_id = ? AND account = ?').run(displayName, user.id, connectionId, oldName);
+      } else return c.json({ error: 'Unknown account type.' }, 400);
+      return c.json({ ok: true, action: 'rename', displayName });
+    }
     const result = db.transaction(() => {
       if (id.startsWith('tradezella::')) {
         const sourceName = id.slice('tradezella::'.length);
