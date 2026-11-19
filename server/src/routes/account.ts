@@ -211,6 +211,9 @@ account.post('/api/account/managed-accounts/action', requiresLogin, async (c) =>
         const sourceName = id.slice('tradezella::'.length);
         const changed = db.prepare('UPDATE tradezella_accounts SET display_name = ? WHERE user_id = ? AND source_account_name = ?').run(displayName, user.id, sourceName).changes;
         if (!changed) return c.json({ error: 'TradeZella account not found.' }, 404);
+        db.prepare(`UPDATE trades SET account = ? WHERE user_id = ? AND tradovate_source = 'tradezella'
+          AND id IN (SELECT trade_id FROM tradezella_imported_trades WHERE user_id = ? AND source_account_name = ?)`)
+          .run(displayName, user.id, user.id, sourceName);
       } else if (id.startsWith('projectx::')) {
         const [, connectionId, accountId] = id.split('::');
         const row = db.prepare("SELECT pc.account_settings FROM projectx_connections pc JOIN broker_connections bc ON bc.id = pc.broker_connection_id WHERE pc.broker_connection_id = ? AND bc.owner = ? AND bc.broker = 'projectx'").get(connectionId, user.id) as any;
