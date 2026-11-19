@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   matchTradeZellaRows,
+  matchTradeZellaRowsAcrossAccounts,
   parseTradeZellaRows,
   parseTradeZellaTimestamp,
 } from './TradeZellaImport';
@@ -94,6 +95,44 @@ test('reviews multiple RR partial-position groups for one consolidated CSV trade
   assert.deepEqual(new Set(matches[0].existingTradeIds), new Set([
     'rr-partial-a', 'rr-partial-b', 'rr-partial-c', 'rr-partial-d',
   ]));
+});
+
+test('holds a possible duplicate found in another RR account for review', () => {
+  const source = parseTradeZellaRows([{
+    'Account Name': 'Practice', Instrument: 'MGC', Side: 'long', Quantity: '1',
+    'Open Date': '2026-07-15', 'Open Time': '14:00:00 CEST',
+    'Close Date': '2026-07-15', 'Close Time': '14:05:00 CEST',
+    'Entry Price': '2400.00', 'Exit Price': '2401.00', 'Net P&L': '10.00',
+  }]);
+  const matches = matchTradeZellaRowsAcrossAccounts(source, [{
+    id: 'topstep-funded-trade', ticker: 'MGC',
+    enter_time: '2026-07-15T12:00:00.000Z', exit_time: '2026-07-15T12:05:00.000Z',
+    enter_price: 2400, exit_price: 2401, quantity: 1, manual_pl: 10,
+    account: '150k XFA',
+  }], 'Practice');
+
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].status, 'review');
+  assert.deepEqual(matches[0].existingTradeIds, ['topstep-funded-trade']);
+  assert.match(matches[0].reason, /150k XFA/);
+});
+
+test('keeps a new TradeZella row new when no other RR account contains a match', () => {
+  const source = parseTradeZellaRows([{
+    'Account Name': 'Practice', Instrument: 'MGC', Side: 'long', Quantity: '1',
+    'Open Date': '2026-07-15', 'Open Time': '14:00:00 CEST',
+    'Close Date': '2026-07-15', 'Close Time': '14:05:00 CEST',
+    'Entry Price': '2400.00', 'Exit Price': '2401.00', 'Net P&L': '10.00',
+  }]);
+  const matches = matchTradeZellaRowsAcrossAccounts(source, [{
+    id: 'different-account-trade', ticker: 'MGC',
+    enter_time: '2026-07-15T12:10:00.000Z', exit_time: '2026-07-15T12:15:00.000Z',
+    enter_price: 2400, exit_price: 2401, quantity: 1, manual_pl: 10,
+    account: '150k XFA',
+  }], 'Practice');
+
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].status, 'new');
 });
 
 test('matches two one-contract CSV rows to one two-contract RR position', () => {
