@@ -979,7 +979,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
             const providers = [
               ...TRADOVATE_BROKERS,
               { key: 'projectx', label: 'Topstep', icon: '/assets/img/topstep.png', subtitle: 'Prop trading firm' },
-              { key: 'tradezella', label: 'TradeZella', icon: '/assets/img/tradezella.svg', subtitle: 'Trading journal CSV import', importProvider: true },
+              { key: 'tradezella', label: 'TradeZella', icon: 'https://cdn.brandfetch.io/iduLtkFARE/w/400/h/400/theme/dark/icon.jpeg?c=1bxid64Mup7aczewSAYMX&t=1775393450208', subtitle: 'Trading journal CSV import', importProvider: true },
               { key: 'robinhood', label: 'Robinhood', icon: BROKER_CONFIGS.robinhood.icon, subtitle: BROKER_CONFIGS.robinhood.subtitle, comingSoon: true },
               { key: 'webull', label: 'Webull', icon: BROKER_CONFIGS.webull.icon, subtitle: BROKER_CONFIGS.webull.subtitle, comingSoon: true },
             ];
