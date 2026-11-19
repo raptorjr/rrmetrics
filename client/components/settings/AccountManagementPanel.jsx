@@ -25,29 +25,6 @@ const AccountManagementPanel = ({ triggerReload }) => {
   };
   useEffect(() => { load(); }, []);
 
-  const act = async (account, action) => {
-    if (action === 'clear' && !window.confirm(
-      `Clear all trades for "${account.name}"? The account and its settings will remain. The source history will also be cleared so those trades cannot be reconstructed by the next sync.`
-    )) return;
-    if (action === 'delete' && !window.confirm(
-      `Delete "${account.name}" completely? This removes its saved account settings and local trade history. The broker connection itself will remain connected.`
-    )) return;
-    setBusy(account.id); setError(''); setNotice('');
-    try {
-      const response = await authFetch('/api/account/managed-accounts/action', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: account.id, action }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Account action failed.');
-      setNotice(action === 'clear'
-        ? `Cleared ${Number(data.removedTrades || 0).toLocaleString()} trades from ${account.name}.`
-        : `Deleted ${account.name} and its local trade history.`);
-      await load(); triggerReload();
-    } catch (err) { setError(err.message || 'Account action failed.'); }
-    setBusy('');
-  };
-
   const bulkAct = async (action) => {
     const selected = accounts.filter(account => selectedIds.includes(account.id));
     if (!selected.length) return;
@@ -95,6 +72,9 @@ const AccountManagementPanel = ({ triggerReload }) => {
     return out;
   }, {});
   const [expandedProvider, setExpandedProvider] = useState(null);
+  const visibleAccounts = expandedProvider && groups[expandedProvider] ? groups[expandedProvider] : [];
+  const toggleProvider = provider => { setExpandedProvider(current => current === provider ? null : provider); setSelectedIds([]); };
+  const toggleVisibleSelection = checked => setSelectedIds(checked ? visibleAccounts.map(account => account.id) : []);
   const providerLabel = provider => {
     const normalized = String(provider || '').trim().toLowerCase().replace(/[ _-]+/g, '');
     if (['projectx', 'toptep', 'topstep'].includes(normalized)) return 'Topstep';
@@ -108,7 +88,7 @@ const AccountManagementPanel = ({ triggerReload }) => {
   const providerIcon = provider => {
     const label = providerLabel(provider);
     if (label === 'Topstep') return '/assets/img/topstep.png';
-    if (label === 'TradeZella') return 'https://cdn.brandfetch.io/iduLtkFARE/w/400/h/400/theme/dark/icon.jpeg?c=1bxid64Mup7aczewSAYMX&t=1775393450208';
+    if (label === 'TradeZella') return null;
     const normalized = String(provider || '').trim().toLowerCase().replace(/[ _-]+/g, '');
     const configured = Object.values(BROKER_CONFIGS).find(config =>
       config.key.toLowerCase().replace(/[ _-]+/g, '') === normalized
@@ -125,25 +105,6 @@ const AccountManagementPanel = ({ triggerReload }) => {
       </p>
       {error && <div className="p-3 rounded-lg text-sm bg-negative/10 border border-negative/30 text-negative">{error}</div>}
       {notice && <div className="p-3 rounded-lg text-sm bg-positive/10 border border-positive/30 text-positive">{notice}</div>}
-      {accounts.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 bg-bg-surface border border-border rounded-lg p-3">
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-sm text-text-primary">
-              <input type="checkbox" checked={accounts.length > 0 && selectedIds.length === accounts.length}
-                onChange={e => setSelectedIds(e.target.checked ? accounts.map(account => account.id) : [])}
-                className="w-4 h-4 rounded border-border text-accent focus:ring-accent" />
-              Select all accounts
-            </label>
-            <span className="text-xs text-text-muted">{selectedIds.length} selected</span>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => bulkAct('clear')} disabled={!selectedIds.length || !!busy}
-              className="px-3 py-2 rounded-lg border border-warning/40 text-warning text-xs font-medium disabled:opacity-40">Clear selected trades</button>
-            <button onClick={() => bulkAct('delete')} disabled={!selectedIds.length || !!busy}
-              className="px-3 py-2 rounded-lg border border-negative/40 text-negative text-xs font-medium disabled:opacity-40">Delete selected accounts</button>
-          </div>
-        </div>
-      )}
       <div className="flex justify-end">
         <button onClick={load} disabled={loading || !!busy} className="px-3 py-2 rounded-lg border border-border text-text-primary text-sm disabled:opacity-50">{loading ? 'Loading…' : 'Refresh accounts'}</button>
       </div>
@@ -161,7 +122,7 @@ const AccountManagementPanel = ({ triggerReload }) => {
                 return (
                   <button
                     key={provider}
-                    onClick={() => setExpandedProvider(isExpanded ? null : provider)}
+                    onClick={() => toggleProvider(provider)}
                     className={`bg-bg-surface border rounded-xl p-4 flex flex-col items-center gap-2 text-center transition-all cursor-pointer ${
                       isExpanded ? 'border-accent ring-1 ring-accent/20' : 'border-border hover:border-accent/40 hover:bg-bg-page/50'
                     }`}
@@ -183,9 +144,16 @@ const AccountManagementPanel = ({ triggerReload }) => {
             </div>
             {expandedProvider && groups[expandedProvider] && (
               <section className="bg-bg-surface border border-border rounded-xl p-5 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-text-primary font-semibold">{providerLabel(expandedProvider)} accounts</h3>
-                  <span className="text-xs text-text-secondary">{groups[expandedProvider].length} {groups[expandedProvider].length === 1 ? 'account' : 'accounts'}</span>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div><h3 className="text-text-primary font-semibold">{providerLabel(expandedProvider)} accounts</h3><span className="text-xs text-text-secondary">{visibleAccounts.length} visible {visibleAccounts.length === 1 ? 'account' : 'accounts'}</span></div>
+                  <label className="flex items-center gap-2 text-xs text-text-secondary"><input type="checkbox" checked={visibleAccounts.length > 0 && visibleAccounts.every(account => selectedIds.includes(account.id))} onChange={e => toggleVisibleSelection(e.target.checked)} className="w-4 h-4 rounded border-border text-accent focus:ring-accent" />Select all visible</label>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-bg-page/50 border border-border rounded-lg p-3">
+                  <span className="text-xs text-text-secondary">{selectedIds.length} selected in {providerLabel(expandedProvider)}</span>
+                  <div className="flex gap-2">
+                    <button onClick={() => bulkAct('clear')} disabled={!selectedIds.length || !!busy} className="px-3 py-2 rounded-lg border border-warning/40 text-warning text-xs font-medium disabled:opacity-40">Clear selected trades</button>
+                    <button onClick={() => bulkAct('delete')} disabled={!selectedIds.length || !!busy} className="px-3 py-2 rounded-lg border border-negative/40 text-negative text-xs font-medium disabled:opacity-40">Delete selected accounts</button>
+                  </div>
                 </div>
                 {groups[expandedProvider].map(account => (
                   <div key={account.id} className="border border-border rounded-lg p-4 space-y-3">
@@ -213,10 +181,6 @@ const AccountManagementPanel = ({ triggerReload }) => {
                       </label>
                       <button onClick={() => rename(account)} disabled={!!busy || !(drafts[account.id] || '').trim() || drafts[account.id] === account.name}
                         className="px-3 py-2 rounded-lg bg-accent text-accent-text text-sm font-medium disabled:opacity-40">Save name</button>
-                      <button onClick={() => act(account, 'clear')} disabled={!!busy}
-                        className="px-3 py-2 rounded-lg border border-warning/40 text-warning text-sm disabled:opacity-40">Clear trades</button>
-                      <button onClick={() => act(account, 'delete')} disabled={!!busy}
-                        className="px-3 py-2 rounded-lg border border-negative/40 text-negative text-sm disabled:opacity-40">Delete account</button>
                     </div>
                   </div>
                 ))}
