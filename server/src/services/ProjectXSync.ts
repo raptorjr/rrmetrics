@@ -173,7 +173,7 @@ export function reconcileProjectXHistory(
   })();
 
   return {
-    rawLegs: trades.length,
+    rawLegs: allLegs.length,
     positions: result.positions.length,
     newTradesImported: result.newTradesImported,
     openPositions: result.openPositions.length,
