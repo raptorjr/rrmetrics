@@ -52,6 +52,7 @@ Most trading journals are subscription SaaS products that hold your trade histor
 - **Dashboard** — customizable metric tiles and a P/L calendar with daily, heatmap, monthly, and yearly views
 - **Analytics** — customizable metric tiles, equity curve, win rate, profit factor, expectancy, Sharpe and Sortino ratios, Kelly criterion, max drawdown, long/short breakdown
 - **Broker auto-sync** — Tradovate, TopstepX (ProjectX), Webull, and Robinhood, with automatic hourly token refresh
+- **Historical trade imports** — import TradeZella CSV exports with account mapping, currency settings, duplicate detection, and a pre-import review
 - **Trade Syncer** — mirror orders live from a leader account to follower accounts (Tradovate-based accounts, per-follower size multipliers)
 - **Discipline tools** — pre-market checklist, daily notes, strategy rule tracking per trade and per day
 - **Backtesting sessions** — log and review backtests separately from live trades
