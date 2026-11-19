@@ -11,20 +11,20 @@ const TilePreview = require('./TilePreview');
  * dashboard grid can later use the same catalogue for sizing and placement.
  */
 const PERFORMANCE_TILE_DEFINITIONS = [
-  { id: 'totalPL', label: 'Total P/L', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1 },
-  { id: 'winRate', label: 'Win Rate', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1 },
-  { id: 'totalTrades', label: 'Total Trades', category: 'Activity', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1 },
-  { id: 'avgDuration', label: 'Avg Duration', category: 'Activity', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1 },
-  { id: 'avgWinLoss', label: 'Avg Win / Loss', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 2, defaultRows: 1 },
-  { id: 'bestTrade', label: 'Best Trade', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1 },
-  { id: 'worstTrade', label: 'Worst Trade', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1 },
-  { id: 'breakevenRate', label: 'Breakeven Rate', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1 },
-  { id: 'profitFactor', label: 'Profit Factor', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1 },
-  { id: 'expectancy', label: 'Expectancy', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1 },
-  { id: 'maxDrawdown', label: 'Max Drawdown', category: 'Risk', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1 },
-  { id: 'sharpeRatio', label: 'Sharpe Ratio', category: 'Risk', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1 },
-  { id: 'sortinoRatio', label: 'Sortino Ratio', category: 'Risk', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1 },
-  { id: 'kellyRisk', label: 'Kelly Optimal Risk', category: 'Risk', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1 },
+  { id: 'totalPL', label: 'Total P/L', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "Net profit or loss across the selected trades, after fees and commissions." },
+  { id: 'winRate', label: 'Win Rate', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "The percentage of closed trades that finished profitable, with winning, losing and breakeven counts." },
+  { id: 'totalTrades', label: 'Total Trades', category: 'Activity', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "The number of closed trades in the selected period, with average trades per day." },
+  { id: 'avgDuration', label: 'Avg Duration', category: 'Activity', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "Average time between entry and exit across the selected trades." },
+  { id: 'avgWinLoss', label: 'Avg Win / Loss', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 2, defaultRows: 1, description: "Compares the average profit on winning trades with the average loss on losing trades." },
+  { id: 'bestTrade', label: 'Best Trade', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "The highest net profit from a single trade in the selected period." },
+  { id: 'worstTrade', label: 'Worst Trade', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "The largest net loss from a single trade in the selected period." },
+  { id: 'breakevenRate', label: 'Breakeven Rate', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "The percentage of closed trades that finished near breakeven." },
+  { id: 'profitFactor', label: 'Profit Factor', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "Gross profits divided by gross losses across the selected trades." },
+  { id: 'expectancy', label: 'Expectancy', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "Expected average profit or loss per trade based on the current win rate and average win/loss." },
+  { id: 'maxDrawdown', label: 'Max Drawdown', category: 'Risk', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "The largest peak-to-trough decline in cumulative trading profit." },
+  { id: 'sharpeRatio', label: 'Sharpe Ratio', category: 'Risk', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "Risk-adjusted performance measured using the Sharpe ratio." },
+  { id: 'sortinoRatio', label: 'Sortino Ratio', category: 'Risk', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "Risk-adjusted performance that focuses on downside volatility." },
+  { id: 'kellyRisk', label: 'Kelly Optimal Risk', category: 'Risk', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "A Kelly-criterion estimate of optimal risk based on the observed trading outcomes." },
 ];
 
 const createPerformanceTiles = ({
