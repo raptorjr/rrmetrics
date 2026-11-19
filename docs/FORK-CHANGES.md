@@ -119,7 +119,7 @@ cd rrmetrics
 - Supports aggregated matching in both directions only when the matching RR position or group is unique. If multiple individual trades, aggregate candidates, or partial-position groups satisfy the rules, affected rows are held for review rather than linked arbitrarily.
 - Supports one TradeZella row matching multiple RR trades only when entry/exit boundaries, signed net quantity, gross/net P&L, fees and commissions reconcile uniquely.
 - Reversal episodes whose signed net direction conflicts with the TradeZella side remain in review; matching absolute quantities alone is not sufficient evidence.
-- Uncertain matches are skipped rather than imported as new trades. The detailed review table is a development diagnostic and is intended to become a simple matched/imported/skipped summary in the final user interface.
+- Uncertain matches are held and not imported as new trades. The detailed per-trade review table used during importer validation has been removed from the user interface; the preview and import summary expose counts only.
 
 ## Deployment notes
 
