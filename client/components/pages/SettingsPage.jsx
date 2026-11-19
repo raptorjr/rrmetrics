@@ -476,14 +476,17 @@ const SettingsPage = ({ onSyncComplete, onNavigate, onOpenImport, theme, onTheme
           const existing = next[conn.connectionId] || { selectedAccounts: conn.selectedAccounts || [], accountSettings: {} };
           const accountSettings = { ...existing.accountSettings };
           (conn.accounts || []).forEach(account => {
-            if (!accountSettings[String(account.id)]) {
-              const saved = conn.accountSettings?.[String(account.id)];
-              accountSettings[String(account.id)] = saved ? { ...saved, currencyCode: saved.currencyCode || 'USD' } : {
+            const saved = conn.accountSettings?.[String(account.id)];
+            accountSettings[String(account.id)] = {
+              ...(accountSettings[String(account.id)] || saved || {
                 type: conn.legacyIsEval || /EV/i.test(account.name) ? 'evaluation' : 'other',
                 displayName: '',
                 currencyCode: 'USD',
-              };
-            }
+              }),
+              // Preserve the broker's original account name separately from the editable local display name.
+              accountName: saved?.accountName || account.name,
+              currencyCode: (accountSettings[String(account.id)] || saved)?.currencyCode || 'USD',
+            };
           });
           next[conn.connectionId] = {
             selectedAccounts: existing.selectedAccounts ?? (conn.selectedAccounts || []),
