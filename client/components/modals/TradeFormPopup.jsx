@@ -277,7 +277,7 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
 
   return (
     <>
-      <div className={isRightOverlay ? "fixed right-0 top-0 h-screen z-50 flex" : "fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"} onClick={!isRightOverlay ? onClose : undefined}>
+      <div className={isRightOverlay ? "fixed inset-0 z-50 flex justify-end" : "fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"} onClick={isRightOverlay ? (e) => e.stopPropagation() : onClose}>
         <div className={isRightOverlay ? (forceModal ? "w-[480px] h-full overflow-y-auto bg-bg-surface border-l border-border shadow-2xl" : "w-[520px] h-full overflow-y-auto bg-bg-surface border-l border-border shadow-2xl") : "bg-bg-surface border border-border rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"} onClick={(e) => e.stopPropagation()}>
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-bg-surface z-10">
