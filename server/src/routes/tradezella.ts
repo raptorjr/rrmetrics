@@ -83,6 +83,66 @@ function sourceMappings(db: any, userId: string, rows: TradeZellaRow[]) {
   return result;
 }
 
+
+/**
+ * If no match exists in the explicitly selected RR account, check other RR
+ * accounts separately. A match elsewhere is never linked automatically: it
+ * is held for review so umbrella exports (for example Practice) cannot silently
+ * duplicate trades already imported from a funded account.
+ */
+function addCrossAccountDuplicateReviews(
+  matches: ReturnType<typeof matchTradeZellaRows>,
+  rows: TradeZellaRow[],
+  existing: ReturnType<typeof existingRows>,
+  targetAccount: string | null,
+): ReturnType<typeof matchTradeZellaRows> {
+  const newRows = rows.filter(row =>
+    matches.some(match => match.status === 'new' && match.sourceRows.includes(row.sourceRow))
+  );
+  if (!newRows.length) return matches;
+
+  const possibleByRow = new Map<number, { ids: Set<string>; accounts: Set<string> }>();
+  const otherAccounts = [...new Set(existing
+    .map(trade => trade.account)
+    .filter((account): account is string => !!account && account !== targetAccount))];
+
+  for (const account of otherAccounts) {
+    const accountTrades = existing.filter(trade => trade.account === account);
+    const crossMatches = matchTradeZellaRows(newRows, accountTrades);
+    for (const match of crossMatches) {
+      if (match.status === 'new') continue;
+      for (const sourceRow of match.sourceRows) {
+        const item = possibleByRow.get(sourceRow) || { ids: new Set<string>(), accounts: new Set<string>() };
+        match.existingTradeIds.forEach(id => item.ids.add(id));
+        item.accounts.add(account);
+        possibleByRow.set(sourceRow, item);
+      }
+    }
+  }
+
+  if (!possibleByRow.size) return matches;
+  const result: ReturnType<typeof matchTradeZellaRows> = [];
+  for (const match of matches) {
+    if (match.status !== 'new') {
+      result.push(match);
+      continue;
+    }
+    const remaining = match.sourceRows.filter(sourceRow => !possibleByRow.has(sourceRow));
+    if (remaining.length) result.push({ ...match, sourceRows: remaining });
+    for (const sourceRow of match.sourceRows) {
+      const possible = possibleByRow.get(sourceRow);
+      if (!possible) continue;
+      result.push({
+        status: 'review',
+        sourceRows: [sourceRow],
+        existingTradeIds: [...possible.ids],
+        reason: `Possible duplicate in another RR account (${[...possible.accounts].join(', ')}); manual review is required`,
+      });
+    }
+  }
+  return result;
+}
+
 tradezella.get('/api/tradezella/accounts', requiresLogin, async (c) => {
   const user = c.get('user');
   const db = c.get('db');
@@ -143,9 +203,10 @@ tradezella.post('/api/tradezella/preview', requiresLogin, async (c) => {
       const inferred = accountName === '150k XFA' ? '$150k Express' : accountName === '50k XFA' ? '$50k Express' : accountName === 'Practice' ? 'Practice' : null;
       const matchAccount = saved?.match_account ?? inferred;
       const accountRows = unrecorded.filter(row => row.sourceAccount === accountName);
-      matches.push(...matchTradeZellaRows(accountRows, matchAccount
+      const accountMatches = matchTradeZellaRows(accountRows, matchAccount
         ? existing.filter(trade => trade.account === matchAccount)
-        : []));
+        : []);
+      matches.push(...addCrossAccountDuplicateReviews(accountMatches, accountRows, existing, matchAccount));
     }
     const resultsByRow = new Map<number, typeof matches[number]>();
     for (const match of matches) for (const sourceRow of match.sourceRows) resultsByRow.set(sourceRow, match);
@@ -218,9 +279,10 @@ tradezella.post('/api/tradezella/import', requiresLogin, async (c) => {
     const matches = selectedAccounts.flatMap((accountName: string) => {
       const account = settingsBySource.get(accountName)!;
       const accountRows = unrecorded.filter(row => row.sourceAccount === accountName);
-      return matchTradeZellaRows(accountRows, account.matchAccount
+      const accountMatches = matchTradeZellaRows(accountRows, account.matchAccount
         ? candidates.filter(trade => trade.account === account.matchAccount)
         : []);
+      return addCrossAccountDuplicateReviews(accountMatches, accountRows, candidates, account.matchAccount);
     });
     const rowByNumber = new Map(unrecorded.map(row => [row.sourceRow, row]));
     const upsertAccount = db.prepare(
