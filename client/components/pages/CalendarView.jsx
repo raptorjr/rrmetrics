@@ -345,6 +345,7 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
   const [viewMode, setViewMode] = useState('daily'); // 'daily' | 'heatmap' | 'monthly' | 'yearly'
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(null);
+  const [selectedNoteDate, setSelectedNoteDate] = useState(null);
   const dailyData = groupTradesByDate(trades);
 
   const year = currentDate.getFullYear();
@@ -361,6 +362,7 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
   let monthPL = 0;
   let monthTrades = 0;
   let monthTradingDays = 0;
+  const monthCurrencies = new Set();
   let prevMonthPL = 0;
   let prevMonthTrades = 0;
   if (viewMode === 'daily') {
@@ -371,6 +373,7 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
         monthPL += dailyData[dk].totalPL;
         monthTrades += dailyData[dk].tradeCount;
         monthTradingDays++;
+        dailyData[dk].trades.forEach(trade => monthCurrencies.add((trade.currency_code || trade.currencyCode || 'USD').toUpperCase()));
       }
     }
     // Previous month for % change
@@ -411,7 +414,7 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
             </button>
           )}
           {viewMode === 'daily' && (
-            <button type="button" onClick={() => setCurrentDate(new Date())} className="px-3 py-1.5 rounded-lg border border-border text-xs font-semibold text-text-primary hover:bg-bg-input transition-colors">
+            <button type="button" onClick={() => setCurrentDate(new Date())} className="px-3 py-1.5 rounded-lg border border-border bg-bg-input text-xs font-semibold text-text-primary hover:bg-bg-surface transition-colors">
               This month
             </button>
           )}
@@ -429,7 +432,7 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
           <div className="flex items-center gap-2 text-xs">
             <span className="font-semibold text-text-primary">Monthly stats:</span>
             <span className={`font-mono font-bold px-2 py-1 rounded-md ${monthTrades > 0 ? (monthPL >= 0 ? 'text-positive bg-positive/10' : 'text-negative bg-negative/10') : 'text-text-muted bg-bg-input'}`}>
-              {monthTrades > 0 ? `${monthPL.toFixed(2)}` : '$0.00'}
+              {monthTrades > 0 ? (monthCurrencies.size === 1 ? formatCurrency(monthPL, [...monthCurrencies][0]) : 'Mixed currencies') : formatCurrency(0, 'USD')}
             </span>
             <span className="font-semibold text-text-primary px-2 py-1 rounded-md bg-bg-input">{monthTradingDays} days</span>
           </div>
@@ -455,6 +458,7 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
           month={month}
           dailyData={dailyData}
           onSelectDay={setSelectedDay}
+          onOpenNote={setSelectedNoteDate}
           dailyNotes={dailyNotes}
           onOpenAddTrade={onOpenAddTrade}
         />
@@ -486,6 +490,7 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
         />
       )}
 
+      {selectedNoteDate && <DailyNotePopup dateKey={selectedNoteDate} dailyNotes={dailyNotes || []} onClose={() => setSelectedNoteDate(null)} onSave={onSaveNote} onDelete={onDeleteNote} />}
       {selectedDay && (
         <DayDetailPanel
           dateKey={selectedDay}
@@ -517,8 +522,27 @@ const getCalendarWeekNumber = (year, month, weekSlots) => {
   return Math.ceil((((target - yearStart) / 86400000) + 1) / 7);
 };
 
+
+const DailyNotePopup = ({ dateKey, dailyNotes, onClose, onSave, onDelete }) => {
+  const existing = dailyNotes.find(note => note.date === dateKey);
+  const [draft, setDraft] = useState(existing ? existing.content : '');
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { const note = dailyNotes.find(item => item.date === dateKey); setDraft(note ? note.content : ''); }, [dateKey, dailyNotes]);
+  const date = new Date(dateKey + 'T12:00:00');
+  const title = date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4" onClick={() => !saving && onClose()}>
+      <div className="bg-bg-surface border border-border rounded-xl p-5 w-full max-w-lg shadow-xl" onClick={event => event.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3"><h3 className="text-text-primary font-semibold">Day note · {title}</h3><button type="button" className="text-text-tertiary hover:text-text-primary" onClick={onClose} disabled={saving}><Icons.X /></button></div>
+        <textarea value={draft} onChange={event => setDraft(event.target.value)} rows={6} placeholder="What happened today? Record your observations, decisions or lessons..." className="w-full resize-y rounded-lg border border-border bg-bg-input text-text-primary text-sm p-3 focus:outline-none focus:border-accent" />
+        <div className="flex items-center justify-between gap-2 mt-3"><div>{existing && <button type="button" className="text-xs text-negative hover:underline disabled:opacity-50" disabled={saving} onClick={async () => { setSaving(true); await onDelete(dateKey); setSaving(false); onClose(); }}>Delete note</button>}</div><div className="flex gap-2"><button type="button" className="px-3 py-2 text-xs text-text-secondary hover:text-text-primary" disabled={saving} onClick={onClose}>Cancel</button><button type="button" className="px-4 py-2 rounded-lg bg-accent text-accent-text text-xs font-semibold disabled:opacity-50" disabled={saving || !draft.trim()} onClick={async () => { setSaving(true); await onSave(dateKey, draft.trim()); setSaving(false); onClose(); }}>Save note</button></div></div>
+      </div>
+    </div>
+  );
+};
+
 // --- Daily Calendar (original view) ---
-const DailyCalendar = ({ year, month, dailyData, onSelectDay, dailyNotes, onOpenAddTrade }) => {
+const DailyCalendar = ({ year, month, dailyData, onSelectDay, onOpenNote, dailyNotes, onOpenAddTrade }) => {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   // Build weeks as rows: each week is an array of 7 day slots (null for empty)
@@ -541,20 +565,22 @@ const DailyCalendar = ({ year, month, dailyData, onSelectDay, dailyNotes, onOpen
       {/* Header row: day names + divider + "Week" column */}
       <div className="grid gap-1 mb-1" style={{ gridTemplateColumns: colTemplate }}>
         {DAY_NAMES.map(d => (
-          <div key={d} className="text-center text-xs font-medium text-text-tertiary py-2">{d}</div>
+          <div key={d} className="text-center text-xs font-medium text-text-primary py-2">{d}</div>
         ))}
         <div></div>
-        <div className="text-center text-xs font-medium text-text-tertiary py-2">Week</div>
+        <div className="text-center text-xs font-medium text-text-primary py-2">Week</div>
       </div>
 
       {/* Week rows */}
       {weeks.map((week, wi) => {
         let weekPL = 0;
         let weekTrades = 0;
+        const weekCurrencies = new Set();
         week.forEach(slot => {
           if (slot && dailyData[slot.dateKey]) {
             weekPL += dailyData[slot.dateKey].totalPL;
             weekTrades += dailyData[slot.dateKey].tradeCount;
+            dailyData[slot.dateKey].trades.forEach(trade => weekCurrencies.add((trade.currency_code || trade.currencyCode || 'USD').toUpperCase()));
           }
         });
 
@@ -583,7 +609,7 @@ const DailyCalendar = ({ year, month, dailyData, onSelectDay, dailyNotes, onOpen
                     <div className="flex items-center gap-1">
                       <button type="button"
                         className={`transition-opacity w-5 h-5 rounded flex items-center justify-center text-xs ${hasNote ? 'text-accent opacity-100' : 'text-text-secondary opacity-0 group-hover:opacity-100'} hover:bg-accent/15`}
-                        onClick={event => { event.stopPropagation(); onSelectDay(slot.dateKey); }}
+                        onClick={event => { event.stopPropagation(); onOpenNote(slot.dateKey); }}
                         title={hasNote ? 'View or edit daily note' : 'Add daily note'} aria-label={hasNote ? 'Edit daily note' : 'Add daily note'}>
                         {hasNote ? '▤' : '✎'}
                       </button>
@@ -616,10 +642,10 @@ const DailyCalendar = ({ year, month, dailyData, onSelectDay, dailyNotes, onOpen
               <div className="text-text-primary text-xs font-semibold">Week {getCalendarWeekNumber(year, month, week)}</div>
               {weekTrades > 0 ? (
                 <>
-                  <div className={`font-mono text-sm font-bold mt-1 ${weekPL >= 0 ? 'text-positive' : 'text-negative'}`}>${weekPL.toFixed(0)}</div>
-                  <div className="text-text-secondary text-[10px] mt-0.5">{week.filter(slot => slot && dailyData[slot.dateKey]).length} trading days</div>
+                  <div className={`font-mono text-sm font-bold mt-1 ${weekPL >= 0 ? 'text-positive' : 'text-negative'}`}>{weekCurrencies.size === 1 ? formatCurrency(weekPL, [...weekCurrencies][0]) : 'Mixed currencies'}</div>
+                  <div className="text-text-primary text-[10px] mt-0.5">{week.filter(slot => slot && dailyData[slot.dateKey]).length} days</div>
                 </>
-              ) : <div className="text-text-muted text-[10px] mt-1">0 trading days</div>}
+              ) : null}
             </div>
           </div>
         );
