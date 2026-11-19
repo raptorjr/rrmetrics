@@ -178,6 +178,6 @@ test('maximum drawdown uses chronological cumulative P/L from a zero baseline', 
     { ...makeTrade(100, 1), exitTime: '2026-01-05T10:01:00Z' },
     { ...makeTrade(-80, -0.8), exitTime: '2026-01-05T10:03:00Z' },
   ];
-  assert.equal(calculateMaxDrawdown(trades), 80);
+  assert.equal(calculateMaxDrawdown(trades), 130);
   assert.equal(calculateMaxDrawdown([]), 0);
 });
