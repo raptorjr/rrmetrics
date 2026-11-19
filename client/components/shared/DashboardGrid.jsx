@@ -86,6 +86,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const [templateName, setTemplateName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [previewItemId, setPreviewItemId] = useState(null);
+  const [storageWarning, setStorageWarning] = useState('');
   const [catalogueQuery, setCatalogueQuery] = useState('');
   const [catalogueCategory, setCatalogueCategory] = useState('all');
   const gridRef = useRef(null);
@@ -154,8 +155,19 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     setSelectedTemplate('');
   }, [storageKey, ids.join('|')]);
 
+  const persistValue = (key, value) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      setStorageWarning('');
+      return true;
+    } catch {
+      setStorageWarning('Browser storage is unavailable or full. Your changes are active for this session but may not be saved after you leave or reload the page.');
+      return false;
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(layout));
+    persistValue(storageKey, layout);
   }, [storageKey, layout]);
 
   const orderedItems = layout.order
@@ -212,7 +224,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       ? { ...template, layout: JSON.parse(JSON.stringify(layout)) }
       : template);
     setTemplates(next);
-    localStorage.setItem(`${storageKey}_templates`, JSON.stringify(next));
+    persistValue(`${storageKey}_templates`, next);
   };
 
   const saveTemplate = () => {
@@ -232,7 +244,6 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     const template = templates.find(candidate => candidate.name === selectedTemplate);
     if (!template) return;
     const normalized = readLayoutFromValue(template.layout, defaultOrder, defaultVisible, items);
-    localStorage.setItem(storageKey, JSON.stringify(normalized));
     setLayout(normalized);
   };
 
@@ -384,6 +395,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
             </div>
           </div>
           <p className="text-[10px] text-text-tertiary">Saved layouts are stored in this browser. Saving an existing name replaces that template.</p>
+          {storageWarning && <p className="text-xs text-amber-600" role="alert">{storageWarning}</p>}
           {selectedTemplate && (
             <p className="text-xs text-text-secondary" role="status" aria-live="polite">
               {selectedTemplateHasChanges
