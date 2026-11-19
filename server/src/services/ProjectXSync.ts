@@ -102,13 +102,9 @@ export function reconcileProjectXHistory(
       );
     }
 
-    // Remove raw histories for accounts that are no longer selected (or are
-    // no longer the copy-trade lead). Otherwise deselected accounts linger.
-    if (selectedAccountIds.length > 0) {
-      db.prepare(
-        `DELETE FROM projectx_trade_legs WHERE broker_connection_id = ? AND account_id NOT IN (${selectedAccountIds.map(() => '?').join(', ')})`,
-      ).run(connectionId, ...selectedAccountIds);
-    }
+    // Keep raw execution history for previously imported accounts, even when
+    // they are later deselected or disappear from the broker's current account
+    // list. Account selection controls future downloads, not historical retention.
 
     const stored = readLegs.all(connectionId) as Array<{ raw_json: string }>;
     const allLegs = stored.map(row => JSON.parse(row.raw_json) as ProjectXRawTrade);
