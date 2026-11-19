@@ -618,7 +618,7 @@ const DailyCalendar = ({ year, month, dailyData, onSelectDay, onOpenNote, dailyN
                     <>
                       <div className={`font-mono text-sm font-semibold mt-1 ${pl >= 0 ? 'text-positive' : 'text-negative'}`}>${pl.toFixed(0)}</div>
                       <div className="text-text-primary text-[10px] mt-0.5">{data.tradeCount} trade{data.tradeCount !== 1 ? 's' : ''}</div>
-                      {dayWinRate !== null && <div className="text-white text-[10px] mt-0.5 font-mono">{dayWinRate}% WR</div>}
+                      {dayWinRate !== null && <div className="text-text-primary text-[10px] mt-0.5 font-mono">{dayWinRate}% WR</div>}
                     </>
                   )}
                 </div>
