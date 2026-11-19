@@ -92,7 +92,7 @@ const calculateSharpeRatio = (trades) => {
   const mean = dailyReturns.reduce((s, r) => s + r, 0) / dailyReturns.length;
   const variance = dailyReturns.reduce((s, r) => s + (r - mean) ** 2, 0) / (dailyReturns.length - 1);
   const std = Math.sqrt(variance);
-  if (std === 0) return 0;
+  if (std === 0) return mean > 0 ? Infinity : mean < 0 ? -Infinity : 0;
 
   // Annualize: ~252 trading days
   return (mean / std) * Math.sqrt(252);

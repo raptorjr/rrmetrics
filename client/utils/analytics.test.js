@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { runMonteCarloSimulation, calculateKellyCriterion, calculateAnalytics, calculateExpectancy, calculateProfitFactor, calculateMaxDrawdown } = require('./analytics');
+const { runMonteCarloSimulation, calculateKellyCriterion, calculateAnalytics, calculateExpectancy, calculateProfitFactor, calculateMaxDrawdown, calculateSharpeRatio, calculateSortinoRatio } = require('./analytics');
 const { isBreakevenTrade } = require('./tickValues');
 
 const makeTrade = (pl, priceMove = pl === 0 ? 0.1 : 1, day = '2026-01-05') => ({
@@ -181,4 +181,24 @@ test('maximum drawdown uses chronological cumulative P/L from a zero baseline', 
   ];
   assert.equal(calculateMaxDrawdown(trades), 130);
   assert.equal(calculateMaxDrawdown([]), 0);
+});
+
+test('Sharpe ratio handles constant daily P/L without reporting zero risk-adjusted return', () => {
+  const positiveDays = [
+    makeTrade(100, 1, '2026-01-05'),
+    makeTrade(100, 1, '2026-01-06'),
+  ];
+  const negativeDays = [
+    makeTrade(-100, -1, '2026-01-05'),
+    makeTrade(-100, -1, '2026-01-06'),
+  ];
+  const flatDays = [
+    makeTrade(0, 0.1, '2026-01-05'),
+    makeTrade(0, 0.1, '2026-01-06'),
+  ];
+
+  assert.equal(calculateSharpeRatio(positiveDays), Infinity);
+  assert.equal(calculateSharpeRatio(negativeDays), -Infinity);
+  assert.equal(calculateSharpeRatio(flatDays), 0);
+  assert.equal(calculateSortinoRatio(positiveDays), Infinity);
 });
