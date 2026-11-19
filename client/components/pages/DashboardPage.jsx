@@ -16,7 +16,7 @@ const { getTradePL, calculateAnalytics, applyEvalFilter, calculateSharpeRatio, c
 const { formatDuration } = require('../../utils/dateUtils');
 
 
-const DashboardPage = ({ trades, onOpenForm, onOpenImport, onManualSync, brokerStatuses, onOpenAddTrade, onEditTrade, dailyNotes, onSaveNote, onDeleteNote, tags, strategyRules, evalFilter, setEvalFilter, sidebarCollapsed }) => {
+const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpenAddTrade, onEditTrade, dailyNotes, onSaveNote, onDeleteNote, tags, strategyRules, evalFilter, setEvalFilter, sidebarCollapsed }) => {
   const [period, setPeriod] = useState('all');
   const [syncing, setSyncing] = useState(false);
   const [kellyDrawdown, setKellyDrawdown] = useState(2000);
@@ -88,14 +88,7 @@ const DashboardPage = ({ trades, onOpenForm, onOpenImport, onManualSync, brokerS
                 <Icons.Plus className="w-4 h-4" />
                 New Trade
               </button>
-              <button
-                className="flex items-center justify-center w-9 h-9 bg-bg-surface border border-border text-text-secondary rounded-lg hover:text-text-primary hover:border-accent transition-all"
-                onClick={onOpenImport}
-                title="Import CSV"
-                aria-label="Import CSV"
-              >
-                <Icons.Download className="w-4 h-4" />
-              </button>
+
           </>
         </div>
       </div>
