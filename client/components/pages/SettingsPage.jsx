@@ -1235,6 +1235,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                         );
                                       })}
                                       <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <button onClick={() => startEditingPxConnection(conn)} className="px-3 py-2 border border-border text-text-secondary text-xs font-medium rounded-lg">Copy-trading options</button>
                                         <span className="text-[11px] text-text-muted">Your first action imports the complete available history for the selected accounts.</span>
                                         <div className="flex flex-col items-end gap-1">
                                           <button onClick={() => handlePxSaveAccounts(conn.connectionId)} disabled={pxSavingAccounts === conn.connectionId || !pxAccountDrafts[conn.connectionId]?.selectedAccounts?.length}
@@ -1301,8 +1302,6 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                         </button>
                                         <button onClick={() => { if (window.confirm('Fetch all available Topstep trade and order history for the selected accounts? This uses more API requests than a normal sync.')) handlePxSync(conn.connectionId, true); }} disabled={pxSyncingId !== null}
                                           className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-bg-surface rounded-lg transition-colors disabled:opacity-50">Refresh complete trade history</button>
-                                        {!conn.setupCompleted && <button onClick={() => startEditingPxConnection(conn)}
-                                          className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-bg-surface rounded-lg transition-colors">Copy-trading options</button>}
                                       </>
                                     )}
                                     <button onClick={() => handlePxDisconnect(conn.connectionId)}
