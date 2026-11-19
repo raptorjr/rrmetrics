@@ -168,6 +168,38 @@ test('commits safe positions and raw legs when later history has warnings', () =
   db.close();
 });
 
+test('cleans stale safe instruments while preserving the previous projection for a quarantined instrument', () => {
+  const db = createDb();
+  const mnq: ProjectXRawTrade[] = [
+    { ...legs[0], id: 3, contractId: 'CON.F.US.MNQ.Z6', orderId: 13 },
+    { ...legs[1], id: 4, contractId: 'CON.F.US.MNQ.Z6', orderId: 14 },
+  ];
+  const all = [...legs, ...mnq];
+  reconcileProjectXHistory(
+    db, 'user-1', 'connection-1', all,
+    new Map([[7, 'Topstep Practice']]),
+    { 'CON.F.US.MGC.Z6': 'MGC', 'CON.F.US.MNQ.Z6': 'MNQ' }, 1, false, [7],
+  );
+  assert.equal((db.prepare('SELECT COUNT(*) AS count FROM trades').get() as { count: number }).count, 2);
+
+  const changed = [
+    { ...legs[0], voided: true },
+    legs[1],
+    mnq[0],
+    { ...mnq[1], voided: true },
+  ];
+  const result = reconcileProjectXHistory(
+    db, 'user-1', 'connection-1', changed,
+    new Map([[7, 'Topstep Practice']]),
+    { 'CON.F.US.MGC.Z6': 'MGC', 'CON.F.US.MNQ.Z6': 'MNQ' }, 1, false, [7],
+  );
+
+  assert.equal(result.warnings.length, 1);
+  const retained = db.prepare('SELECT ticker FROM trades ORDER BY ticker').all() as Array<{ ticker: string }>;
+  assert.deepEqual(retained, [{ ticker: 'MGC' }]);
+  db.close();
+});
+
 test('clears only the selected connection ProjectX import and keeps connection', () => {
   const db = createDb();
   db.prepare('INSERT INTO broker_connections (id, owner, last_sync_time, updated_at) VALUES (?, ?, ?, ?)').run(
