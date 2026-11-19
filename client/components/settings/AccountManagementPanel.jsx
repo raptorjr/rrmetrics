@@ -194,7 +194,7 @@ const AccountManagementPanel = ({ triggerReload }) => {
                       <label className="flex items-center gap-2 text-xs text-text-secondary"><input type="checkbox" checked={selectedIds.includes(account.id)} onChange={e => setSelectedIds(prev => e.target.checked ? [...prev, account.id] : prev.filter(id => id !== account.id))} className="w-4 h-4 rounded border-border text-accent focus:ring-accent" />Select</label>
                       <div className="min-w-0">
                         <div className="text-text-primary text-sm font-medium">{account.name}</div>
-                        <div className="text-text-tertiary text-xs mt-1">Topstep account ID: {account.sourceName}</div>
+                        <div className="text-text-tertiary text-xs mt-1">Topstep account: {account.sourceAccountName || account.name} · ID: {account.sourceName}</div>
                         {(account.accountType || account.currencyCode) && (
                           <div className="text-text-tertiary text-xs mt-1">
                             {[account.accountType === 'evaluation' ? 'Evaluation' : account.accountType === 'xfa' ? 'XFA' : account.accountType === 'live_funded' ? 'Live funded' : null, account.currencyCode].filter(Boolean).join(' · ')}
