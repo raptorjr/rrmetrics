@@ -117,6 +117,26 @@ test('holds a possible duplicate found in another RR account for review', () => 
   assert.match(matches[0].reason, /150k XFA/);
 });
 
+test('detects a duplicate already linked to another TradeZella source account', () => {
+  const source = parseTradeZellaRows([{
+    'Account Name': 'Practice', Instrument: 'MGC', Side: 'long', Quantity: '1',
+    'Open Date': '2026-07-15', 'Open Time': '14:00:00 CEST',
+    'Close Date': '2026-07-15', 'Close Time': '14:05:00 CEST',
+    'Entry Price': '2400.00', 'Exit Price': '2401.00', 'Net P&L': '10.00',
+  }]);
+  const previouslyLinked = {
+    id: 'already-linked-topstep-trade', ticker: 'MGC',
+    enter_time: '2026-07-15T12:00:00.000Z', exit_time: '2026-07-15T12:05:00.000Z',
+    enter_price: 2400, exit_price: 2401, quantity: 1, manual_pl: 10,
+    account: '150k XFA',
+  };
+  const matches = matchTradeZellaRowsAcrossAccounts(source, [], 'Practice', [previouslyLinked]);
+
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].status, 'review');
+  assert.deepEqual(matches[0].existingTradeIds, ['already-linked-topstep-trade']);
+});
+
 test('keeps a new TradeZella row new when no other RR account contains a match', () => {
   const source = parseTradeZellaRows([{
     'Account Name': 'Practice', Instrument: 'MGC', Side: 'long', Quantity: '1',
