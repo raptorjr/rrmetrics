@@ -189,10 +189,10 @@ const AccountManagementPanel = ({ triggerReload }) => {
                   </div>
                 </div>
                 {groups[expandedProvider].map(account => (
-                  <div key={account.id} className="border border-border rounded-lg p-4 space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div key={account.id} className={`border rounded-lg p-4 space-y-3 transition-all ${selectedIds.includes(account.id) ? 'border-accent ring-1 ring-accent/20' : 'border-border'}`}>
+                    <div className="grid grid-cols-1 sm:grid-cols-[minmax(100px,0.7fr)_minmax(180px,1fr)_auto] items-center gap-3">
                       <label className="flex items-center gap-2 text-xs text-text-secondary"><input type="checkbox" checked={selectedIds.includes(account.id)} onChange={e => setSelectedIds(prev => e.target.checked ? [...prev, account.id] : prev.filter(id => id !== account.id))} className="w-4 h-4 rounded border-border text-accent focus:ring-accent" />Select</label>
-                      <div>
+                      <div className="min-w-0">
                         <div className="text-text-primary text-sm font-medium">{account.name}</div>
                         <div className="text-text-tertiary text-xs mt-1">Source account: {account.sourceName}</div>
                         {(account.accountType || account.currencyCode) && (
@@ -201,7 +201,7 @@ const AccountManagementPanel = ({ triggerReload }) => {
                           </div>
                         )}
                       </div>
-                      <div className="flex flex-wrap gap-3 text-xs text-text-secondary">
+                      <div className="flex flex-wrap gap-3 text-xs text-text-secondary sm:justify-end">
                         <span>{Number(account.importedTrades || 0).toLocaleString()} trades</span>
                         {account.linkedTrades > 0 && <span>{Number(account.linkedTrades).toLocaleString()} linked matches</span>}
                         {account.rawExecutions > 0 && <span>{Number(account.rawExecutions).toLocaleString()} raw executions</span>}
