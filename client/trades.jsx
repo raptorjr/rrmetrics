@@ -1,6 +1,7 @@
 const helper = require('./helper.js');
 const { authFetch } = helper;
 const React = require('react');
+const { NO_ACCOUNTS, getTradeAccountKey, getTradeAccountEntries } = require('./utils/accountIdentity');
 const { useState, useEffect } = React;
 const { createRoot } = require('react-dom/client');
 require('./styles/globals.css');
@@ -96,16 +97,24 @@ const App = () => {
 
   useEffect(() => {
     if (trades && trades.length > 0 && selectedAccounts.length > 0) {
-      const validAccounts = new Set(trades.map(t => t.account || 'Manual'));
-      const cleaned = selectedAccounts.includes('__rrmetrics_no_accounts__')
-        ? selectedAccounts
-        : selectedAccounts.filter(a => validAccounts.has(a));
-      if (cleaned.length !== selectedAccounts.length) {
+      if (selectedAccounts.includes(NO_ACCOUNTS)) return;
+      const entries = getTradeAccountEntries(trades, accountBrokers);
+      const validKeys = new Set(entries.map(account => account.key));
+      const byName = new Map();
+      for (const account of entries) {
+        if (!byName.has(account.name)) byName.set(account.name, []);
+        byName.get(account.name).push(account.key);
+      }
+      // Migrate saved filters from the old name-only format to provider-scoped identities.
+      const cleaned = [...new Set(selectedAccounts.flatMap(value =>
+        validKeys.has(value) ? [value] : (byName.get(value) || [])
+      ))];
+      if (cleaned.length !== selectedAccounts.length || cleaned.some((value, index) => value !== selectedAccounts[index])) {
         setSelectedAccounts(cleaned);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trades]);
+  }, [trades, accountBrokers]);
 
   const triggerReload = () => setReloadTrades(!reloadTrades);
 
@@ -467,7 +476,7 @@ const App = () => {
 
   const filteredTrades = selectedAccounts.length === 0
     ? trades
-    : (trades || []).filter(t => selectedAccounts.includes(t.account || 'Manual'));
+    : (trades || []).filter(t => selectedAccounts.includes(getTradeAccountKey(t, accountBrokers)));
 
   const renderPage = () => {
     switch (currentPage) {
