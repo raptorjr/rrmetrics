@@ -168,15 +168,28 @@ account.get('/api/account/managed-accounts', requiresLogin, async (c) => {
       }
     }
 
-    const others = db.prepare(`SELECT t.broker_connection_id AS connection_id, t.account, bc.broker,
-      COUNT(*) AS trade_count FROM trades t LEFT JOIN broker_connections bc ON bc.id = t.broker_connection_id
+    // Discover newly seen accounts once, then retain their identities even if
+    // their trades are cleared or the broker no longer reports them.
+    const others = db.prepare(`SELECT t.broker_connection_id AS connection_id, t.account, bc.broker
+      FROM trades t LEFT JOIN broker_connections bc ON bc.id = t.broker_connection_id
       WHERE t.user_id = ? AND t.broker_connection_id IS NOT NULL
       AND (t.projectx_source IS NULL OR t.projectx_source != 'projectx')
       AND t.account IS NOT NULL AND t.account != ''
-      GROUP BY t.broker_connection_id, t.account, bc.broker ORDER BY bc.broker, t.account`).all(user.id) as any[];
-    for (const row of others) accounts.push({ id: `broker::${row.connection_id}::${row.account}`,
-      provider: row.broker || 'Broker', kind: 'broker', connectionId: row.connection_id,
-      name: row.account, sourceName: row.account, importedTrades: Number(row.trade_count || 0) });
+      GROUP BY t.broker_connection_id, t.account, bc.broker`).all(user.id) as any[];
+    const remember = db.prepare(`INSERT OR IGNORE INTO managed_accounts
+      (id, user_id, provider, source_key, connection_id, source_account_id, source_name, display_name)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
+    for (const row of others) remember.run(
+      `broker::${row.connection_id}::${row.account}`, user.id, row.broker || 'Broker',
+      `${row.connection_id}::${row.account}`, row.connection_id, row.account, row.account, row.account,
+    );
+    const durableOthers = db.prepare(`SELECT a.*, COUNT(t.id) AS trade_count
+      FROM managed_accounts a LEFT JOIN trades t ON t.user_id = a.user_id
+        AND t.broker_connection_id = a.connection_id AND t.account = a.source_account_id
+      WHERE a.user_id = ? GROUP BY a.id ORDER BY a.provider, a.display_name`).all(user.id) as any[];
+    for (const row of durableOthers) accounts.push({ id: row.id, provider: row.provider,
+      kind: 'broker', connectionId: row.connection_id, name: row.display_name,
+      sourceName: row.source_name, importedTrades: Number(row.trade_count || 0) });
     return c.json({ accounts });
   } catch (err: any) {
     console.error('Managed account inventory error:', err);
@@ -211,6 +224,7 @@ account.post('/api/account/managed-accounts/action', requiresLogin, async (c) =>
         const owned = db.prepare('SELECT id FROM broker_connections WHERE id = ? AND owner = ?').get(connectionId, user.id);
         if (!owned) return c.json({ error: 'Broker account not found.' }, 404);
         db.prepare('UPDATE trades SET account = ? WHERE user_id = ? AND broker_connection_id = ? AND account = ?').run(displayName, user.id, connectionId, oldName);
+        db.prepare('UPDATE managed_accounts SET display_name = ? WHERE user_id = ? AND connection_id = ? AND source_account_id = ?').run(displayName, user.id, connectionId, oldName);
       } else return c.json({ error: 'Unknown account type.' }, 400);
       return c.json({ ok: true, action: 'rename', displayName });
     }
@@ -253,6 +267,8 @@ account.post('/api/account/managed-accounts/action', requiresLogin, async (c) =>
         if (!owned) throw new Error('Broker account not found.');
         const deleted = db.prepare('DELETE FROM trades WHERE user_id = ? AND broker_connection_id = ? AND account = ?')
           .run(user.id, connectionId, accountName).changes;
+        if (action === 'delete') db.prepare('DELETE FROM managed_accounts WHERE user_id = ? AND connection_id = ? AND source_account_id = ?')
+          .run(user.id, connectionId, accountName);
         return { removedTrades: deleted };
       }
       throw new Error('Unknown account type.');
