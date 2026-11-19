@@ -218,17 +218,17 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
       return new Date(timestamp).toISOString();
     };
     const parseDisplayDateTime = (dateValue, timeValue) => {
-      const dateMatch = dateValue.trim().match(/^(\\d{2})\\.(\\d{2})\\.(\\d{4})$/);
+      const dateMatch = dateValue.trim().match(/^(\d{2})\\.(\d{2})\\.(\d{4})$/);
       if (!dateMatch) return null;
       const [, day, month, year] = dateMatch;
       let hour, minute, second = 0;
       const timeFormat = localStorage.getItem('rrmetrics_time_format') === '24h' ? '24h' : '12h';
       if (timeFormat === '24h') {
-        const match = timeValue.trim().match(/^(\\d{1,2}):(\\d{2})(?::(\\d{2}))?$/);
+        const match = timeValue.trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
         if (!match) return null;
         hour = Number(match[1]); minute = Number(match[2]); second = Number(match[3] || 0);
       } else {
-        const match = timeValue.trim().match(/^(\\d{1,2}):(\\d{2})(?::(\\d{2}))?\\s*(AM|PM)$/i);
+        const match = timeValue.trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i);
         if (!match) return null;
         hour = Number(match[1]) % 12 + (match[4].toUpperCase() === 'PM' ? 12 : 0);
         minute = Number(match[2]); second = Number(match[3] || 0);
@@ -301,7 +301,7 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
     const timeFormat = localStorage.getItem('rrmetrics_time_format') === '24h' ? '24h' : '12h';
     const timeValue = new Intl.DateTimeFormat('en-US', {
       timeZone: getDisplayTimeZone(), hour: '2-digit', minute: '2-digit', second: '2-digit',
-      hour12: timeFormat !== '24h',
+      hour12: timeFormat !== '24h', hourCycle: timeFormat === '24h' ? 'h23' : 'h12',
     }).format(date);
     return { date: dateValue, time: timeValue };
   };
