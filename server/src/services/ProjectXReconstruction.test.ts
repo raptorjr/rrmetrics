@@ -75,6 +75,34 @@ test('groups multiple closing legs sharing one execution ID', () => {
   assert.equal(result.warnings.length, 0);
 });
 
+test('uses fill IDs to keep separate live executions apart even when they share an order ID', () => {
+  const result = reconstructProjectXPositions([
+    { ...leg(1, 0, 1, 100, null, 10, '2026-11-01T10:00:00Z'), fillId: 501 },
+    { ...leg(2, 0, 1, 101, null, 10, '2026-11-01T10:00:01Z'), fillId: 502 },
+    { ...leg(3, 1, 2, 102, 30, 11, '2026-11-01T10:01:00Z'), fillId: 503 },
+  ]);
+
+  assert.equal(result.warnings.length, 0);
+  assert.equal(result.positions.length, 1);
+  assert.equal(result.positions[0].quantity, 2);
+  assert.equal(result.positions[0].enterPrice, 100.5);
+  assert.equal(result.positions[0].exitPrice, 102);
+  assert.deepEqual(result.positions[0].tradeIds, [1, 2, 3]);
+});
+
+test('groups reversal legs sharing a live fill ID into one execution', () => {
+  const result = reconstructProjectXPositions([
+    leg(1, 0, 2, 100, null, 10, '2026-11-01T10:00:00Z'),
+    { ...leg(2, 1, 2, 110, 20, 11, '2026-11-01T10:01:00Z'), fillId: 777 },
+    { ...leg(3, 1, 3, 110, null, 11, '2026-11-01T10:01:00Z'), fillId: 777 },
+    leg(4, 0, 3, 100, 30, 12, '2026-11-01T10:02:00Z'),
+  ]);
+
+  assert.equal(result.warnings.length, 0);
+  assert.equal(result.positions.length, 2);
+  assert.deepEqual(result.positions.map(position => position.quantity), [2, -3]);
+});
+
 test('splits a reversal into a closed position and a new opposite position', () => {
   const result = reconstructProjectXPositions([
     leg(1, 0, 2, 100, null, 10, '2026-11-01T10:00:00Z', 2, 1),
