@@ -69,6 +69,7 @@ const getDateRange = (period) => {
 
 const getPreviousDateRange = (period) => {
   if (period && typeof period === 'object' && period.type === 'custom') {
+    if (!period.startDate || !period.endDate) return null;
     const range = getDateRange(period);
     if (!range) return null;
     const duration = range.end - range.start;

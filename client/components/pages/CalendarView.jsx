@@ -507,7 +507,9 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
 const getCalendarWeekNumber = (year, month, weekSlots) => {
   const dates = weekSlots.filter(Boolean).map(slot => new Date(year, month, slot.day));
   if (!dates.length) return 0;
-  const thursday = dates.find(date => date.getDay() === 4) || new Date(dates[0].getFullYear(), dates[0].getMonth(), dates[0].getDate() + 4);
+  const firstDate = dates[0];
+  const rowSunday = new Date(firstDate.getFullYear(), firstDate.getMonth(), firstDate.getDate() - firstDate.getDay());
+  const thursday = new Date(rowSunday.getFullYear(), rowSunday.getMonth(), rowSunday.getDate() + 4);
   const target = new Date(Date.UTC(thursday.getFullYear(), thursday.getMonth(), thursday.getDate()));
   const day = target.getUTCDay() || 7;
   target.setUTCDate(target.getUTCDate() + 4 - day);
