@@ -594,20 +594,19 @@ projectx.get('/api/projectx/reconstruction-diagnostics/:connectionId', requiresL
     `).all(connectionId) as Array<{ account_id: number; trade_id: number; contract_id: string; creation_timestamp: string; raw_json: string }>;
     const legs = rows.map(row => JSON.parse(row.raw_json) as import('../services/ProjectXReconstruction').ProjectXTradeLeg);
     const reconstruction = reconstructProjectXPositions(legs, new Set(pxConn?.reinstated_order_keys || []));
-    const byTradeId = new Map<string, typeof legs[number]>();
-    const byOrderId = new Map<string, typeof legs[number][]>();
+    const legsById = new Map<number, typeof legs[number][]>();
+    const legsByOrder = new Map<number, typeof legs[number][]>();
     for (const leg of legs) {
-      byTradeId.set(`${leg.accountId}:${leg.id}`, leg);
-      const key = `${leg.accountId}:${leg.orderId}`;
-      byOrderId.set(key, [...(byOrderId.get(key) || []), leg]);
+      legsById.set(leg.id, [...(legsById.get(leg.id) || []), leg]);
+      legsByOrder.set(leg.orderId, [...(legsByOrder.get(leg.orderId) || []), leg]);
     }
 
     const groups = new Map<string, { accountId: number; contractId: string; type: string; count: number; examples: Array<{ warning: string; relatedLegs: Array<{ id: number; orderId: number; fillId: number | null; side: number; size: number; price: number; profitAndLoss: number | null; voided: boolean; time: string }> }> }>();
     for (const warning of reconstruction.warnings) {
       const legId = Number(warning.match(/leg (\\d+)/i)?.[1]);
       const executionOrderId = Number(warning.match(/execution (\\d+)/i)?.[1]);
-      let related = Number.isFinite(legId) ? legs.filter(leg => leg.id === legId) : [];
-      if (!related.length && Number.isFinite(executionOrderId)) related = legs.filter(leg => leg.orderId === executionOrderId);
+      let related = Number.isFinite(legId) ? (legsById.get(legId) || []) : [];
+      if (!related.length && Number.isFinite(executionOrderId)) related = legsByOrder.get(executionOrderId) || [];
       const leg = related[0];
       const accountId = leg?.accountId ?? 0;
       const contractId = leg?.contractId ?? 'unknown';
