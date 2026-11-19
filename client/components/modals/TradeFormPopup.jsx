@@ -83,7 +83,7 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
       document.removeEventListener('keydown', handleEscape);
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen, onClose, isSidePanel]);
+  }, [isOpen, onClose, isRightOverlay]);
 
   useEffect(() => {
     if (!isOpen) {
