@@ -234,7 +234,7 @@ test('incremental updates retain older locally stored executions when rebuilding
     { 'CON.F.US.MGC.Z6': 'MGC' }, 1, false, [7],
   );
 
-  assert.equal(result.rawLegs, 1);
+  assert.equal(result.rawLegs, 2, 'reports all locally retained raw legs used for reconstruction');
   assert.equal((db.prepare('SELECT COUNT(*) AS count FROM projectx_trade_legs').get() as { count: number }).count, 2);
   assert.equal(result.positions, 1);
   assert.equal((db.prepare('SELECT gross_pl FROM trades').get() as { gross_pl: number }).gross_pl, 12);
