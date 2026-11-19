@@ -83,7 +83,7 @@ const AccountManagementPanel = ({ triggerReload }) => {
   const providerIcon = provider => {
     const label = providerLabel(provider);
     if (label === 'Topstep') return '/assets/img/topstep.png';
-    if (label === 'TradeZella') return '/assets/img/tradezella.svg';
+    if (label === 'TradeZella') return 'https://cdn.brandfetch.io/iduLtkFARE/w/400/h/400/theme/dark/icon.jpeg?c=1bxid64Mup7aczewSAYMX&t=1775393450208';
     const normalized = String(provider || '').trim().toLowerCase().replace(/[ _-]+/g, '');
     const configured = Object.values(BROKER_CONFIGS).find(config =>
       config.key.toLowerCase().replace(/[ _-]+/g, '') === normalized
@@ -149,6 +149,11 @@ const AccountManagementPanel = ({ triggerReload }) => {
                       <div>
                         <div className="text-text-primary text-sm font-medium">{account.name}</div>
                         <div className="text-text-tertiary text-xs mt-1">Source account: {account.sourceName}</div>
+                        {(account.accountType || account.currencyCode) && (
+                          <div className="text-text-tertiary text-xs mt-1">
+                            {[account.accountType === 'evaluation' ? 'Evaluation' : account.accountType === 'xfa' ? 'XFA' : account.accountType === 'live_funded' ? 'Live funded' : null, account.currencyCode].filter(Boolean).join(' · ')}
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-wrap gap-3 text-xs text-text-secondary">
                         <span>{Number(account.importedTrades || 0).toLocaleString()} trades</span>
