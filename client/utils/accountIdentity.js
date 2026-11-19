@@ -28,7 +28,7 @@ const getTradeAccountEntries = (trades = [], accountBrokers = {}) => {
       let provider = 'manual';
       if (key.startsWith('projectx::')) provider = 'projectx';
       else if (key.startsWith('tradezella::')) provider = 'tradezella';
-      else if (trade.brokerConnectionId) provider = accountBrokers[name] || 'broker';
+      else if (trade.brokerConnectionId) provider = trade.provider || accountBrokers[name] || 'broker';
       entries.set(key, { key, name, provider });
     }
   }
