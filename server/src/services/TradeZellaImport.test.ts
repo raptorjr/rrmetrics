@@ -95,3 +95,36 @@ test('keeps identical TradeZella rows as distinct source occurrences', () => {
   assert.equal(parsed.length, 2);
   assert.notEqual(parsed[0].sourceFingerprint, parsed[1].sourceFingerprint);
 });
+
+
+test('matches a position when average entry differs but timing, exit, size and net P&L agree', () => {
+  const source = parseTradeZellaRows([{
+    'Account Name': '150k XFA', Instrument: 'MGC', Side: 'short', Quantity: '2',
+    'Open Date': '2026-04-14', 'Open Time': '13:38:46 CEST',
+    'Close Date': '2026-04-14', 'Close Time': '13:40:12 CEST',
+    'Entry Price': '4799.30', 'Exit Price': '4809.20', 'Net P&L': '-238.48',
+  }]);
+  const matches = matchTradeZellaRows(source, [{
+    id: 'rr-average-entry-diff', ticker: 'MGC',
+    enter_time: '2026-04-14T11:38:46.900Z', exit_time: '2026-04-14T11:40:12.200Z',
+    enter_price: 4797.45, exit_price: 4809.20, quantity: -2, manual_pl: -238.48,
+  }]);
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].status, 'matched');
+  assert.deepEqual(matches[0].existingTradeIds, ['rr-average-entry-diff']);
+});
+
+test('does not use a differing average entry to match when net P&L also disagrees', () => {
+  const source = parseTradeZellaRows([{
+    'Account Name': '150k XFA', Instrument: 'MGC', Side: 'short', Quantity: '2',
+    'Open Date': '2026-04-14', 'Open Time': '13:38:46 CEST',
+    'Close Date': '2026-04-14', 'Close Time': '13:40:12 CEST',
+    'Entry Price': '4799.30', 'Exit Price': '4809.20', 'Net P&L': '-238.48',
+  }]);
+  const matches = matchTradeZellaRows(source, [{
+    id: 'rr-wrong-pnl', ticker: 'MGC',
+    enter_time: '2026-04-14T11:38:46.900Z', exit_time: '2026-04-14T11:40:12.200Z',
+    enter_price: 4797.45, exit_price: 4809.20, quantity: -2, manual_pl: -200,
+  }]);
+  assert.equal(matches[0].status, 'review');
+});
