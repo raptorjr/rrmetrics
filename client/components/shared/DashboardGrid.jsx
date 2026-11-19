@@ -185,7 +185,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     });
   };
 
-  const reset = () => setLayout(readLayout('__rrmetrics_no_saved_layout__', defaultOrder, defaultVisible, items));
+  const reset = () => setLayout(readLayoutFromValue(null, defaultOrder, defaultVisible, items));
 
   const saveTemplate = () => {
     const name = templateName.trim();
