@@ -14,6 +14,7 @@ const PeriodFilter = require("../shared/PeriodFilter");
 const EvalFilterControl = require("../shared/EvalFilterControl");
 const CustomizableStats = require("../shared/CustomizableStats");
 const { createPerformanceTiles } = require("../shared/performanceTileCatalog");
+const { createAnalyticsTiles } = require("../shared/analyticsTileCatalog");
 
 
 
@@ -389,7 +390,7 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
       profitFactor: showChange ? calcPercentChange(profitFactor, prevProfitFactor) : null,
       expectancy: showChange ? calcPercentChange(expectancy, prevExpectancy) : null,
     },
-  });
+  }).concat(createAnalyticsTiles(trades));
 
   // Monte Carlo simulation (memoized to avoid re-running on every render)
   const monteCarloResults = useMemo(() => {
@@ -729,7 +730,7 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
 
       <CustomizableStats
         storageKey="rrmetrics_analytics_tiles"
-        defaultOrder={['totalPL', 'winRate', 'totalTrades', 'avgDuration', 'avgWinLoss', 'bestTrade', 'worstTrade', 'breakevenRate', 'profitFactor', 'expectancy', 'maxDrawdown', 'sharpeRatio', 'sortinoRatio', 'kellyRisk']}
+        defaultOrder={['totalPL', 'winRate', 'totalTrades', 'avgDuration', 'avgWinLoss', 'bestTrade', 'worstTrade', 'breakevenRate', 'profitFactor', 'expectancy', 'maxDrawdown', 'sharpeRatio', 'sortinoRatio', 'kellyRisk', 'longShortBreakdown', 'detailedStatistics', 'tickerPerformance']}
         defaultVisible={['totalPL', 'winRate', 'profitFactor', 'expectancy', 'maxDrawdown', 'breakevenRate', 'sharpeRatio', 'sortinoRatio', 'kellyRisk']}
         items={performanceTiles}
       />
