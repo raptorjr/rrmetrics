@@ -86,7 +86,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const [templateName, setTemplateName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [previewItemId, setPreviewItemId] = useState(null);
-  const [storageWarning, setStorageWarning] = useState('');
+  const [storageWarning, setStorageWarning] = useState(null);
   const [catalogueQuery, setCatalogueQuery] = useState('');
   const [catalogueCategory, setCatalogueCategory] = useState('all');
   const [catalogueStatus, setCatalogueStatus] = useState('all');
@@ -159,10 +159,13 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const persistValue = (key, value) => {
     try {
       localStorage.setItem(key, JSON.stringify(value));
-      setStorageWarning('');
+      setStorageWarning(current => current && current.key === key ? null : current);
       return true;
     } catch {
-      setStorageWarning('Browser storage is unavailable or full. Your changes are active for this session but may not be saved after you leave or reload the page.');
+      setStorageWarning({
+        key,
+        message: 'Browser storage is unavailable or full. Your changes are active for this session but may not be saved after you leave or reload the page.',
+      });
       return false;
     }
   };
@@ -357,7 +360,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
 
   return (
     <div className="space-y-3">
-      {storageWarning && <p className="text-xs text-amber-600" role="alert">{storageWarning}</p>}
+      {storageWarning && <p className="text-xs text-amber-600" role="alert">{storageWarning.message}</p>}
       <div className="flex justify-end">
         <button
           type="button"
