@@ -29,6 +29,28 @@ test('parses TradeZella rows and preserves account, side, costs and net P&L', ()
   assert.ok(rows[0].sourceFingerprint.includes('MES'));
 });
 
+test('holds identical existing-trade candidates for manual review instead of linking arbitrarily', () => {
+  const source = parseTradeZellaRows([{
+    'Account Name': 'Practice', Instrument: 'MGC', Side: 'long', Quantity: '1',
+    'Open Date': '2026-07-15', 'Open Time': '14:00:00 CEST',
+    'Close Date': '2026-07-15', 'Close Time': '14:05:00 CEST',
+    'Entry Price': '2400.00', 'Exit Price': '2401.00', 'Net P&L': '10.00',
+  }]);
+  const duplicate = {
+    ticker: 'MGC', enter_time: '2026-07-15T12:00:00.000Z',
+    exit_time: '2026-07-15T12:05:00.000Z', enter_price: 2400,
+    exit_price: 2401, quantity: 1, manual_pl: 10,
+  };
+  const matches = matchTradeZellaRows(source, [
+    { ...duplicate, id: 'rr-duplicate-1' },
+    { ...duplicate, id: 'rr-duplicate-2' },
+  ]);
+
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].status, 'review');
+  assert.deepEqual(new Set(matches[0].existingTradeIds), new Set(['rr-duplicate-1', 'rr-duplicate-2']));
+});
+
 test('matches two one-contract CSV rows to one two-contract RR position', () => {
   const source = parseTradeZellaRows([
     { 'Account Name': '150k XFA', Instrument: 'MES', Side: 'long', Quantity: '1', 'Open Date': '2026-04-07', 'Open Time': '14:48:48 CEST', 'Close Date': '2026-04-07', 'Close Time': '16:00:17 CEST', 'Entry Price': '6616.75', 'Exit Price': '6601.25', 'Net P&L': '-78.24' },
