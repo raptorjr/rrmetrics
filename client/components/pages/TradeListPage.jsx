@@ -484,7 +484,7 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
         const isExpanded = trackingView === 'day' ? expandedGroups[group.key] === true : expandedGroups[group.key] !== false;
         if (!isExpanded) return [{ type: 'group', group }];
         const orderedTrades = trackingView === 'day' ? [...group.trades].sort((a, b) => new Date(a.exitTime) - new Date(b.exitTime)) : group.trades;
-        return [{ type: 'group', group }, ...(trackingView === 'day' ? [{ type: 'dayHeader', key: group.key }] : []), ...orderedTrades.map(trade => ({ type: 'trade', trade }))];
+        return [{ type: 'group', group }, ...((trackingView === 'day' || trackingView === 'week') ? [{ type: trackingView === 'day' ? 'dayHeader' : 'weekHeader', key: group.key }] : []), ...orderedTrades.map(trade => ({ type: 'trade', trade }))];
       });
   const toggleGroup = key => setExpandedGroups(current => ({ ...current, [key]: trackingView === 'day' ? current[key] !== true : current[key] === false }));
 
@@ -826,7 +826,7 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              {trackingView !== 'day' && <thead>
+              {trackingView === 'all' && <thead>
                 <tr className="border-b border-border">
                   <th className="px-4 py-3 w-10">
                     <input
@@ -867,6 +867,25 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
                   if (item.type === 'dayHeader') {
                     return (
                       <tr key={'day-header-' + item.key} className="bg-bg-input/70 border-y border-border">
+                        <th className="px-4 py-3 w-10"><input type="checkbox" className="rounded border-border accent-accent" checked={filtered.length > 0 && filtered.every(t => selectedTradeIds.has(t._id))} onChange={e => setSelectedTradeIds(e.target.checked ? new Set(filtered.map(t => t._id)) : new Set())} /></th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider cursor-pointer" onClick={() => toggleSort('exitTime')}>Date <SortIcon field="exitTime" /></th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider cursor-pointer" onClick={() => toggleSort('ticker')}>Ticker <SortIcon field="ticker" /></th>
+                        {isCol('tags') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Tags</th>}
+                        {isCol('entry') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Entry</th>}
+                        {isCol('exit') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Exit</th>}
+                        {isCol('qty') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Qty</th>}
+                        {isCol('gross') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Gross P/L</th>}
+                        {isCol('fees') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Fees</th>}
+                        {isCol('commissions') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Commissions</th>}
+                        <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider cursor-pointer" onClick={() => toggleSort('pl')}>Net P/L <SortIcon field="pl" /></th>
+                        {isCol('duration') && <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Duration</th>}
+                        <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider">Actions</th>
+                      </tr>
+                    );
+                  }
+                  if (item.type === 'weekHeader') {
+                    return (
+                      <tr key={'week-header-' + item.key} className="bg-bg-input/70 border-y border-border">
                         <th className="px-4 py-3 w-10"><input type="checkbox" className="rounded border-border accent-accent" checked={filtered.length > 0 && filtered.every(t => selectedTradeIds.has(t._id))} onChange={e => setSelectedTradeIds(e.target.checked ? new Set(filtered.map(t => t._id)) : new Set())} /></th>
                         <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider cursor-pointer" onClick={() => toggleSort('exitTime')}>Date <SortIcon field="exitTime" /></th>
                         <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase tracking-wider cursor-pointer" onClick={() => toggleSort('ticker')}>Ticker <SortIcon field="ticker" /></th>
@@ -941,52 +960,74 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
                       return [...days.entries()].sort((a, b) => a[0].localeCompare(b[0]));
                     })();
                     const maxDailyAbs = Math.max(1, ...dailyBreakdown.map(([, value]) => Math.abs(value)));
+                    const dailyCounts = new Map();
+                    group.trades.forEach(trade => {
+                      const day = getSessionDateKey(trade);
+                      dailyCounts.set(day, (dailyCounts.get(day) || 0) + 1);
+                    });
+                    const chartWidth = 560;
+                    const chartHeight = 118;
+                    const chartTop = 8;
+                    const chartBottom = 22;
+                    const zeroY = chartTop + (chartHeight - chartTop - chartBottom) / 2;
+                    const maxBarHeight = (chartHeight - chartTop - chartBottom) / 2;
+                    const barSlot = chartWidth / 7;
+                    const barWidth = Math.min(34, barSlot * 0.58);
                     return (
                       <tr key={'group-' + group.key} className="border-b border-border/60">
                         <td colSpan={visibleColCount} className="p-3">
                           <div className="rounded-xl border border-border bg-bg-surface overflow-hidden">
-                            <button type="button" onClick={() => toggleGroup(group.key)} aria-expanded={isOpen} className="w-full flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-left hover:bg-bg-input/40 transition-colors">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <span className="text-text-secondary">{isOpen ? '⌄' : '›'}</span>
-                                <div>
-                                  <div className="font-semibold text-text-primary text-sm">{group.label}</div>
-                                  <div className="text-[11px] text-text-tertiary mt-0.5">{group.trades.length} closed trades · {group.wins} wins · {group.losses} losses</div>
-                                </div>
-                              </div>
-                              <div className={'font-mono text-lg font-bold whitespace-nowrap ' + (group.totalPL >= 0 ? 'text-positive' : 'text-negative')}>
-                                {groupHasMixedCurrencies ? 'Mixed currencies' : (group.totalPL > 0 ? '+' : '') + formatMoney(group.totalPL, currency)}
-                              </div>
+                            <button type="button" onClick={() => toggleGroup(group.key)} aria-expanded={isOpen} className="w-full flex flex-wrap items-center gap-3 px-4 py-3 text-left hover:bg-bg-input/40 transition-colors">
+                              <span className="text-text-secondary">{isOpen ? '⌄' : '›'}</span>
+                              <span className="font-semibold text-text-primary text-sm">{group.label}</span>
+                              <span className="text-text-tertiary">·</span>
+                              <span className={'font-mono text-sm font-bold ' + (group.totalPL >= 0 ? 'text-positive' : 'text-negative')}>
+                                {groupHasMixedCurrencies ? 'Mixed currencies' : 'Net P&L ' + (group.totalPL > 0 ? '+' : '') + formatMoney(group.totalPL, currency)}
+                              </span>
+                              <span className="ml-auto text-[11px] text-text-tertiary">{group.trades.length} closed trades · {group.wins} wins · {group.losses} losses</span>
                             </button>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-4 px-4 pb-4 pt-1">
-                              <DailyMetric label="Total trades" value={group.trades.length} />
-                              <DailyMetric label="Win rate" value={winRate.toFixed(1) + '%'} />
-                              <DailyMetric label="Winners / losers" value={group.wins + ' / ' + group.losses} />
-                              <DailyMetric label="Profit factor" value={groupHasMixedCurrencies ? '—' : profitFactor === Infinity ? '∞' : profitFactor.toFixed(2)} />
-                              <DailyMetric label="Gross P&L" value={group.grossPLComplete && !groupHasMixedCurrencies ? formatMoney(group.grossPL, currency) : '—'} />
-                              <DailyMetric label="Commissions" value={!groupHasMixedCurrencies ? formatMoney(group.commissions, currency) : '—'} />
-                              <DailyMetric label="Volume" value={group.volume.toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' contracts'} />
-                              <DailyMetric label="Breakeven" value={group.trades.filter(trade => getTradePL(trade) === 0).length} />
-                            </div>
-                            <div className="border-t border-border px-4 py-3">
-                              <div className="text-[10px] uppercase tracking-wider text-text-tertiary mb-3">Daily performance</div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                                {dailyBreakdown.map(([day, value]) => (
-                                  <div key={day} className="min-w-0">
-                                    <div className="flex items-center justify-between gap-2 mb-1.5">
-                                      <span className="text-xs text-text-secondary">{formatGroupDate(day, { weekday: 'short' })}</span>
-                                      <span className={'font-mono text-xs font-semibold ' + (value >= 0 ? 'text-positive' : 'text-negative')}>{groupHasMixedCurrencies ? '—' : formatMoney(value, currency)}</span>
-                                    </div>
-                                    <div className="h-1.5 rounded-full bg-bg-input overflow-hidden">
-                                      <div className={'h-full rounded-full ' + (value >= 0 ? 'bg-positive' : 'bg-negative')} style={{ width: Math.max(3, Math.abs(value) / maxDailyAbs * 100) + '%' }} />
-                                    </div>
-                                  </div>
-                                ))}
+                            <div className="grid grid-cols-1 lg:grid-cols-[minmax(340px,0.95fr)_1.5fr] gap-5 px-4 pb-4 pt-1">
+                              <div className="min-w-0">
+                                <div className="text-[10px] uppercase tracking-wider text-text-tertiary mb-2">Daily P&L</div>
+                                <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-[118px]" role="img" aria-label="Daily profit and loss for this week">
+                                  <line x1="0" y1={zeroY} x2={chartWidth} y2={zeroY} stroke="currentColor" opacity="0.24" strokeDasharray="3 3" />
+                                  {Array.from({ length: 7 }, (_, index) => {
+                                    const date = new Date(group.key + 'T12:00:00Z');
+                                    date.setUTCDate(date.getUTCDate() + index);
+                                    const dayKey = date.getUTCFullYear() + '-' + String(date.getUTCMonth() + 1).padStart(2, '0') + '-' + String(date.getUTCDate()).padStart(2, '0');
+                                    const value = dailyBreakdown.find(([day]) => day === dayKey)?.[1] || 0;
+                                    const count = dailyCounts.get(dayKey) || 0;
+                                    const barHeight = Math.abs(value) / maxDailyAbs * maxBarHeight;
+                                    const x = index * barSlot + (barSlot - barWidth) / 2;
+                                    const y = value >= 0 ? zeroY - barHeight : zeroY;
+                                    const label = formatGroupDate(dayKey, { weekday: 'short' });
+                                    return (
+                                      <g key={dayKey} className="cursor-default">
+                                        <title>{label}: {formatMoney(value, currency)} · {count} {count === 1 ? 'trade' : 'trades'}</title>
+                                        {count > 0 && <rect x={x} y={y} width={barWidth} height={Math.max(2, barHeight)} rx="3" fill={value >= 0 ? '#22c55e' : '#ef4444'} opacity="0.86" />}
+                                        <text x={x + barWidth / 2} y={chartHeight - 5} textAnchor="middle" fill="currentColor" opacity="0.65" fontSize="11">{label}</text>
+                                        <rect x={index * barSlot} y="0" width={barSlot} height={chartHeight} fill="transparent" pointerEvents="all">
+                                          <title>{label}: {formatMoney(value, currency)} · {count} {count === 1 ? 'trade' : 'trades'}</title>
+                                        </rect>
+                                      </g>
+                                    );
+                                  })}
+                                </svg>
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-4 content-center">
+                                <DailyMetric label="Total trades" value={group.trades.length} />
+                                <DailyMetric label="Win rate" value={winRate.toFixed(1) + '%'} />
+                                <DailyMetric label="Winners / losers" value={group.wins + ' / ' + group.losses} />
+                                <DailyMetric label="Profit factor" value={groupHasMixedCurrencies ? '—' : profitFactor === Infinity ? '∞' : profitFactor.toFixed(2)} />
+                                <DailyMetric label="Gross P&L" value={group.grossPLComplete && !groupHasMixedCurrencies ? formatMoney(group.grossPL, currency) : '—'} />
+                                <DailyMetric label="Commissions" value={!groupHasMixedCurrencies ? formatMoney(group.commissions, currency) : '—'} />
+                                <DailyMetric label="Volume" value={group.volume.toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' contracts'} />
+                                <DailyMetric label="Breakeven" value={group.trades.filter(trade => getTradePL(trade) === 0).length} />
                               </div>
                             </div>
                           </div>
                         </td>
                       </tr>
-                    );
                   }
                   const trade = item.trade;
                   const pl = getTradePL(trade);
