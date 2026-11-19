@@ -89,6 +89,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const [storageWarning, setStorageWarning] = useState('');
   const [catalogueQuery, setCatalogueQuery] = useState('');
   const [catalogueCategory, setCatalogueCategory] = useState('all');
+  const [catalogueStatus, setCatalogueStatus] = useState('all');
   const gridRef = useRef(null);
   const resizeRef = useRef(null);
   const previewDialogRef = useRef(null);
@@ -344,9 +345,13 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const catalogueItems = orderedItems.filter(item => {
     const category = item.category || 'Metrics';
     const matchesCategory = catalogueCategory === 'all' || category === catalogueCategory;
+    const isAdded = !layout.hidden.includes(item.id);
+    const matchesStatus = catalogueStatus === 'all'
+      || (catalogueStatus === 'added' && isAdded)
+      || (catalogueStatus === 'not-added' && !isAdded);
     const matchesQuery = !normalizedQuery || [item.label, item.description, category]
       .some(value => String(value || '').toLowerCase().includes(normalizedQuery));
-    return matchesCategory && matchesQuery;
+    return matchesCategory && matchesStatus && matchesQuery;
   });
   const addedCount = items.filter(item => !layout.hidden.includes(item.id)).length;
 
@@ -420,6 +425,16 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
             >
               <option value="all">All categories</option>
               {catalogueCategories.map(category => <option key={category} value={category}>{category}</option>)}
+            </select>
+            <select
+              value={catalogueStatus}
+              onChange={event => setCatalogueStatus(event.target.value)}
+              aria-label="Filter tiles by dashboard status"
+              className="min-w-[150px] rounded-md border border-border bg-bg-page px-3 py-2 text-xs text-text-primary"
+            >
+              <option value="all">All tiles</option>
+              <option value="added">On dashboard</option>
+              <option value="not-added">Not on dashboard</option>
             </select>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
