@@ -377,6 +377,15 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
     try { localStorage.setItem('rrmetrics_time_format', format); } catch {}
   };
 
+  const [dateFormat, setDateFormat] = useState(() => {
+    try { return localStorage.getItem('rrmetrics_date_format') || 'auto'; }
+    catch { return 'auto'; }
+  });
+  const handleDateFormatChange = (format) => {
+    setDateFormat(format);
+    try { localStorage.setItem('rrmetrics_date_format', format); } catch {}
+  };
+
   const [timeZone, setTimeZone] = useState(() => {
     try { return localStorage.getItem('rrmetrics_time_zone') || 'auto'; }
     catch { return 'auto'; }
@@ -1488,6 +1497,25 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                 24-hour
               </button>
             </div>
+          </div>
+
+          {/* Date format */}
+          <div className="flex flex-wrap items-center justify-between gap-3 py-3 border-b border-border">
+            <div>
+              <div className="text-text-primary text-sm font-medium">Date format</div>
+              <div className="text-text-tertiary text-xs mt-0.5">Choose how dates are entered and displayed in the trade editor</div>
+            </div>
+            <select
+              value={dateFormat}
+              onChange={(e) => handleDateFormatChange(e.target.value)}
+              className="min-w-56 max-w-full px-3 py-2 bg-bg-input border border-border rounded-lg text-sm text-text-primary focus:outline-none focus:border-accent"
+            >
+              <option value="auto">Automatic (browser locale)</option>
+              <option value="dmy-dot">DD.MM.YYYY (19.11.2026)</option>
+              <option value="dmy-slash">DD/MM/YYYY (19/11/2026)</option>
+              <option value="mdy-slash">MM/DD/YYYY (11/19/2026)</option>
+              <option value="ymd-dash">YYYY-MM-DD (2026-11-19)</option>
+            </select>
           </div>
 
           {/* Time zone */}
