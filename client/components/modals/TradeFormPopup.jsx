@@ -180,8 +180,10 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
     e.preventDefault();
     helper.hideError();
     const ticker = e.target.querySelector('#ticker').value;
-    const enterTimeRaw = e.target.querySelector('#enterTime').value;
-    const exitTimeRaw = e.target.querySelector('#exitTime').value;
+    const enterDateRaw = e.target.querySelector('#enterDate').value;
+    const enterClockRaw = e.target.querySelector('#enterClock').value;
+    const exitDateRaw = e.target.querySelector('#exitDate').value;
+    const exitClockRaw = e.target.querySelector('#exitClock').value;
     const enterPrice = e.target.querySelector('#enterPrice').value;
     const exitPrice = e.target.querySelector('#exitPrice').value;
     const quantity = e.target.querySelector('#quantity').value;
@@ -189,8 +191,8 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
     const comments = e.target.querySelector('#comments').value;
     const hasPrices = enterPrice && exitPrice;
     const hasPL = manualPL;
-    if (!ticker || !enterTimeRaw || !exitTimeRaw || !quantity) {
-      helper.handleError('Ticker, enter time, exit time, and quantity are required');
+    if (!ticker || !enterDateRaw || !enterClockRaw || !exitDateRaw || !exitClockRaw || !quantity) {
+      helper.handleError('Ticker, enter date/time, exit date/time, and quantity are required');
       return;
     }
     if (!hasPrices && !hasPL) {
@@ -215,8 +217,33 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
       }
       return new Date(timestamp).toISOString();
     };
-    const enterTime = localInputToISO(enterTimeRaw);
-    const exitTime = localInputToISO(exitTimeRaw);
+    const parseDisplayDateTime = (dateValue, timeValue) => {
+      const dateMatch = dateValue.trim().match(/^(\\d{2})\\.(\\d{2})\\.(\\d{4})$/);
+      if (!dateMatch) return null;
+      const [, day, month, year] = dateMatch;
+      let hour, minute, second = 0;
+      const timeFormat = localStorage.getItem('rrmetrics_time_format') === '24h' ? '24h' : '12h';
+      if (timeFormat === '24h') {
+        const match = timeValue.trim().match(/^(\\d{1,2}):(\\d{2})(?::(\\d{2}))?$/);
+        if (!match) return null;
+        hour = Number(match[1]); minute = Number(match[2]); second = Number(match[3] || 0);
+      } else {
+        const match = timeValue.trim().match(/^(\\d{1,2}):(\\d{2})(?::(\\d{2}))?\\s*(AM|PM)$/i);
+        if (!match) return null;
+        hour = Number(match[1]) % 12 + (match[4].toUpperCase() === 'PM' ? 12 : 0);
+        minute = Number(match[2]); second = Number(match[3] || 0);
+      }
+      const d = Number(day), m = Number(month), y = Number(year);
+      const check = new Date(Date.UTC(y, m - 1, d, hour, minute, second));
+      if (check.getUTCFullYear() !== y || check.getUTCMonth() !== m - 1 || check.getUTCDate() !== d || hour > 23 || minute > 59 || second > 59) return null;
+      return localInputToISO(`${year}-${month}-${day}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`);
+    };
+    const enterTime = parseDisplayDateTime(enterDateRaw, enterClockRaw);
+    const exitTime = parseDisplayDateTime(exitDateRaw, exitClockRaw);
+    if (!enterTime || !exitTime) {
+      helper.handleError('Enter dates as DD.MM.YYYY and times in the selected 12/24-hour format');
+      return;
+    }
     const tradeData = {
       ticker, enterTime, exitTime,
       enterPrice: enterPrice ? parseFloat(enterPrice) : 0,
@@ -263,14 +290,27 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
   };
 
   const formatDateTimeForInput = (dateString) => {
-    if (!dateString) return '';
+    if (!dateString) return { date: '', time: '' };
+    const date = new Date(dateString);
     const parts = new Intl.DateTimeFormat('en-GB', {
       timeZone: getDisplayTimeZone(), year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
-    }).formatToParts(new Date(dateString));
+    }).formatToParts(date);
     const part = type => parts.find(item => item.type === type)?.value || '00';
-    return part('year') + '-' + part('month') + '-' + part('day') + 'T' + part('hour') + ':' + part('minute') + ':' + part('second');
+    const dateValue = `${part('day')}.${part('month')}.${part('year')}`;
+    const timeFormat = localStorage.getItem('rrmetrics_time_format') === '24h' ? '24h' : '12h';
+    const timeValue = new Intl.DateTimeFormat('en-US', {
+      timeZone: getDisplayTimeZone(), hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: timeFormat !== '24h',
+    }).format(date);
+    return { date: dateValue, time: timeValue };
   };
+  const defaultDateTime = (dateString) => {
+    const value = dateString ? new Date(`${dateString}T09:30:00`) : new Date();
+    return formatDateTimeForInput(value.toISOString());
+  };
+  const enterDefaults = isEditing ? formatDateTimeForInput(editingTrade.enterTime) : defaultDateTime(prefillDate);
+  const exitDefaults = isEditing ? formatDateTimeForInput(editingTrade.exitTime) : defaultDateTime(prefillDate);
 
   const inputClass = "w-full px-3 py-2.5 bg-bg-input border border-border rounded-lg text-text-primary text-sm placeholder-text-muted focus:outline-none focus:border-accent transition-colors";
   const labelClass = "block text-xs font-medium text-text-secondary mb-1.5";
@@ -302,13 +342,15 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="enterTime" className={labelClass}>Enter Time</label>
-                <input id="enterTime" type="datetime-local" lang="en-GB" name="enterTime" step="1" defaultValue={isEditing ? formatDateTimeForInput(editingTrade.enterTime) : `${prefillDate || new Date().toISOString().split('T')[0]}T09:30:00`} className={inputClass} />
+              <div className="space-y-2">
+                <label className={labelClass}>Enter Time</label>
+                <input id="enterDate" type="text" name="enterDate" placeholder="DD.MM.YYYY" aria-label="Enter date (DD.MM.YYYY)" defaultValue={enterDefaults.date} className={inputClass} />
+                <input id="enterClock" type="text" name="enterClock" placeholder={localStorage.getItem('rrmetrics_time_format') === '24h' ? 'HH:mm:ss' : 'hh:mm:ss AM/PM'} aria-label="Enter time" defaultValue={enterDefaults.time} className={inputClass} />
               </div>
-              <div>
-                <label htmlFor="exitTime" className={labelClass}>Exit Time</label>
-                <input id="exitTime" type="datetime-local" lang="en-GB" name="exitTime" step="1" defaultValue={isEditing ? formatDateTimeForInput(editingTrade.exitTime) : `${prefillDate || new Date().toISOString().split('T')[0]}T09:30:00`} className={inputClass} />
+              <div className="space-y-2">
+                <label className={labelClass}>Exit Time</label>
+                <input id="exitDate" type="text" name="exitDate" placeholder="DD.MM.YYYY" aria-label="Exit date (DD.MM.YYYY)" defaultValue={exitDefaults.date} className={inputClass} />
+                <input id="exitClock" type="text" name="exitClock" placeholder={localStorage.getItem('rrmetrics_time_format') === '24h' ? 'HH:mm:ss' : 'hh:mm:ss AM/PM'} aria-label="Exit time" defaultValue={exitDefaults.time} className={inputClass} />
               </div>
             </div>
 
