@@ -9,6 +9,7 @@ const TradeZellaImportPage = ({ triggerReload }) => {
   const [fileName, setFileName] = useState('');
   const [rows, setRows] = useState([]);
   const [accounts, setAccounts] = useState([]);
+  const [rrAccounts, setRrAccounts] = useState([]);
   const [selected, setSelected] = useState([]);
   const [preview, setPreview] = useState(null);
   const [result, setResult] = useState(null);
@@ -47,6 +48,7 @@ const TradeZellaImportPage = ({ triggerReload }) => {
             };
           });
           setRows(parsed.data);
+          setRrAccounts(savedData.rrAccounts || []);
           setAccounts(nextAccounts);
           setSelected(nextAccounts.map(a => a.accountName));
           setPreview(previewData);
@@ -67,7 +69,7 @@ const TradeZellaImportPage = ({ triggerReload }) => {
       const chosen = accounts.filter(a => selected.includes(a.accountName));
       const settings = chosen.map(a => ({
         sourceAccountName: a.accountName, displayName: a.displayName,
-        currencyCode: a.currencyCode, isEval: a.isEval,
+        currencyCode: a.currencyCode, isEval: a.isEval, matchAccount: a.matchAccount || null,
       }));
       const response = await authFetch('/api/tradezella/import', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -157,6 +159,9 @@ const TradeZellaImportPage = ({ triggerReload }) => {
                     <label className="text-xs text-text-secondary">Currency
                       <select value={a.currencyCode} onChange={e => updateAccount(a.accountName, 'currencyCode', e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-bg-page px-3 py-2 text-sm text-text-primary">{CURRENCIES.map(c => <option key={c}>{c}</option>)}</select>
                     </label>
+                    <label className="text-xs text-text-secondary">Match against existing RR account
+                      <select value={a.matchAccount || ''} onChange={e => updateAccount(a.accountName, 'matchAccount', e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-bg-page px-3 py-2 text-sm text-text-primary"><option value="">No matching — import as new</option>{rrAccounts.map(name => <option key={name} value={name}>{name}</option>)}</select>
+                    </label>
                     <label className="flex items-center gap-2 text-sm text-text-primary self-end pb-2"><input type="checkbox" checked={a.isEval} onChange={e => updateAccount(a.accountName, 'isEval', e.target.checked)} /> Evaluation account</label>
                   </div>}
                 </div>;
@@ -167,6 +172,7 @@ const TradeZellaImportPage = ({ triggerReload }) => {
           <section className="rounded-xl border border-border bg-bg-surface p-5">
             <h2 className="font-semibold text-text-primary mb-2">Import safeguards</h2>
             <ul className="list-disc pl-5 space-y-1 text-sm text-text-secondary">
+              <li>Duplicate checks only compare against the RR account selected for each TradeZella account.</li>
               <li>Exact and consolidated position matches are linked to existing RR trades instead of duplicated.</li>
               <li>Rows with uncertain matches are held for review and are not imported automatically.</li>
               <li>Original TradeZella account names are retained in the import source mapping.</li>
