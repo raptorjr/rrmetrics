@@ -385,6 +385,23 @@ export function matchTradeZellaRowsAcrossAccounts(
   if (!newRows.length) return primary;
 
   const possibleByRow = new Map<number, { ids: Set<string>; accounts: Set<string> }>();
+  const availableIds = new Set(existing.map(trade => trade.id));
+  const alreadyLinkedInTarget = targetAccount
+    ? crossAccountExisting.filter(trade => trade.account === targetAccount && !availableIds.has(trade.id))
+    : [];
+  if (alreadyLinkedInTarget.length) {
+    const linkedMatches = matchTradeZellaRows(newRows, alreadyLinkedInTarget);
+    for (const match of linkedMatches) {
+      if (match.status === 'new') continue;
+      for (const sourceRow of match.sourceRows) {
+        const item = possibleByRow.get(sourceRow) || { ids: new Set<string>(), accounts: new Set<string>() };
+        match.existingTradeIds.forEach(id => item.ids.add(id));
+        item.accounts.add(`${targetAccount} (already linked to another source row)`);
+        possibleByRow.set(sourceRow, item);
+      }
+    }
+  }
+
   const otherAccounts = [...new Set(crossAccountExisting
     .map(trade => trade.account)
     .filter((account): account is string => !!account && account !== targetAccount))];
