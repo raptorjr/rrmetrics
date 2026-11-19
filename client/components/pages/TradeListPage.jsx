@@ -1028,6 +1028,7 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
                           </div>
                         </td>
                       </tr>
+                    );
                   }
                   const trade = item.trade;
                   const pl = getTradePL(trade);
