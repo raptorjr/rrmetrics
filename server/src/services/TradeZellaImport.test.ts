@@ -82,3 +82,16 @@ test('does not combine CSV rows from different source accounts', () => {
   }]);
   assert.equal(matches.some((match) => match.status === 'matched'), false);
 });
+
+
+test('keeps identical TradeZella rows as distinct source occurrences', () => {
+  const row = {
+    'Account Name': 'Practice', Instrument: 'MGC', Side: 'long', Quantity: '1',
+    'Open Date': '2026-07-15', 'Open Time': '14:00:00 CEST',
+    'Close Date': '2026-07-15', 'Close Time': '14:05:00 CEST',
+    'Entry Price': '2400.00', 'Exit Price': '2401.00', 'Net P&L': '10.00',
+  };
+  const parsed = parseTradeZellaRows([row, row]);
+  assert.equal(parsed.length, 2);
+  assert.notEqual(parsed[0].sourceFingerprint, parsed[1].sourceFingerprint);
+});
