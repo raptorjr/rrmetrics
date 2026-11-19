@@ -40,7 +40,7 @@ const createPerformanceTiles = ({
   changes = {},
 }) => {
   const definitions = Object.fromEntries(PERFORMANCE_TILE_DEFINITIONS.map(item => [item.id, item]));
-  const card = (id, render) => ({ ...definitions[id], render, preview: <TilePreview item={definitions[id]} /> });
+  const card = (id, render, settings = []) => ({ ...definitions[id], settings, render, preview: <TilePreview item={definitions[id]} /> });
 
   return [
     card('totalPL', () => <StatCard label="Total P/L" tooltip="Net profit or loss across the selected trades, after fees and commissions." value={`$${stats.totalPL.toFixed(2)}`} color={stats.totalPL >= 0 ? 'text-positive' : 'text-negative'} change={changes.totalPL} />),
@@ -61,12 +61,17 @@ const createPerformanceTiles = ({
         <div className="text-text-secondary text-xs font-medium uppercase tracking-wider mb-2">Kelly Optimal Risk</div>
         <div className="font-mono text-2xl font-bold text-text-primary">${kelly.optimalRisk.toFixed(0)}</div>
         <div className="text-text-tertiary text-xs mt-1">{kelly.kellyPct.toFixed(1)}% of drawdown</div>
-        <div className="flex items-center gap-2 mt-2">
-          <span className="text-text-tertiary text-xs">Max DD $</span>
-          <input type="number" value={kellyDrawdown} onChange={event => onKellyDrawdownChange(Math.max(0, Number(event.target.value)))} className="w-20 bg-bg-input border border-border rounded px-2 py-1 text-xs font-mono text-text-primary focus:outline-none focus:border-accent" />
-        </div>
       </div>
-    )),
+    ), [{
+      id: 'maxDrawdown',
+      label: 'Maximum drawdown ($)',
+      description: 'The account drawdown limit used to calculate the Kelly risk amount.',
+      type: 'number',
+      min: 0,
+      step: 100,
+      value: kellyDrawdown,
+      onChange: value => onKellyDrawdownChange(Math.max(0, Number(value) || 0)),
+    }]),
   ];
 };
 

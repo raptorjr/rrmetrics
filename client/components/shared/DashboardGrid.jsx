@@ -625,6 +625,29 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                     <button type="button" onClick={() => adjustSize(item, 'h', -1)} disabled={size.h <= (Number(item.minRows) || 1)} aria-label={`Make ${item.label} shorter`} title="Shorter" className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30">−</button>
                     <button type="button" onClick={() => adjustSize(item, 'h', 1)} disabled={size.h >= MAX_ROWS} aria-label={`Make ${item.label} taller`} title="Taller" className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30">＋</button>
                   </span>
+                  {Array.isArray(item.settings) && item.settings.length > 0 && (
+                    <details className="relative">
+                      <summary className="list-none cursor-pointer w-6 h-5 rounded hover:bg-bg-input flex items-center justify-center text-xs" aria-label={`Configure ${item.label}`} title={`Configure ${item.label}`}>⚙</summary>
+                      <div className="absolute right-0 top-7 z-50 w-64 max-w-[80vw] rounded-lg border border-border bg-bg-surface p-3 shadow-xl space-y-3 text-left normal-case tracking-normal">
+                        <div className="text-xs font-semibold text-text-primary">{item.label} settings</div>
+                        {item.settings.map(setting => (
+                          <label key={setting.id} className="block space-y-1">
+                            <span className="block text-xs text-text-secondary">{setting.label}</span>
+                            {setting.description && <span className="block text-[10px] text-text-tertiary">{setting.description}</span>}
+                            <input
+                              type={setting.type || 'number'}
+                              value={setting.value}
+                              min={setting.min}
+                              max={setting.max}
+                              step={setting.step || 'any'}
+                              onChange={event => setting.onChange(event.target.value)}
+                              className="w-full rounded-md border border-border bg-bg-input px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </details>
+                  )}
                 </div>
               )}
               {item.render()}
