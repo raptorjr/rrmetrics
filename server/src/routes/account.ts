@@ -241,9 +241,22 @@ account.post('/api/account/managed-accounts/action', requiresLogin, async (c) =>
         const rows = db.prepare(`SELECT DISTINCT t.id FROM tradezella_imported_trades m
           JOIN trades t ON t.id = m.trade_id WHERE m.user_id = ? AND m.source_account_name = ?
           AND t.user_id = ? AND t.tradovate_source = 'tradezella'`).all(user.id, sourceName, user.id) as any[];
+        // Preserve source fingerprints as tombstones when clearing. This prevents
+        // the same CSV rows from being imported again after their trade records
+        // and live mappings have been removed.
+        if (action === 'clear') {
+          db.prepare(`INSERT OR IGNORE INTO tradezella_cleared_trades
+            (user_id, source_account_name, source_fingerprint)
+            SELECT user_id, source_account_name, source_fingerprint
+            FROM tradezella_imported_trades
+            WHERE user_id = ? AND source_account_name = ?`).run(user.id, sourceName);
+        }
         for (const row of rows) db.prepare("DELETE FROM trades WHERE id = ? AND user_id = ? AND tradovate_source = 'tradezella'").run(row.id, user.id);
         db.prepare('DELETE FROM tradezella_imported_trades WHERE user_id = ? AND source_account_name = ?').run(user.id, sourceName);
-        if (action === 'delete') db.prepare('DELETE FROM tradezella_accounts WHERE user_id = ? AND source_account_name = ?').run(user.id, sourceName);
+        if (action === 'delete') {
+          db.prepare('DELETE FROM tradezella_cleared_trades WHERE user_id = ? AND source_account_name = ?').run(user.id, sourceName);
+          db.prepare('DELETE FROM tradezella_accounts WHERE user_id = ? AND source_account_name = ?').run(user.id, sourceName);
+        }
         return { removedTrades: rows.length };
       }
       if (id.startsWith('projectx::')) {
