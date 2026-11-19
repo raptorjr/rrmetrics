@@ -53,6 +53,11 @@ function existingRows(db: any, userId: string) {
   }>;
 }
 
+function reservedTradeIds(db: any, userId: string): Set<string> {
+  const rows = db.prepare('SELECT DISTINCT trade_id FROM tradezella_imported_trades WHERE user_id = ?').all(userId) as Array<{ trade_id: string }>;
+  return new Set(rows.map(row => row.trade_id));
+}
+
 function sourceMappings(db: any, userId: string, rows: TradeZellaRow[]) {
   const byAccount = new Map<string, Set<string>>();
   for (const row of rows) {
@@ -118,7 +123,8 @@ tradezella.post('/api/tradezella/preview', requiresLogin, async (c) => {
   if (!parsedRows?.length) return c.json({ error: 'No valid TradeZella trades found. Check the CSV columns and values.' }, 400);
 
   try {
-    const existing = existingRows(db, user.id);
+    const reserved = reservedTradeIds(db, user.id);
+    const existing = existingRows(db, user.id).filter(trade => !reserved.has(trade.id));
     const mappings = sourceMappings(db, user.id, parsedRows);
     const unrecorded = parsedRows.filter(row => !mappings.has(row.sourceAccount + '|' + row.sourceFingerprint));
     const matches = matchTradeZellaRows(unrecorded, existing);
@@ -190,7 +196,9 @@ tradezella.post('/api/tradezella/import', requiresLogin, async (c) => {
   try {
     const mappings = sourceMappings(db, user.id, selectedRows);
     const unrecorded = selectedRows.filter(row => !mappings.has(row.sourceAccount + '|' + row.sourceFingerprint));
-    const matches = matchTradeZellaRows(unrecorded, existingRows(db, user.id));
+    const reserved = reservedTradeIds(db, user.id);
+    const candidates = existingRows(db, user.id).filter(trade => !reserved.has(trade.id));
+    const matches = matchTradeZellaRows(unrecorded, candidates);
     const rowByNumber = new Map(unrecorded.map(row => [row.sourceRow, row]));
     const upsertAccount = db.prepare(
       `INSERT INTO tradezella_accounts (id, user_id, source_account_name, display_name, currency_code, is_eval)
