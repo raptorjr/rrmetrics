@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS tradezella_accounts (
   display_name        TEXT NOT NULL,
   currency_code       TEXT NOT NULL DEFAULT 'USD',
   is_eval             INTEGER NOT NULL DEFAULT 0,
+  match_account       TEXT,
   created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE(user_id, source_account_name)
 );
