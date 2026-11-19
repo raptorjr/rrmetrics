@@ -137,11 +137,12 @@ const runMonteCarloSimulation = (trades, config = {}) => {
     maxDrawdown,
     insufficientTrades: true,
   };
-  if (!trades || trades.length === 0) return emptyResult;
+  if (!trades || trades.length < 5) return emptyResult;
 
-  // Exclude breakeven trades using the same tick-based rule as the analytics.
-  const pls = trades.filter(trade => !isBreakevenTrade(trade)).map(trade => getTradePL(trade));
-  if (pls.length < 5) return emptyResult;
+  // Keep every observed outcome, including breakeven trades. Removing zero/near-zero
+  // outcomes while retaining the original daily trade frequency would overstate
+  // how often the remaining outcomes occur.
+  const pls = trades.map(t => getTradePL(t));
 
   // Compute average trades per day from actual data
   const grouped = groupTradesByDate(trades);
