@@ -97,6 +97,32 @@ test('reviews multiple RR partial-position groups for one consolidated CSV trade
   ]));
 });
 
+test('holds overlapping rows from two TradeZella accounts in the same export', () => {
+  const parsed = parseTradeZellaRows([
+    {
+      'Account Name': 'Practice', Instrument: 'MGC', Side: 'long', Quantity: '1',
+      'Open Date': '2026-07-15', 'Open Time': '14:00:00 CEST',
+      'Close Date': '2026-07-15', 'Close Time': '14:05:00 CEST',
+      'Entry Price': '2400.00', 'Exit Price': '2401.00', 'Net P&L': '10.00',
+    },
+    {
+      'Account Name': '150k XFA', Instrument: 'MGC', Side: 'long', Quantity: '1',
+      'Open Date': '2026-07-15', 'Open Time': '14:00:00 CEST',
+      'Close Date': '2026-07-15', 'Close Time': '14:05:00 CEST',
+      'Entry Price': '2400.00', 'Exit Price': '2401.00', 'Net P&L': '10.00',
+    },
+  ]);
+  const practice = parsed.filter(row => row.sourceAccount === 'Practice');
+  const xfa = parsed.filter(row => row.sourceAccount === '150k XFA');
+  const practiceMatches = matchTradeZellaRowsAcrossAccounts(practice, [], 'Practice', [], xfa);
+  const xfaMatches = matchTradeZellaRowsAcrossAccounts(xfa, [], '150k XFA', [], practice);
+
+  assert.equal(practiceMatches[0].status, 'review');
+  assert.equal(xfaMatches[0].status, 'review');
+  assert.match(practiceMatches[0].reason, /TradeZella account 150k XFA/);
+  assert.match(xfaMatches[0].reason, /TradeZella account Practice/);
+});
+
 test('holds a possible duplicate found in another RR account for review', () => {
   const source = parseTradeZellaRows([{
     'Account Name': 'Practice', Instrument: 'MGC', Side: 'long', Quantity: '1',
