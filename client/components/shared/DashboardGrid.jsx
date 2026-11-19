@@ -235,7 +235,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       layout: JSON.parse(JSON.stringify(layout)),
     }];
     setTemplates(next);
-    localStorage.setItem(`${storageKey}_templates`, JSON.stringify(next));
+    persistValue(`${storageKey}_templates`, next);
     setSelectedTemplate(name);
     setTemplateName('');
   };
