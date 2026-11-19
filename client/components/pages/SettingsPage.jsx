@@ -4,6 +4,7 @@ const { authFetch } = require('../../helper.js');
 const { TAG_COLOR_PRESETS } = require('../../utils/tagConstants');
 const Icons = require('../shared/Icons');
 const { useBrokerConnection, TRADOVATE_BROKERS, BROKER_CONFIGS } = require('../../hooks/useBrokerConnection');
+const AccountManagementPanel = require('../settings/AccountManagementPanel');
 
 const TIME_ZONE_OPTIONS = (() => {
   try {
@@ -879,6 +880,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
   // =============================================
   const tabs = [
     { id: 'brokers', label: 'Broker Connections' },
+    { id: 'accounts', label: 'Account Management' },
     { id: 'tags', label: 'Tags' },
     { id: 'preferences', label: 'Preferences' },
   ];
@@ -1341,6 +1343,8 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
           })()}
         </div>
       )}
+
+      {activeTab === 'accounts' && <AccountManagementPanel triggerReload={triggerReload} />}
 
       {/* Tags tab */}
       {activeTab === 'tags' && (
