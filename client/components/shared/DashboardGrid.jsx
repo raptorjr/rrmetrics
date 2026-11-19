@@ -58,6 +58,12 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const [editing, setEditing] = useState(false);
   const [draggedId, setDraggedId] = useState(null);
   const [columns, setColumns] = useState(12);
+  const [templates, setTemplates] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(`${storageKey}_templates`) || '[]'); }
+    catch { return []; }
+  });
+  const [templateName, setTemplateName] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState('');
   const gridRef = useRef(null);
   const resizeRef = useRef(null);
 
@@ -73,6 +79,11 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
 
   useEffect(() => {
     setLayout(readLayout(storageKey, defaultOrder, defaultVisible, items));
+    try {
+      const savedTemplates = JSON.parse(localStorage.getItem(`${storageKey}_templates`) || '[]');
+      setTemplates(Array.isArray(savedTemplates) ? savedTemplates : []);
+    } catch { setTemplates([]); }
+    setSelectedTemplate('');
   }, [storageKey, ids.join('|')]);
 
   useEffect(() => {
@@ -108,6 +119,34 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
 
   const reset = () => setLayout(readLayout('__rrmetrics_no_saved_layout__', defaultOrder, defaultVisible, items));
 
+  const saveTemplate = () => {
+    const name = templateName.trim();
+    if (!name) return;
+    const next = [...templates.filter(template => template.name.toLowerCase() !== name.toLowerCase()), {
+      name,
+      layout: JSON.parse(JSON.stringify(layout)),
+    }];
+    setTemplates(next);
+    localStorage.setItem(`${storageKey}_templates`, JSON.stringify(next));
+    setSelectedTemplate(name);
+    setTemplateName('');
+  };
+
+  const applyTemplate = () => {
+    const template = templates.find(candidate => candidate.name === selectedTemplate);
+    if (!template) return;
+    localStorage.setItem(storageKey, JSON.stringify(template.layout));
+    setLayout(readLayout(storageKey, defaultOrder, defaultVisible, items));
+  };
+
+  const deleteTemplate = () => {
+    if (!selectedTemplate) return;
+    const next = templates.filter(template => template.name !== selectedTemplate);
+    setTemplates(next);
+    localStorage.setItem(`${storageKey}_templates`, JSON.stringify(next));
+    setSelectedTemplate('');
+  };
+
   const startResize = (event, item) => {
     event.preventDefault();
     event.stopPropagation();
@@ -131,7 +170,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     if (!item) return;
     const minW = Number(item.minColumns) || 1;
     const minH = Number(item.minRows) || 1;
-    const widthStep = start.gridWidth / MAX_COLUMNS;
+    const widthStep = (start.gridWidth - GRID_GAP * (MAX_COLUMNS - 1)) / MAX_COLUMNS + GRID_GAP;
     const widthDelta = Math.round((event.clientX - start.startX) / widthStep);
     const heightDelta = Math.round((event.clientY - start.startY) / ROW_UNIT);
     const nextSize = {
@@ -177,6 +216,28 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
             </div>
             <button type="button" onClick={reset} className="text-xs text-text-secondary hover:text-text-primary underline">Reset layout</button>
           </div>
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-bg-page p-3">
+            <div className="flex flex-1 min-w-[220px] items-center gap-2">
+              <input
+                value={templateName}
+                onChange={event => setTemplateName(event.target.value)}
+                onKeyDown={event => { if (event.key === 'Enter') saveTemplate(); }}
+                placeholder="Name this layout…"
+                aria-label="Layout template name"
+                className="min-w-0 flex-1 rounded-md border border-border bg-bg-surface px-3 py-2 text-xs text-text-primary"
+              />
+              <button type="button" onClick={saveTemplate} disabled={!templateName.trim()} className="rounded-md bg-accent px-3 py-2 text-xs font-semibold text-accent-text disabled:opacity-40">Save layout</button>
+            </div>
+            <div className="flex flex-1 min-w-[220px] items-center gap-2">
+              <select value={selectedTemplate} onChange={event => setSelectedTemplate(event.target.value)} aria-label="Saved layouts" className="min-w-0 flex-1 rounded-md border border-border bg-bg-surface px-3 py-2 text-xs text-text-primary">
+                <option value="">Choose saved layout…</option>
+                {templates.map(template => <option key={template.name} value={template.name}>{template.name}</option>)}
+              </select>
+              <button type="button" onClick={applyTemplate} disabled={!selectedTemplate} className="rounded-md border border-border px-3 py-2 text-xs text-text-primary disabled:opacity-40">Load</button>
+              <button type="button" onClick={deleteTemplate} disabled={!selectedTemplate} className="rounded-md border border-border px-3 py-2 text-xs text-text-secondary disabled:opacity-40">Delete</button>
+            </div>
+          </div>
+          <p className="text-[10px] text-text-tertiary">Saved layouts are stored in this browser. Saving an existing name replaces that template.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {orderedItems.map(item => {
               const added = !layout.hidden.includes(item.id);
