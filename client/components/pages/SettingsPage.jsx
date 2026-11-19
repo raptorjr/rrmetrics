@@ -411,6 +411,8 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
   const [pxConnecting, setPxConnecting] = useState(false);
   const [pxSyncingId, setPxSyncingId] = useState(null);
   const [pxSyncResults, setPxSyncResults] = useState({});
+  const [pxDiagnostics, setPxDiagnostics] = useState({});
+  const [pxDiagnosticLoading, setPxDiagnosticLoading] = useState(null);
   const [pxAccountDrafts, setPxAccountDrafts] = useState({});
   const [pxSavingAccounts, setPxSavingAccounts] = useState(null);
   const [pxAccountSaveMessages, setPxAccountSaveMessages] = useState({});
@@ -712,6 +714,21 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
       setMessage({ type: 'success', text: data.message });
     } catch (err) {
       setMessage({ type: 'error', text: err?.message || 'Could not update automatic sync' });
+    }
+  };
+
+  const handlePxDiagnostics = async (connectionId) => {
+    setPxDiagnosticLoading(connectionId);
+    setPxDiagnostics(prev => ({ ...prev, [connectionId]: { loading: true } }));
+    try {
+      const response = await authFetch(`/api/projectx/reconstruction-diagnostics/${encodeURIComponent(connectionId)}`);
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.error || 'Diagnostic analysis failed');
+      setPxDiagnostics(prev => ({ ...prev, [connectionId]: data }));
+    } catch (error) {
+      setPxDiagnostics(prev => ({ ...prev, [connectionId]: { error: error.message || 'Diagnostic analysis failed' } }));
+    } finally {
+      setPxDiagnosticLoading(null);
     }
   };
 
@@ -1139,6 +1156,48 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                   <p className="text-[11px] text-text-muted">Last complete-history import: {conn.lastFullSyncTime ? relativeTime(conn.lastFullSyncTime) : 'Not yet completed'}</p>
                                 </div>
 
+                                {pxDiagnostics[conn.connectionId] && (
+                                  <div className="rounded-lg border border-border bg-bg-surface/70 p-3 text-xs space-y-3">
+                                    {pxDiagnostics[conn.connectionId].error ? (
+                                      <p className="text-negative">{pxDiagnostics[conn.connectionId].error}</p>
+                                    ) : (
+                                      <>
+                                        <div className="flex items-center justify-between gap-2">
+                                          <div className="font-semibold text-text-primary">Read-only reconstruction diagnostics</div>
+                                          <span className="text-[10px] text-text-muted">No broker API calls or database changes</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                          {[
+                                            ['Raw execution legs', pxDiagnostics[conn.connectionId].totalRawLegs],
+                                            ['Accounts', pxDiagnostics[conn.connectionId].uniqueAccounts],
+                                            ['Account / contract pairs', pxDiagnostics[conn.connectionId].uniqueContracts],
+                                            ['Reconstructed positions', pxDiagnostics[conn.connectionId].reconstructedPositions],
+                                            ['Reconstruction warnings', pxDiagnostics[conn.connectionId].warningCount],
+                                            ['Affected instruments', pxDiagnostics[conn.connectionId].unsafeInstrumentCount],
+                                          ].map(([label, value]) => <div key={label} className="rounded-md bg-bg-page/70 p-2"><div className="text-text-muted">{label}</div><div className="text-text-primary font-semibold text-base tabular-nums">{value ?? '—'}</div></div>)}
+                                        </div>
+                                        <div>
+                                          <div className="font-semibold text-text-primary mb-1">Accounts in stored history</div>
+                                          <div className="space-y-1">{(pxDiagnostics[conn.connectionId].accounts || []).map(account => <div key={account.accountId} className="flex justify-between gap-2 text-text-secondary"><span>{account.name} (ID {account.accountId})</span><span>{account.rawLegs} legs · {account.contracts} contracts</span></div>)}</div>
+                                        </div>
+                                        <div>
+                                          <div className="font-semibold text-text-primary mb-1">Warnings by account, instrument and type</div>
+                                          {pxDiagnostics[conn.connectionId].warningGroups?.length ? (
+                                            <div className="space-y-2">{pxDiagnostics[conn.connectionId].warningGroups.map((group, index) => (
+                                              <details key={index} className="rounded-md border border-border p-2">
+                                                <summary className="cursor-pointer text-warning">{group.count} × {group.type} · Account {group.accountId} · {group.contractId}</summary>
+                                                <div className="mt-2 space-y-2">{group.examples.map((example, i) => <div key={i} className="border-t border-border pt-2">
+                                                  <div className="text-text-primary">{example.warning}</div>
+                                                  {example.relatedLegs.map(leg => <div key={leg.id} className="text-[10px] text-text-muted">{leg.time} · Trade {leg.id} · Order {leg.orderId} · Fill {leg.fillId ?? '—'} · Side {leg.side} · Qty {leg.size} · Price {leg.price} · P&amp;L {leg.profitAndLoss ?? 'opening'} · {leg.voided ? 'Voided' : 'Active'}</div>)}
+                                                </div>)}</div>
+                                              </details>
+                                            ))}</div>
+                                          ) : <p className="text-positive">No reconstruction warnings found.</p>}
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
                                 {pxSyncResults[conn.connectionId] && (
                                   <div role="status" className={`rounded-lg border p-3 text-xs whitespace-pre-wrap break-words ${
                                     pxSyncResults[conn.connectionId].type === 'error'
@@ -1304,6 +1363,11 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                         </button>
                                         <button onClick={() => { if (window.confirm('Fetch all available Topstep trade and order history for the selected accounts? This uses more API requests than a normal sync.')) handlePxSync(conn.connectionId, true); }} disabled={pxSyncingId !== null}
                                           className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-bg-surface rounded-lg transition-colors disabled:opacity-50">Refresh complete trade history</button>
+                                        <button onClick={() => handlePxDiagnostics(conn.connectionId)} disabled={pxDiagnosticLoading !== null || pxSyncingId !== null}
+                                          className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-bg-surface rounded-lg transition-colors disabled:opacity-50">
+                                          {pxDiagnosticLoading === conn.connectionId ? 'Analyzing stored data…' : 'Analyze stored trades'}
+                                        </button>
+
                                       </>
                                     )}
                                     <button onClick={() => handlePxDisconnect(conn.connectionId)}
