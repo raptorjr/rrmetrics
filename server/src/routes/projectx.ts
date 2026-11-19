@@ -603,8 +603,8 @@ projectx.get('/api/projectx/reconstruction-diagnostics/:connectionId', requiresL
 
     const groups = new Map<string, { accountId: number; contractId: string; type: string; count: number; examples: Array<{ warning: string; relatedLegs: Array<{ id: number; orderId: number; fillId: number | null; side: number; size: number; price: number; profitAndLoss: number | null; voided: boolean; time: string }> }> }>();
     for (const warning of reconstruction.warnings) {
-      const legId = Number(warning.match(/leg (\\d+)/i)?.[1]);
-      const executionOrderId = Number(warning.match(/execution (\\d+)/i)?.[1]);
+      const legId = Number(warning.match(/leg (\d+)/i)?.[1]);
+      const executionOrderId = Number(warning.match(/execution (\d+)/i)?.[1]);
       let related = Number.isFinite(legId) ? (legsById.get(legId) || []) : [];
       if (!related.length && Number.isFinite(executionOrderId)) related = legsByOrder.get(executionOrderId) || [];
       const leg = related[0];
