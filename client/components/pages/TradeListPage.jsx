@@ -93,7 +93,7 @@ const DailyMetric = ({ label, value, valueClass = 'text-text-primary' }) => (
   </div>
 );
 
-const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport, tags, strategyRules, dailyNotes = [], onSaveNote, onDeleteNote }) => {
+const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, tags, strategyRules, dailyNotes = [], onSaveNote, onDeleteNote }) => {
   const [searchTicker, setSearchTicker] = useState('');
   const [sortField, setSortField] = useState('exitTime');
   const [sortDir, setSortDir] = useState('desc');
@@ -328,48 +328,6 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
     setBulkActionLoading(false);
   };
 
-  const handleExportCSV = () => {
-    if (filtered.length === 0) return;
-    const colMap = [
-      { id: 'date', header: 'Date', value: t => new Date(t.exitTime).toISOString(), alwaysOn: true },
-      { id: 'ticker', header: 'Ticker', value: t => t.ticker, alwaysOn: true },
-      { id: 'tags', header: 'Tags', value: t => {
-        if (!t.tags || !tags) return '';
-        return t.tags.map(tid => { const tag = tags.find(tg => tg._id === tid); return tag ? tag.name : ''; }).filter(Boolean).join('; ');
-      }},
-      { id: 'entry', header: 'Enter Price', value: t => t.enterPrice },
-      { id: 'exit', header: 'Exit Price', value: t => t.exitPrice },
-      { id: 'qty', header: 'Quantity', value: t => t.quantity },
-      { id: 'gross', header: 'Gross P/L', value: t => t.grossPL == null ? '' : Number(t.grossPL).toFixed(2) },
-      { id: 'fees', header: 'Fees', value: t => Number(t.fees || 0).toFixed(2) },
-      { id: 'commissions', header: 'Commissions', value: t => Number(t.commissions || 0).toFixed(2) },
-      { id: 'pl', header: 'Net P/L', value: t => getTradePL(t).toFixed(2), alwaysOn: true },
-      { id: 'duration', header: 'Duration', value: t => {
-        const dur = new Date(t.exitTime) - new Date(t.enterTime);
-        return formatDuration(dur);
-      }},
-    ];
-    const activeCols = colMap.filter(c => c.alwaysOn || visibleColumns.includes(c.id));
-    // Always include enter/exit times and comments in export for completeness
-    const headers = [...activeCols.map(c => c.header), 'Enter Time', 'Exit Time', 'Comments'];
-    const rows = filtered.map(t => {
-      return [
-        ...activeCols.map(c => c.value(t)),
-        new Date(t.enterTime).toISOString(),
-        new Date(t.exitTime).toISOString(),
-        (t.comments || '').replace(/"/g, '""'),
-      ].map(v => `"${v}"`).join(',');
-    });
-    const csv = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `rr-metrics-trades-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   let filtered = deletingIds.size > 0 ? trades.filter(t => !deletingIds.has(t._id)) : trades;
 
   if (searchTicker && trackingView === 'all') {
@@ -522,25 +480,6 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
           <p className="text-text-secondary text-sm mt-1">Manage and review your trade history</p>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            className="flex items-center gap-2 px-4 py-2.5 bg-bg-surface border border-border text-text-secondary text-sm font-semibold rounded-lg hover:text-text-primary hover:border-accent transition-all disabled:opacity-40"
-            onClick={handleExportCSV}
-            disabled={filtered.length === 0}
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="17 8 12 3 7 8"></polyline>
-              <line x1="12" y1="3" x2="12" y2="15"></line>
-            </svg>
-            Export CSV
-          </button>
-          <button
-            className="flex items-center gap-2 px-4 py-2.5 bg-bg-surface border border-border text-text-secondary text-sm font-semibold rounded-lg hover:text-text-primary hover:border-accent transition-all"
-            onClick={onOpenImport}
-          >
-            <Icons.Download className="w-4 h-4" />
-            Import CSV
-          </button>
           <button className="flex items-center gap-2 px-4 py-2.5 bg-accent text-accent-text text-sm font-semibold rounded-lg hover:brightness-110 transition-all" onClick={onOpenForm}>
             <Icons.Plus className="w-4 h-4" />
             New Trade
