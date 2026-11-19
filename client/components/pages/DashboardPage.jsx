@@ -1,6 +1,20 @@
 const React = require('react');
 const { useState } = React;
 
+const KELLY_DRAWDOWN_STORAGE_KEY = 'rrmetrics_kelly_drawdown';
+const DEFAULT_KELLY_DRAWDOWN = 2000;
+
+const readKellyDrawdown = () => {
+  try {
+    const saved = localStorage.getItem(KELLY_DRAWDOWN_STORAGE_KEY);
+    if (saved === null) return DEFAULT_KELLY_DRAWDOWN;
+    const value = Number(saved);
+    return Number.isFinite(value) && value >= 0 ? value : DEFAULT_KELLY_DRAWDOWN;
+  } catch {
+    return DEFAULT_KELLY_DRAWDOWN;
+  }
+};
+
 const ChangeIndicator = require('../shared/ChangeIndicator');
 const WinRateCard = require('../shared/WinRateCard');
 const AvgWinLossCard = require('../shared/AvgWinLossCard');
@@ -22,7 +36,17 @@ const { formatDuration } = require('../../utils/dateUtils');
 const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpenAddTrade, onEditTrade, dailyNotes, onSaveNote, onDeleteNote, tags, strategyRules, evalFilter, setEvalFilter, sidebarCollapsed }) => {
   const [period, setPeriod] = useState('all');
   const [syncing, setSyncing] = useState(false);
-  const [kellyDrawdown, setKellyDrawdown] = useState(2000);
+  const [kellyDrawdown, setKellyDrawdown] = useState(readKellyDrawdown);
+
+  const handleKellyDrawdownChange = value => {
+    const nextValue = Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
+    setKellyDrawdown(nextValue);
+    try {
+      localStorage.setItem(KELLY_DRAWDOWN_STORAGE_KEY, String(nextValue));
+    } catch {
+      // Keep the setting usable for this session when browser storage is unavailable.
+    }
+  };
   const hasBrokers = brokerStatuses && brokerStatuses.length > 0;
 
   const handleSync = async () => {
@@ -69,7 +93,7 @@ const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpe
 
   const performanceTiles = createPerformanceTiles({
     stats, profitFactor, expectancy, maxDrawdown, sharpeRatio, sortinoRatio, kelly, kellyDrawdown,
-    onKellyDrawdownChange: setKellyDrawdown,
+    onKellyDrawdownChange: handleKellyDrawdownChange,
     changes: {
       totalPL: showChange ? calcPercentChange(stats.totalPL, prevStats.totalPL) : null,
       winRate: showChange ? calcPercentChange(stats.winRate, prevStats.winRate) : null,
