@@ -190,7 +190,12 @@ const runMonteCarloSimulation = (trades, config = {}) => {
   const passRate = (passes / simulations) * 100;
   const sorted = [...daysToPass].sort((a, b) => a - b);
   const avgDaysToPass = sorted.length > 0 ? sorted.reduce((s, d) => s + d, 0) / sorted.length : 0;
-  const medianDaysToPass = sorted.length > 0 ? sorted[Math.floor(sorted.length / 2)] : 0;
+  const middle = Math.floor(sorted.length / 2);
+  const medianDaysToPass = sorted.length === 0
+    ? 0
+    : sorted.length % 2 === 0
+      ? (sorted[middle - 1] + sorted[middle]) / 2
+      : sorted[middle];
 
   return { passRate, avgDaysToPass, medianDaysToPass, totalSimulations: simulations, paths, profitTarget, maxDrawdown };
 };
