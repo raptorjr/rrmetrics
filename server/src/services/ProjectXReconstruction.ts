@@ -86,20 +86,21 @@ export function findFullyFilledVoidedOrderOverrides(
 }
 
 /**
- * Refresh corroborated voided-order overrides only for accounts whose Orders
- * history was successfully queried. Accounts not included in a sync (for
- * example, deselected historical accounts) retain their previous evidence.
+ * Merge corroborated voided-order evidence. Incremental Orders queries cover
+ * only a recent time window, so they must never invalidate older evidence.
+ * Replace previous evidence only for accounts whose complete order history
+ * was successfully refreshed.
  */
 export function mergeVoidedOrderOverrides(
   previous: string[],
   fresh: Set<string>,
-  refreshedAccountIds: Set<number>,
+  fullyRefreshedAccountIds: Set<number>,
 ): Set<string> {
   const result = new Set(previous);
   for (const key of result) {
     const separator = key.indexOf(':');
     const accountId = Number(key.slice(0, separator));
-    if (separator > 0 && refreshedAccountIds.has(accountId)) result.delete(key);
+    if (separator > 0 && fullyRefreshedAccountIds.has(accountId)) result.delete(key);
   }
   for (const key of fresh) result.add(key);
   return result;
