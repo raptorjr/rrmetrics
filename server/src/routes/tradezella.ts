@@ -140,6 +140,7 @@ tradezella.post('/api/tradezella/preview', requiresLogin, async (c) => {
         ...account,
         alreadyImported,
         matchedTrades: accountRows.filter(row => resultsByRow.get(row.sourceRow)?.status === 'matched').length,
+        alreadyInRR: alreadyImported + accountRows.filter(row => resultsByRow.get(row.sourceRow)?.status === 'matched').length,
         newTrades: newCount,
         needsReview,
         displayName: saved?.display_name || account.accountName,
