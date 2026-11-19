@@ -57,10 +57,9 @@ export function reconcileProjectXHistory(
   db.exec('CREATE TEMP TABLE IF NOT EXISTS projectx_current_position_ids (id TEXT PRIMARY KEY)');
   const clearCurrentIds = db.prepare('DELETE FROM projectx_current_position_ids');
   const rememberCurrentId = db.prepare('INSERT OR IGNORE INTO projectx_current_position_ids (id) VALUES (?)');
-  const deleteStaleProjection = db.prepare(`
+  const deleteStaleProjectionById = db.prepare(`
     DELETE FROM trades
-    WHERE user_id = ? AND broker_connection_id = ? AND projectx_source = 'projectx'
-      AND id NOT IN (SELECT id FROM projectx_current_position_ids)
+    WHERE id = ? AND user_id = ? AND broker_connection_id = ? AND projectx_source = 'projectx'
   `);
 
   const insertPosition = db.prepare(`
@@ -114,6 +113,7 @@ export function reconcileProjectXHistory(
       (db.prepare(`SELECT id FROM trades WHERE user_id = ? AND broker_connection_id = ? AND projectx_source = 'projectx'`).all(userId, connectionId) as Array<{ id: string }>).map(row => row.id),
     );
     let newTradesImported = 0;
+    const currentPositionIds = new Set<string>();
     clearCurrentIds.run();
 
     for (const position of reconstruction.positions) {
@@ -130,6 +130,7 @@ export function reconcileProjectXHistory(
 
       const projectionId = `px:${connectionId}:${position.positionKey}`;
       rememberCurrentId.run(projectionId);
+      currentPositionIds.add(projectionId);
       if (!existingPositionIds.has(projectionId)) newTradesImported += 1;
       insertPosition.run(
         projectionId,
@@ -156,11 +157,17 @@ export function reconcileProjectXHistory(
       );
     }
 
-    // When reconstruction is incomplete, preserve the previous projection
-    // snapshot rather than deleting rows that may be absent only because an
-    // instrument was quarantined after its first inconsistency.
-    if (reconstruction.warnings.length === 0) {
-      deleteStaleProjection.run(userId, connectionId);
+    // Delete stale projections for instruments reconstructed successfully,
+    // while retaining the previous snapshot only for instruments quarantined
+    // by reconstruction warnings. A warning in one contract must not leave
+    // unrelated contracts with stale rows indefinitely.
+    const unsafePrefixes = reconstruction.unsafeInstrumentKeys.map(
+      key => `px:${connectionId}:px:${key}:`,
+    );
+    for (const existingId of existingPositionIds) {
+      if (currentPositionIds.has(existingId)) continue;
+      if (unsafePrefixes.some(prefix => existingId.startsWith(prefix))) continue;
+      deleteStaleProjectionById.run(existingId, userId, connectionId);
     }
     return { ...reconstruction, newTradesImported };
   })();
