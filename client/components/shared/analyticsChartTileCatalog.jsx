@@ -1,6 +1,7 @@
 const React = require('react');
 const { useMemo, useState } = React;
 const { getTradePL, runMonteCarloSimulation } = require('../../utils/analytics');
+const { isBreakevenTrade } = require('../../utils/tickValues');
 const { toEST } = require('../../utils/dateUtils');
 
 const DEFINITIONS = [
@@ -22,11 +23,12 @@ const EntryTimeTile = ({ trades }) => {
       const est = toEST(trade.enterTime);
       const minute = est.minutes < 30 ? 0 : 30;
       const key = String(est.hours).padStart(2, '0') + ':' + String(minute).padStart(2, '0');
-      if (!buckets[key]) buckets[key] = { totalPL: 0, wins: 0, losses: 0, count: 0, winPL: 0, lossPL: 0 };
+      if (!buckets[key]) buckets[key] = { totalPL: 0, wins: 0, losses: 0, breakevens: 0, count: 0, winPL: 0, lossPL: 0 };
       const pl = getTradePL(trade);
       buckets[key].totalPL += pl;
       buckets[key].count++;
-      if (pl > 0) { buckets[key].wins++; buckets[key].winPL += pl; }
+      if (isBreakevenTrade(trade)) buckets[key].breakevens++;
+      else if (pl > 0) { buckets[key].wins++; buckets[key].winPL += pl; }
       else { buckets[key].losses++; buckets[key].lossPL += Math.abs(pl); }
     });
     const hours = [];
@@ -36,8 +38,8 @@ const EntryTimeTile = ({ trades }) => {
     hours.forEach(hour => [0, 30].forEach(minute => {
       if (hour === 16 && minute === 30) return;
       const time = String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0');
-      const data = buckets[time] || { totalPL: 0, wins: 0, losses: 0, count: 0, winPL: 0, lossPL: 0 };
-      result.push({ time, ...data, winRate: data.count ? (data.wins / data.count) * 100 : 0, avgPL: data.count ? data.totalPL / data.count : 0 });
+      const data = buckets[time] || { totalPL: 0, wins: 0, losses: 0, breakevens: 0, count: 0, winPL: 0, lossPL: 0 };
+      result.push({ time, ...data, winRate: data.wins + data.losses > 0 ? (data.wins / (data.wins + data.losses)) * 100 : 0, avgPL: data.count ? data.totalPL / data.count : 0 });
     }));
     return result;
   }, [trades]);
@@ -66,7 +68,7 @@ const EntryTimeTile = ({ trades }) => {
             const x = padding + index * barGap + (barGap - barWidth) / 2;
             const y = value >= 0 ? zeroY - barHeight : zeroY;
             const pf = stat.lossPL === 0 ? (stat.winPL > 0 ? '∞' : '0.00') : (stat.winPL / stat.lossPL).toFixed(2);
-            const tooltip = stat.time + ' · ' + stat.count + ' trades · ' + stat.winRate.toFixed(1) + '% win rate · PF ' + pf + ' · Total $' + stat.totalPL.toFixed(2) + ' · Average $' + stat.avgPL.toFixed(2);
+            const tooltip = stat.time + ' · ' + stat.count + ' trades · ' + stat.breakevens + ' breakeven · ' + stat.winRate.toFixed(1) + '% win rate · PF ' + pf + ' · Total $' + stat.totalPL.toFixed(2) + ' · Average $' + stat.avgPL.toFixed(2);
             return <g key={stat.time}>
               {stat.count > 0 && <rect x={x} y={y} width={barWidth} height={Math.max(1, barHeight)} rx="2" fill={value >= 0 ? 'var(--positive)' : 'var(--negative)'} opacity="0.85"><title>{tooltip}</title></rect>}
               {(index % 6 === 0 || index === timeStats.length - 1) && <text x={x + barWidth / 2} y="224" textAnchor="middle" fill="var(--text-tertiary)" fontSize="10">{stat.time}</text>}
@@ -80,9 +82,9 @@ const EntryTimeTile = ({ trades }) => {
       </div>
       {showTable && <div className="max-h-[260px] overflow-y-auto mt-3">
         <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-bg-surface"><tr className="border-b border-border"><th className="text-left py-2">Time</th><th className="text-right py-2">Trades</th><th className="text-right py-2">Win rate</th><th className="text-right py-2">Total P/L</th><th className="text-right py-2">Avg P/L</th></tr></thead>
+          <thead className="sticky top-0 bg-bg-surface"><tr className="border-b border-border"><th className="text-left py-2">Time</th><th className="text-right py-2">Trades</th><th className="text-right py-2">BE</th><th className="text-right py-2">Win rate</th><th className="text-right py-2">Total P/L</th><th className="text-right py-2">Avg P/L</th></tr></thead>
           <tbody>{timeStats.filter(stat => stat.count > 0).map(stat => <tr key={stat.time} className="border-b border-border/50">
-            <td className="py-1.5">{stat.time}</td><td className="text-right">{stat.count}</td><td className="text-right">{stat.winRate.toFixed(1)}%</td>
+            <td className="py-1.5">{stat.time}</td><td className="text-right">{stat.count}</td><td className="text-right">{stat.breakevens}</td><td className="text-right">{stat.winRate.toFixed(1)}%</td>
             <td className={'text-right ' + (stat.totalPL >= 0 ? 'text-positive' : 'text-negative')}>{(stat.totalPL >= 0 ? '+' : '') + '$' + stat.totalPL.toFixed(2)}</td>
             <td className={'text-right ' + (stat.avgPL >= 0 ? 'text-positive' : 'text-negative')}>{(stat.avgPL >= 0 ? '+' : '') + '$' + stat.avgPL.toFixed(2)}</td>
           </tr>)}</tbody>

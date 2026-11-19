@@ -3,6 +3,7 @@ const { useState, useEffect, useRef, useMemo } = React;
 
 const { getTradePL, calculateAnalytics, applyEvalFilter, calculateSharpeRatio, calculateSortinoRatio, calculateKellyCriterion, runMonteCarloSimulation } = require("../../utils/analytics");
 const { formatDuration, toEST } = require("../../utils/dateUtils");
+const { isBreakevenTrade } = require("../../utils/tickValues");
 const { getCSSVar, colorToRgba, drawTooltip } = require("../../utils/chartUtils");
 const { getDateRange, getPreviousDateRange, filterTradesByDateRange, calcPercentChange } = require("../../utils/periodUtils");
 
@@ -211,6 +212,7 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
     const dayCounts = [0, 0, 0, 0, 0, 0, 0];
     const dayWins = [0, 0, 0, 0, 0, 0, 0];
     const dayLosses = [0, 0, 0, 0, 0, 0, 0];
+    const dayBreakevens = [0, 0, 0, 0, 0, 0, 0];
     const dayWinPL = [0, 0, 0, 0, 0, 0, 0];
     const dayLossPL = [0, 0, 0, 0, 0, 0, 0];
 
@@ -220,7 +222,8 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
       const pl = getTradePL(t);
       dayPL[day] += pl;
       dayCounts[day]++;
-      if (pl > 0) { dayWins[day]++; dayWinPL[day] += pl; }
+      if (isBreakevenTrade(t)) dayBreakevens[day]++;
+      else if (pl > 0) { dayWins[day]++; dayWinPL[day] += pl; }
       else { dayLosses[day]++; dayLossPL[day] += Math.abs(pl); }
     });
 
@@ -290,13 +293,15 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
     // Draw tooltip for hovered day
     if (hoveredDayIndex !== null && dayCounts[hoveredDayIndex] > 0) {
       const i = hoveredDayIndex;
-      const wr = dayCounts[i] > 0 ? ((dayWins[i] / dayCounts[i]) * 100).toFixed(1) : '0.0';
+      const decisive = dayWins[i] + dayLosses[i];
+      const wr = decisive > 0 ? ((dayWins[i] / decisive) * 100).toFixed(1) : '0.0';
       const pf = dayLossPL[i] === 0 ? (dayWinPL[i] > 0 ? '∞' : '0.00') : (dayWinPL[i] / dayLossPL[i]).toFixed(2);
       const avgW = dayWins[i] > 0 ? (dayWinPL[i] / dayWins[i]).toFixed(2) : '0.00';
       const avgL = dayLosses[i] > 0 ? (dayLossPL[i] / dayLosses[i]).toFixed(2) : '0.00';
       const r = rects[i];
       drawTooltip(ctx, r.barX + r.barW / 2, r.barY, dayNames[i], [
         { label: 'Trades', value: `${dayCounts[i]}` },
+        { label: 'Breakeven', value: `${dayBreakevens[i]}` },
         { label: 'Win Rate', value: `${wr}%` },
         { label: 'Profit Factor', value: pf },
         { label: 'Avg Win', value: `$${avgW}`, color: dayPosColor },
@@ -309,9 +314,11 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
   // Win rate by ticker
   const tickerStats = {};
   trades.forEach(t => {
-    if (!tickerStats[t.ticker]) tickerStats[t.ticker] = { wins: 0, losses: 0, totalPL: 0 };
+    if (!tickerStats[t.ticker]) tickerStats[t.ticker] = { wins: 0, losses: 0, breakevens: 0, totalTrades: 0, totalPL: 0 };
     const pl = getTradePL(t);
-    if (pl > 0) tickerStats[t.ticker].wins++;
+    tickerStats[t.ticker].totalTrades++;
+    if (isBreakevenTrade(t)) tickerStats[t.ticker].breakevens++;
+    else if (pl > 0) tickerStats[t.ticker].wins++;
     else tickerStats[t.ticker].losses++;
     tickerStats[t.ticker].totalPL += pl;
   });
@@ -320,6 +327,7 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
   let bestWinStreak = 0, bestLossStreak = 0, tempStreak = 0, lastWin = null;
   const sorted = [...trades].sort((a, b) => new Date(a.exitTime) - new Date(b.exitTime));
   sorted.forEach(t => {
+    if (isBreakevenTrade(t)) { tempStreak = 0; lastWin = null; return; }
     const isWin = getTradePL(t) > 0;
     if (lastWin === null) { tempStreak = 1; }
     else if (isWin === lastWin) { tempStreak++; }
@@ -406,11 +414,12 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
       const h = estParts.hours;
       const m = estParts.minutes < 30 ? 0 : 30;
       const key = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-      if (!buckets[key]) buckets[key] = { totalPL: 0, wins: 0, losses: 0, count: 0, winPL: 0, lossPL: 0 };
+      if (!buckets[key]) buckets[key] = { totalPL: 0, wins: 0, losses: 0, breakevens: 0, count: 0, winPL: 0, lossPL: 0 };
       const pl = getTradePL(t);
       buckets[key].totalPL += pl;
       buckets[key].count++;
-      if (pl > 0) { buckets[key].wins++; buckets[key].winPL += pl; }
+      if (isBreakevenTrade(t)) buckets[key].breakevens++;
+      else if (pl > 0) { buckets[key].wins++; buckets[key].winPL += pl; }
       else { buckets[key].losses++; buckets[key].lossPL += Math.abs(pl); }
     });
 
@@ -423,11 +432,11 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
       for (const m of [0, 30]) {
         if (h === 16 && m === 30) continue; // session ends at 17:00, last slot is 16:30
         const key = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-        const data = buckets[key] || { totalPL: 0, wins: 0, losses: 0, count: 0, winPL: 0, lossPL: 0 };
+        const data = buckets[key] || { totalPL: 0, wins: 0, losses: 0, breakevens: 0, count: 0, winPL: 0, lossPL: 0 };
         allSlots.push({
           time: key,
           ...data,
-          winRate: data.count > 0 ? (data.wins / data.count * 100) : 0,
+          winRate: data.wins + data.losses > 0 ? (data.wins / (data.wins + data.losses) * 100) : 0,
           avgPL: data.count > 0 ? data.totalPL / data.count : 0,
         });
       }
@@ -551,6 +560,7 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
       const r = rects[hoveredTimeIndex];
       drawTooltip(ctx, r.barX + r.barW / 2, r.barY, stat.time, [
         { label: 'Trades', value: `${stat.count}` },
+        { label: 'Breakeven', value: `${stat.breakevens}` },
         { label: 'Win Rate', value: `${stat.winRate.toFixed(1)}%` },
         { label: 'Profit Factor', value: pf },
         { label: 'Avg P/L', value: `$${stat.avgPL.toFixed(2)}`, color: stat.avgPL >= 0 ? timePosColor : timeNegColor },
@@ -841,13 +851,13 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
             {Object.entries(tickerStats)
               .sort((a, b) => Math.abs(b[1].totalPL) - Math.abs(a[1].totalPL))
               .map(([ticker, data]) => {
-                const total = data.wins + data.losses;
-                const wr = total > 0 ? ((data.wins / total) * 100).toFixed(0) : 0;
+                const decisive = data.wins + data.losses;
+                const wr = decisive > 0 ? ((data.wins / decisive) * 100).toFixed(0) : 0;
                 return (
                   <div key={ticker} className="flex items-center justify-between py-2 border-b border-border/50">
                     <div>
                       <span className="font-mono text-sm font-semibold text-text-primary">{ticker}</span>
-                      <span className="text-text-tertiary text-xs ml-2">{total} trades | {wr}% WR</span>
+                      <span className="text-text-tertiary text-xs ml-2">{data.totalTrades} trades · {data.breakevens} BE · {wr}% WR</span>
                     </div>
                     <span className={`font-mono text-sm font-semibold ${data.totalPL >= 0 ? 'text-positive' : 'text-negative'}`}>
                       {data.totalPL >= 0 ? '+' : ''}${data.totalPL.toFixed(2)}
