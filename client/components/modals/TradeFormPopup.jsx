@@ -16,7 +16,7 @@ const { TAG_COLOR_PRESETS } = require('../../utils/tagConstants');
 // TRADE FORM POPUP
 // =====================================================
 
-const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, prefillDate, tags, strategyRules, trades, sidebarCollapsed }) => {
+const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, prefillDate, tags, strategyRules, trades, sidebarCollapsed, forceModal = false }) => {
   const [screenshot, setScreenshot] = useState(null);
   const [pastedImage, setPastedImage] = useState(null);
   const [isMarkupOpen, setIsMarkupOpen] = useState(false);
@@ -36,7 +36,7 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
   const fileInputRef = useRef(null);
   const windowWidth = useWindowWidth();
   const isUltrawide = windowWidth >= 2000;
-  const isSidePanel = isUltrawide || (sidebarCollapsed && windowWidth >= 1280);
+  const isSidePanel = !forceModal && (isUltrawide || (sidebarCollapsed && windowWidth >= 1280));
   const setSidePanelOffset = React.useContext(SidePanelContext);
   const tradeRules = strategyRules ? strategyRules.filter(r => r.type === 'trade') : [];
   useEffect(() => {
