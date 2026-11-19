@@ -980,7 +980,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
             const providers = [
               ...TRADOVATE_BROKERS,
               { key: 'projectx', label: 'Topstep', icon: '/assets/img/topstep.png', subtitle: 'Prop trading firm' },
-              { key: 'tradezella', label: 'TradeZella', icon: 'https://cdn.brandfetch.io/iduLtkFARE/w/400/h/400/theme/dark/icon.jpeg?c=1bxid64Mup7aczewSAYMX&t=1775393450208', subtitle: 'Trading journal CSV import', importProvider: true },
+              { key: 'tradezella', label: 'TradeZella', icon: null, subtitle: 'Trading journal CSV import', importProvider: true },
               { key: 'robinhood', label: 'Robinhood', icon: BROKER_CONFIGS.robinhood.icon, subtitle: BROKER_CONFIGS.robinhood.subtitle, comingSoon: true },
               { key: 'webull', label: 'Webull', icon: BROKER_CONFIGS.webull.icon, subtitle: BROKER_CONFIGS.webull.subtitle, comingSoon: true },
             ];
@@ -1056,7 +1056,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                 {expandedBroker === 'tradezella' && (
                   <div className="mt-3 bg-bg-surface border border-border rounded-xl overflow-hidden">
                     <div className="flex items-center gap-3 p-5">
-                      <img src="https://cdn.brandfetch.io/iduLtkFARE/w/400/h/400/theme/dark/icon.jpeg?c=1bxid64Mup7aczewSAYMX&t=1775393450208" alt="TradeZella" className="w-10 h-10 rounded-lg object-contain" />
+                      <div className="w-10 h-10 rounded-lg bg-[#6d4aff]/15 border border-[#8b72ff]/30 flex items-center justify-center text-[#a895ff] font-bold text-sm tracking-tight">TZ</div>
                       <div>
                         <h3 className="text-text-primary font-semibold text-sm">TradeZella</h3>
                         <p className="text-text-tertiary text-xs">Trading journal CSV import</p>
