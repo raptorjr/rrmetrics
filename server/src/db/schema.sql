@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS tradezella_imported_trades (
   source_row          INTEGER,
   trade_id            TEXT NOT NULL REFERENCES trades(id) ON DELETE CASCADE,
   imported_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-  UNIQUE(user_id, source_account_name, source_fingerprint)
+  UNIQUE(user_id, source_account_name, source_fingerprint, trade_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_tradezella_imported_trades_user_id
