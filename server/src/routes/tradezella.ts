@@ -48,11 +48,12 @@ function accountSettingsFromBody(value: unknown): AccountSetting[] | null {
 
 function existingRows(db: any, userId: string) {
   return db.prepare(
-    `SELECT id, ticker, enter_time, exit_time, enter_price, exit_price, quantity, manual_pl, account
+    `SELECT id, ticker, enter_time, exit_time, enter_price, exit_price, quantity, manual_pl, gross_pl, fees, commissions, account
      FROM trades WHERE user_id = ?`,
   ).all(userId) as Array<{
     id: string; ticker: string; enter_time: string; exit_time: string;
-    enter_price: number; exit_price: number; quantity: number; manual_pl: number | null; account: string | null;
+    enter_price: number; exit_price: number; quantity: number; manual_pl: number | null;
+    gross_pl: number | null; fees: number; commissions: number; account: string | null;
   }>;
 }
 
