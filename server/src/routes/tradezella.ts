@@ -132,14 +132,19 @@ tradezella.post('/api/tradezella/preview', requiresLogin, async (c) => {
     const existing = existingRows(db, user.id).filter(trade => !reserved.has(trade.id));
     const mappings = sourceMappings(db, user.id, parsedRows);
     const unrecorded = parsedRows.filter(row => !mappings.has(row.sourceAccount + '|' + row.sourceFingerprint));
-    const matches = unrecorded.flatMap(() => [] as ReturnType<typeof matchTradeZellaRows>);
+    const savedAccounts = new Map((db.prepare(
+      `SELECT source_account_name, display_name, currency_code, is_eval, match_account
+       FROM tradezella_accounts WHERE user_id = ?`,
+    ).all(user.id) as any[]).map(row => [row.source_account_name, row]));
+    const matches: ReturnType<typeof matchTradeZellaRows> = [];
     for (const accountName of new Set(unrecorded.map(row => row.sourceAccount))) {
       const saved = savedAccounts.get(accountName);
       const inferred = accountName === '150k XFA' ? '$150k Express' : accountName === '50k XFA' ? '$50k Express' : accountName === 'Practice' ? 'Practice' : null;
       const matchAccount = saved?.match_account ?? inferred;
-      if (!matchAccount) continue;
       const accountRows = unrecorded.filter(row => row.sourceAccount === accountName);
-      matches.push(...matchTradeZellaRows(accountRows, existing.filter(trade => trade.account === matchAccount)));
+      matches.push(...matchTradeZellaRows(accountRows, matchAccount
+        ? existing.filter(trade => trade.account === matchAccount)
+        : []));
     }
     const resultsByRow = new Map<number, typeof matches[number]>();
     for (const match of matches) for (const sourceRow of match.sourceRows) resultsByRow.set(sourceRow, match);
