@@ -10,6 +10,7 @@ const AvgWinLossCard = require('../shared/AvgWinLossCard');
 const { formatDuration, formatDateEST, formatTimeEST } = require('../../utils/dateUtils');
 const { TAG_COLOR_PRESETS } = require('../../utils/tagConstants');
 const Icons = require('../shared/Icons');
+const DateRangePicker = require('../shared/DateRangePicker');
 const RuleChecklist = require('../shared/RuleChecklist');
 
 
@@ -583,38 +584,30 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
       )}
 
       {trackingView !== 'all' && (
-        <div className="flex items-center justify-between text-xs text-text-tertiary">
-          <span>{groupedTrades.length} {trackingView === 'day' ? 'trading days' : 'trading weeks'} · {filtered.length} trades</span>
+        <div className="flex items-center justify-end text-xs text-text-tertiary">
           <button type="button" className="hover:text-text-primary" onClick={() => setExpandedGroups({})}>Expand all</button>
         </div>
       )}
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
-          <Icons.Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted w-4 h-4" />
-          <input
-            type="text"
-            placeholder="Search tickers (comma-separated)..."
-            value={searchTicker}
-            onChange={(e) => setSearchTicker(e.target.value.toUpperCase())}
-            className="w-full pl-9 pr-4 py-2.5 bg-bg-input border border-border rounded-lg text-text-primary text-sm placeholder-text-muted focus:outline-none focus:border-accent transition-colors"
-            style={{ textTransform: 'uppercase' }}
-            autoComplete="off"
-          />
-        </div>
-        <input
-          type="date"
-          value={dateFrom}
-          onChange={(e) => setDateFrom(e.target.value)}
-          className="px-3 py-2.5 bg-bg-input border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:border-accent transition-colors"
-        />
-        <input
-          type="date"
-          value={dateTo}
-          onChange={(e) => setDateTo(e.target.value)}
-          className="px-3 py-2.5 bg-bg-input border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:border-accent transition-colors"
-        />
+        {trackingView === 'all' && (
+          <>
+            <div className="relative flex-1 min-w-[200px] max-w-xs">
+              <Icons.Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Search tickers (comma-separated)..."
+                value={searchTicker}
+                onChange={(e) => setSearchTicker(e.target.value.toUpperCase())}
+                className="w-full pl-9 pr-4 py-2.5 bg-bg-input border border-border rounded-lg text-text-primary text-sm placeholder-text-muted focus:outline-none focus:border-accent transition-colors"
+                style={{ textTransform: 'uppercase' }}
+                autoComplete="off"
+              />
+            </div>
+          </>
+        )}
+        <DateRangePicker startDate={dateFrom} endDate={dateTo} onChange={({ startDate, endDate }) => { setDateFrom(startDate); setDateTo(endDate); }} />
         <div className="flex items-center gap-1.5">
           {[
             { id: 'long', label: 'Long', activeClass: 'bg-positive/15 border-positive/50 text-positive' },
