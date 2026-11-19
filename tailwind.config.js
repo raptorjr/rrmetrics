@@ -24,8 +24,8 @@ module.exports = {
         warning: 'rgb(var(--warning) / <alpha-value>)',
       },
       fontFamily: {
-        sans: ['Roboto', 'Arial', 'sans-serif'],
-        mono: ['Roboto Mono', 'monospace'],
+        sans: ['IBM Plex Sans', 'Arial', 'sans-serif'],
+        mono: ['IBM Plex Mono', 'monospace'],
       },
     },
   },
