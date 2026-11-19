@@ -1248,7 +1248,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                   )}
                                 </div>
 
-                                {pxEditingConnId === conn.connectionId && (
+                                {!conn.setupCompleted && pxEditingConnId === conn.connectionId && (
                                   <div className="space-y-3 pt-2 border-t border-border">
                                     <div className="border border-border rounded-lg p-4 space-y-3">
                                       <label className="flex items-center gap-3 cursor-pointer">
@@ -1301,8 +1301,8 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                         </button>
                                         <button onClick={() => { if (window.confirm('Fetch all available Topstep trade and order history for the selected accounts? This uses more API requests than a normal sync.')) handlePxSync(conn.connectionId, true); }} disabled={pxSyncingId !== null}
                                           className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-bg-surface rounded-lg transition-colors disabled:opacity-50">Refresh complete trade history</button>
-                                        <button onClick={() => startEditingPxConnection(conn)}
-                                          className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-bg-surface rounded-lg transition-colors">Copy-trading options</button>
+                                        {!conn.setupCompleted && <button onClick={() => startEditingPxConnection(conn)}
+                                          className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-bg-surface rounded-lg transition-colors">Copy-trading options</button>}
                                       </>
                                     )}
                                     <button onClick={() => handlePxClear(conn.connectionId)}
