@@ -164,3 +164,58 @@ test('does not strong-match when gross P&L or costs disagree', () => {
   }]);
   assert.notEqual(matches[0].status, 'matched');
 });
+
+
+test('links a TradeZella merged row to two RR positions with the same net financial result', () => {
+  const source = parseTradeZellaRows([{
+    'Account Name': 'Practice', Instrument: 'MGC', Side: 'long', Quantity: '2',
+    'Open Date': '2026-08-17', 'Open Time': '10:15:03 CEST',
+    'Close Date': '2026-08-17', 'Close Time': '13:15:49 CEST',
+    'Entry Price': '4459.70', 'Exit Price': '4455.70',
+    'Gross P&L': '-19.00', 'Net P&L': '-22.84', Fee: '2.84', Commission: '1.00',
+  }]);
+  const matches = matchTradeZellaRows(source, [
+    {
+      id: 'rr-aug-1', ticker: 'MGC', enter_time: '2026-08-17T08:15:03.184933Z',
+      exit_time: '2026-08-17T08:35:50.959521Z', enter_price: 4459.7,
+      exit_price: 4455.7, quantity: 1, manual_pl: -41.92, gross_pl: -40,
+      fees: 1.42, commissions: 0.5,
+    },
+    {
+      id: 'rr-aug-2', ticker: 'MGC', enter_time: '2026-08-17T09:16:19.049238Z',
+      exit_time: '2026-08-17T11:15:49.476706Z', enter_price: 4453.6,
+      exit_price: 4455.7, quantity: 1, manual_pl: 19.08, gross_pl: 21,
+      fees: 1.42, commissions: 0.5,
+    },
+  ]);
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].status, 'matched');
+  assert.deepEqual(new Set(matches[0].existingTradeIds), new Set(['rr-aug-1', 'rr-aug-2']));
+});
+
+test('links a TradeZella merged reversal episode using net quantity and aggregate financial totals', () => {
+  const source = parseTradeZellaRows([{
+    'Account Name': 'Practice', Instrument: 'MGC', Side: 'short', Quantity: '4',
+    'Open Date': '2026-09-22', 'Open Time': '15:39:48 CEST',
+    'Close Date': '2026-09-22', 'Close Time': '16:39:12 CEST',
+    'Entry Price': '4370.20', 'Exit Price': '4370.90',
+    'Gross P&L': '12.00', 'Net P&L': '-3.36', Fee: '11.36', Commission: '4.00',
+  }]);
+  const matches = matchTradeZellaRows(source, [
+    {
+      id: 'rr-sep-short', ticker: 'MGC', enter_time: '2026-09-22T13:39:48.886020Z',
+      exit_time: '2026-09-22T14:01:26.752334Z', enter_price: 4370.2,
+      exit_price: 4371, quantity: -2, manual_pl: -19.84, gross_pl: -16,
+      fees: 2.84, commissions: 1,
+    },
+    {
+      id: 'rr-sep-long', ticker: 'MGC', enter_time: '2026-09-22T14:01:55.024171Z',
+      exit_time: '2026-09-22T14:39:12.808606Z', enter_price: 4370.433333333333,
+      exit_price: 4370.9, quantity: 6, manual_pl: 16.48, gross_pl: 28,
+      fees: 8.52, commissions: 3,
+    },
+  ]);
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].status, 'matched');
+  assert.deepEqual(new Set(matches[0].existingTradeIds), new Set(['rr-sep-short', 'rr-sep-long']));
+});
