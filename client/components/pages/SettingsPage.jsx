@@ -664,8 +664,9 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
       });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.error || 'Could not save account settings');
-      setPxAccountSaveMessages(prev => ({ ...prev, [connectionId]: { type: 'success', text: 'Account settings saved' } }));
+      setPxAccountSaveMessages(prev => ({ ...prev, [connectionId]: { type: 'success', text: 'Settings saved. Starting initial full-history import…' } }));
       await fetchPxStatus();
+      await handlePxSync(connectionId, true);
     } catch (err) {
       const errorText = err.message || 'Failed to save account settings';
       setPxAccountSaveMessages(prev => ({ ...prev, [connectionId]: { type: 'error', text: errorText } }));
@@ -716,7 +717,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
 
   const handlePxSync = async (connectionId, fullHistory = false) => {
     setPxSyncingId(connectionId);
-    setPxSyncResults(prev => ({ ...prev, [connectionId]: { type: 'info', text: fullHistory ? 'Full historical reconciliation running. This may take longer...' : 'Incremental sync running. Checking recent trades and current positions...' } }));
+    setPxSyncResults(prev => ({ ...prev, [connectionId]: { type: 'info', text: fullHistory ? 'Full historical reconciliation running. This fetches the complete available trade and order history.' : 'Incremental sync running. Checking recent trades and current positions...' } }));
     setMessage(null);
     try {
       const response = await authFetch('/api/projectx/sync', {
@@ -1100,6 +1101,21 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
 
                                 {conn.lastSyncTime && <p className="text-xs text-text-muted">Last sync: {relativeTime(conn.lastSyncTime)}</p>}
                                 <div className="rounded-lg bg-bg-surface/70 border border-border px-3 py-2.5 space-y-2">
+                                  <label className="flex items-start gap-2 text-xs text-text-primary">
+                                    <input type="checkbox" checked={!!conn.fullSyncEnabled}
+                                      onChange={async (e) => {
+                                        const response = await authFetch('/api/projectx/full-sync-settings', {
+                                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ connectionId: conn.connectionId, enabled: e.target.checked }),
+                                        });
+                                        const data = await response.json();
+                                        if (!response.ok || data.error) setMessage({ type: 'error', text: data.error || 'Could not update full-history refresh setting' });
+                                        else { setMessage({ type: 'success', text: data.message }); await fetchPxStatus(); }
+                                      }}
+                                      disabled={!conn.setupCompleted || !conn.configured || conn.expired}
+                                      className="mt-0.5 w-4 h-4 rounded border-border text-accent focus:ring-accent" />
+                                    <span><strong>Automatically refresh complete trade history every 7 days</strong><span className="block text-[11px] text-text-muted mt-0.5">Off by default. When enabled, Topstep history and order records are fully fetched weekly. Normal syncs still check the recent 24 hours.</span></span>
+                                  </label>
                                   <div className="flex items-center justify-between gap-3">
                                     <label className="flex items-center gap-2 text-xs text-text-primary font-medium">
                                       <input type="checkbox" checked={!!conn.autoSyncEnabled}
@@ -1118,7 +1134,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                   <p className="text-[11px] text-text-muted">{conn.autoSyncEnabled ? (conn.autoSyncStartedAt ? 'Automatic sync: Syncing…' : conn.autoSyncNextAt ? `Next automatic sync: ${relativeTime(conn.autoSyncNextAt)}` : 'Automatic sync is enabled') : 'Off — sync manually using Sync Now'}</p>
                                   {conn.autoSyncLastError && <p className="text-[11px] text-negative">Last automatic sync error: {conn.autoSyncLastError}</p>}
                                   {conn.autoSyncLastAttemptAt && <p className="text-[11px] text-text-muted">Last automatic attempt: {relativeTime(conn.autoSyncLastAttemptAt)}</p>}
-                                  <p className="text-[11px] text-text-muted">Last full history reconciliation: {conn.lastFullSyncTime ? relativeTime(conn.lastFullSyncTime) : 'Not yet completed — the next sync will import full history'}</p>
+                                  <p className="text-[11px] text-text-muted">Last complete-history import: {conn.lastFullSyncTime ? relativeTime(conn.lastFullSyncTime) : 'Not yet completed'}</p>
                                 </div>
 
                                 {pxSyncResults[conn.connectionId] && (
@@ -1168,61 +1184,68 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                 )}
 
                                 <div className="pt-2 border-t border-border space-y-3">
-                                  <div className="flex items-center justify-between">
-                                    <div>
-                                      <h4 className="text-sm font-medium text-text-primary">Topstep accounts</h4>
-                                      <p className="text-xs text-text-muted">Choose which accounts to sync, classify each account, set its P&amp;L currency and optionally give it a friendly name.</p>
+                                  {conn.setupCompleted ? (
+                                    <div className="rounded-lg bg-bg-surface/70 border border-border p-4 space-y-2">
+                                      <div className="text-sm font-medium text-text-primary">Topstep import is configured</div>
+                                      <p className="text-xs text-text-secondary">Account selection, account types and currencies are locked after the initial import to protect existing journal data.</p>
+                                      <p className="text-xs text-text-muted">{(conn.selectedAccounts || []).length} accounts selected · Initial import completed</p>
+                                      <button onClick={async () => {
+                                        if (!window.confirm('Reset Topstep setup? This deletes all imported Topstep trades and raw executions for this connection. You can then select accounts and configure them again.')) return;
+                                        try {
+                                          const response = await authFetch('/api/projectx/reset-setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ connectionId: conn.connectionId }) });
+                                          const data = await response.json();
+                                          if (!response.ok || data.error) throw new Error(data.error || 'Could not reset setup');
+                                          setPxAccountSaveMessages(prev => ({ ...prev, [conn.connectionId]: { type: 'success', text: 'Setup reset. Configure accounts and start a new initial import.' } }));
+                                          await fetchPxStatus();
+                                        } catch (error) { setMessage({ type: 'error', text: error.message || 'Could not reset setup' }); }
+                                      }} className="px-3 py-2 border border-warning/40 text-warning text-xs font-medium rounded-lg">Reset setup &amp; start over</button>
                                     </div>
-                                    <span className="text-xs text-text-secondary">{(pxAccountDrafts[conn.connectionId]?.selectedAccounts || []).length} selected</span>
-                                  </div>
-                                  {(conn.accounts || []).map(account => {
-                                    const draft = pxAccountDrafts[conn.connectionId] || { selectedAccounts: [], accountSettings: {} };
-                                    const accountSetting = draft.accountSettings[String(account.id)] || { type: 'other', displayName: '', currencyCode: 'USD' };
-                                    return (
-                                      <div key={account.id} className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_150px_110px_minmax(0,1fr)] gap-2 items-center p-3 bg-bg-surface/60 border border-border rounded-lg">
-                                        <label className="flex items-start gap-2 cursor-pointer min-w-0">
-                                          <input type="checkbox" checked={draft.selectedAccounts.includes(account.id)}
-                                            onChange={() => togglePxAccountSync(conn.connectionId, account.id)}
-                                            className="mt-1 w-4 h-4 rounded border-border text-accent focus:ring-accent" />
-                                          <span className="min-w-0">
-                                            <span className="block text-sm font-medium text-text-primary break-words">{account.name}</span>
-                                            <span className="block text-xs text-text-muted">ID {account.id}{account.balance !== undefined ? ` · ${account.balance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}</span>
-                                          </span>
-                                        </label>
-                                        <select value={accountSetting.type}
-                                          onChange={e => updatePxAccountDraft(conn.connectionId, account.id, { type: e.target.value })}
-                                          className="w-full px-2 py-2 bg-bg-input border border-border rounded-md text-xs text-text-primary">
-                                          <option value="evaluation">Evaluation</option>
-                                          <option value="xfa">Express Funded (XFA)</option>
-                                          <option value="live_funded">Live Funded</option>
-                                          <option value="other">Other / Practice</option>
-                                        </select>
-                                        <select value={accountSetting.currencyCode || 'USD'}
-                                          onChange={e => updatePxAccountDraft(conn.connectionId, account.id, { currencyCode: e.target.value })}
-                                          className="w-full px-2 py-2 bg-bg-input border border-border rounded-md text-xs text-text-primary">
-                                          <option value="USD">USD ($)</option><option value="EUR">EUR (€)</option><option value="GBP">GBP (£)</option><option value="CAD">CAD ($)</option><option value="AUD">AUD ($)</option><option value="CHF">CHF (Fr.)</option><option value="JPY">JPY (¥)</option>
-                                        </select>
-                                        <input type="text" value={accountSetting.displayName}
-                                          onChange={e => updatePxAccountDraft(conn.connectionId, account.id, { displayName: e.target.value })}
-                                          placeholder="Friendly name (optional)"
-                                          className="w-full min-w-0 px-2 py-2 bg-bg-input border border-border rounded-md text-xs text-text-primary placeholder:text-text-muted" />
-                                      </div>
-                                    );
-                                  })}
-                                  <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <span className="text-[11px] text-text-muted">Original Topstep names and IDs are retained for matching.</span>
-                                    <div className="flex flex-col items-end gap-1">
-                                      <button onClick={() => handlePxSaveAccounts(conn.connectionId)} disabled={pxSavingAccounts === conn.connectionId || !pxAccountDrafts[conn.connectionId]?.selectedAccounts?.length}
-                                        className="px-4 py-2 bg-accent text-accent-text text-xs font-medium rounded-lg hover:brightness-110 transition-all disabled:opacity-50">
-                                        {pxSavingAccounts === conn.connectionId ? 'Saving...' : 'Save account settings'}
-                                      </button>
-                                      {pxAccountSaveMessages[conn.connectionId] && (
-                                        <div role="status" className={`text-xs ${pxAccountSaveMessages[conn.connectionId].type === 'error' ? 'text-negative' : 'text-positive'}`}>
-                                          {pxAccountSaveMessages[conn.connectionId].text}
+                                  ) : (
+                                    <>
+                                      <div className="flex items-center justify-between">
+                                        <div>
+                                          <h4 className="text-sm font-medium text-text-primary">Configure Topstep accounts</h4>
+                                          <p className="text-xs text-text-muted">Choose accounts to import and set their account type and P&amp;L currency. These settings are locked after the initial import.</p>
                                         </div>
-                                      )}
-                                    </div>
-                                  </div>
+                                        <span className="text-xs text-text-secondary">{(pxAccountDrafts[conn.connectionId]?.selectedAccounts || []).length} selected</span>
+                                      </div>
+                                      {(conn.accounts || []).map(account => {
+                                        const draft = pxAccountDrafts[conn.connectionId] || { selectedAccounts: [], accountSettings: {} };
+                                        const accountSetting = draft.accountSettings[String(account.id)] || { type: 'other', currencyCode: 'USD' };
+                                        return (
+                                          <div key={account.id} className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_150px_110px] gap-2 items-center p-3 bg-bg-surface/60 border border-border rounded-lg">
+                                            <label className="flex items-start gap-2 cursor-pointer min-w-0">
+                                              <input type="checkbox" checked={draft.selectedAccounts.includes(account.id)}
+                                                onChange={() => togglePxAccountSync(conn.connectionId, account.id)}
+                                                className="mt-1 w-4 h-4 rounded border-border text-accent focus:ring-accent" />
+                                              <span className="min-w-0">
+                                                <span className="block text-sm font-medium text-text-primary break-words">{account.name}</span>
+                                                <span className="block text-xs text-text-muted">ID {account.id}{account.balance !== undefined ? ` · ${account.balance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}</span>
+                                              </span>
+                                            </label>
+                                            <select value={accountSetting.type} onChange={e => updatePxAccountDraft(conn.connectionId, account.id, { type: e.target.value })}
+                                              className="w-full px-2 py-2 bg-bg-input border border-border rounded-md text-xs text-text-primary">
+                                              <option value="evaluation">Evaluation</option><option value="xfa">Express Funded (XFA)</option><option value="live_funded">Live Funded</option><option value="other">Other / Practice</option>
+                                            </select>
+                                            <select value={accountSetting.currencyCode || 'USD'} onChange={e => updatePxAccountDraft(conn.connectionId, account.id, { currencyCode: e.target.value })}
+                                              className="w-full px-2 py-2 bg-bg-input border border-border rounded-md text-xs text-text-primary">
+                                              <option value="USD">USD ($)</option><option value="EUR">EUR (€)</option><option value="GBP">GBP (£)</option><option value="CAD">CAD ($)</option><option value="AUD">AUD ($)</option><option value="CHF">CHF (Fr.)</option><option value="JPY">JPY (¥)</option>
+                                            </select>
+                                          </div>
+                                        );
+                                      })}
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <span className="text-[11px] text-text-muted">Your first action imports the complete available history for the selected accounts.</span>
+                                        <div className="flex flex-col items-end gap-1">
+                                          <button onClick={() => handlePxSaveAccounts(conn.connectionId)} disabled={pxSavingAccounts === conn.connectionId || !pxAccountDrafts[conn.connectionId]?.selectedAccounts?.length}
+                                            className="px-4 py-2 bg-accent text-accent-text text-xs font-medium rounded-lg hover:brightness-110 transition-all disabled:opacity-50">
+                                            {pxSavingAccounts === conn.connectionId || pxSyncingId === conn.connectionId ? 'Starting initial import…' : 'Save settings & start initial import'}
+                                          </button>
+                                          {pxAccountSaveMessages[conn.connectionId] && <div role="status" className={`text-xs ${pxAccountSaveMessages[conn.connectionId].type === 'error' ? 'text-negative' : 'text-positive'}`}>{pxAccountSaveMessages[conn.connectionId].text}</div>}
+                                        </div>
+                                      </div>
+                                    </>
+                                  )}
                                 </div>
 
                                 {pxEditingConnId === conn.connectionId && (
@@ -1277,7 +1300,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                           {pxSyncingId === conn.connectionId ? 'Syncing...' : 'Sync Now'}
                                         </button>
                                         <button onClick={() => { if (window.confirm('Fetch all available Topstep trade and order history for the selected accounts? This uses more API requests than a normal sync.')) handlePxSync(conn.connectionId, true); }} disabled={pxSyncingId !== null}
-                                          className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-bg-surface rounded-lg transition-colors disabled:opacity-50">Full reconciliation</button>
+                                          className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-bg-surface rounded-lg transition-colors disabled:opacity-50">Refresh complete trade history</button>
                                         <button onClick={() => startEditingPxConnection(conn)}
                                           className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-bg-surface rounded-lg transition-colors">Copy-trading options</button>
                                       </>
