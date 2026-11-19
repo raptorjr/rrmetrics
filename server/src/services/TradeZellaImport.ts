@@ -55,6 +55,7 @@ export function parseTradeZellaTimestamp(dateValue: unknown, timeValue: unknown)
 
 export function parseTradeZellaRows(rows: Array<Record<string, unknown>>): TradeZellaRow[] {
   const result: TradeZellaRow[] = [];
+  const fingerprintOccurrences = new Map<string, number>();
   rows.forEach((row, index) => {
     const sourceAccount = String(row['Account Name'] || '').trim();
     const symbol = ticker(row.Instrument || row.Symbol);
@@ -67,7 +68,7 @@ export function parseTradeZellaRows(rows: Array<Record<string, unknown>>): Trade
     if (!sourceAccount || !symbol || !enterTime || !exitTime || enterPrice == null || exitPrice == null || quantity == null || quantity <= 0 || !['long', 'short'].includes(side)) return;
     const signedQuantity = side === 'short' ? -quantity : quantity;
     const manualPL = num(row['Net P&L']);
-    const sourceFingerprint = [
+    const fingerprintBase = [
       symbol,
       enterTime,
       exitTime,
@@ -76,6 +77,12 @@ export function parseTradeZellaRows(rows: Array<Record<string, unknown>>): Trade
       signedQuantity.toFixed(6),
       manualPL == null ? '' : manualPL.toFixed(2),
     ].join('|');
+    // Identical fills can legitimately appear more than once in an export.
+    // Preserve each occurrence while keeping the fingerprint stable on re-export.
+    const occurrenceKey = sourceAccount + '|' + fingerprintBase;
+    const occurrence = (fingerprintOccurrences.get(occurrenceKey) || 0) + 1;
+    fingerprintOccurrences.set(occurrenceKey, occurrence);
+    const sourceFingerprint = fingerprintBase + '#' + occurrence;
     result.push({
       sourceRow: index + 2, sourceAccount, ticker: symbol, enterTime, exitTime,
       enterPrice, exitPrice, quantity: signedQuantity,
