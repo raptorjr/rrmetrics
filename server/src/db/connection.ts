@@ -57,7 +57,7 @@ export function getDb(): Db {
     return columns.join(',') === 'user_id,source_account_name,source_fingerprint';
   });
   if (hasLegacyTradeZellaUnique) {
-    db.exec(`
+    db.transaction(() => db.exec(`
       CREATE TABLE tradezella_imported_trades_new (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
@@ -76,7 +76,7 @@ export function getDb(): Db {
       ALTER TABLE tradezella_imported_trades_new RENAME TO tradezella_imported_trades;
       CREATE INDEX IF NOT EXISTS idx_tradezella_imported_trades_user_id
         ON tradezella_imported_trades(user_id);
-    `);
+    `))();
   }
 
   instance = db;
