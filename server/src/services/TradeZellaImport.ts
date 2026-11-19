@@ -11,6 +11,7 @@ export interface TradeZellaRow {
   grossPL: number | null;
   fees: number;
   commissions: number;
+  sourceFingerprint: string;
 }
 
 export interface ExistingTrade {
@@ -64,11 +65,23 @@ export function parseTradeZellaRows(rows: Array<Record<string, unknown>>): Trade
     const quantity = num(row.Quantity);
     const side = String(row.Side || '').toLowerCase().trim();
     if (!sourceAccount || !symbol || !enterTime || !exitTime || enterPrice == null || exitPrice == null || quantity == null || quantity <= 0 || !['long', 'short'].includes(side)) return;
+    const signedQuantity = side === 'short' ? -quantity : quantity;
+    const manualPL = num(row['Net P&L']);
+    const sourceFingerprint = [
+      symbol,
+      enterTime,
+      exitTime,
+      enterPrice.toFixed(6),
+      exitPrice.toFixed(6),
+      signedQuantity.toFixed(6),
+      manualPL == null ? '' : manualPL.toFixed(2),
+    ].join('|');
     result.push({
       sourceRow: index + 2, sourceAccount, ticker: symbol, enterTime, exitTime,
-      enterPrice, exitPrice, quantity: side === 'short' ? -quantity : quantity,
-      manualPL: num(row['Net P&L']), grossPL: num(row['Gross P&L']),
+      enterPrice, exitPrice, quantity: signedQuantity,
+      manualPL, grossPL: num(row['Gross P&L']),
       fees: num(row.Fee) || 0, commissions: num(row.Commission) || 0,
+      sourceFingerprint,
     });
   });
   return result;
