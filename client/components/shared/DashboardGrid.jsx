@@ -357,6 +357,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
 
   return (
     <div className="space-y-3">
+      {storageWarning && <p className="text-xs text-amber-600" role="alert">{storageWarning}</p>}
       <div className="flex justify-end">
         <button
           type="button"
@@ -400,7 +401,6 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
             </div>
           </div>
           <p className="text-[10px] text-text-tertiary">Saved layouts are stored in this browser. Saving an existing name replaces that template.</p>
-          {storageWarning && <p className="text-xs text-amber-600" role="alert">{storageWarning}</p>}
           {selectedTemplate && (
             <p className="text-xs text-text-secondary" role="status" aria-live="polite">
               {selectedTemplateHasChanges
