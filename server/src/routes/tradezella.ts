@@ -131,7 +131,8 @@ tradezella.post('/api/tradezella/preview', requiresLogin, async (c) => {
 
   try {
     const reserved = reservedTradeIds(db, user.id);
-    const existing = existingRows(db, user.id).filter(trade => !reserved.has(trade.id));
+    const allExisting = existingRows(db, user.id);
+    const existing = allExisting.filter(trade => !reserved.has(trade.id));
     const mappings = sourceMappings(db, user.id, parsedRows);
     const unrecorded = parsedRows.filter(row => !mappings.has(row.sourceAccount + '|' + row.sourceFingerprint));
     const savedAccounts = new Map((db.prepare(
@@ -144,7 +145,7 @@ tradezella.post('/api/tradezella/preview', requiresLogin, async (c) => {
       const inferred = accountName === '150k XFA' ? '$150k Express' : accountName === '50k XFA' ? '$50k Express' : accountName === 'Practice' ? 'Practice' : null;
       const matchAccount = saved?.match_account ?? inferred;
       const accountRows = unrecorded.filter(row => row.sourceAccount === accountName);
-      matches.push(...matchTradeZellaRowsAcrossAccounts(accountRows, existing, matchAccount));
+      matches.push(...matchTradeZellaRowsAcrossAccounts(accountRows, existing, matchAccount, allExisting));
     }
     const resultsByRow = new Map<number, typeof matches[number]>();
     for (const match of matches) for (const sourceRow of match.sourceRows) resultsByRow.set(sourceRow, match);
@@ -211,13 +212,14 @@ tradezella.post('/api/tradezella/import', requiresLogin, async (c) => {
     const mappings = sourceMappings(db, user.id, selectedRows);
     const unrecorded = selectedRows.filter(row => !mappings.has(row.sourceAccount + '|' + row.sourceFingerprint));
     const reserved = reservedTradeIds(db, user.id);
-    const candidates = existingRows(db, user.id).filter(trade => !reserved.has(trade.id));
+    const allCandidates = existingRows(db, user.id);
+    const candidates = allCandidates.filter(trade => !reserved.has(trade.id));
     const selectedTargets = selectedAccounts.map((name: string) => settingsBySource.get(name)!.matchAccount).filter((name: string | null): name is string => Boolean(name));
     if (new Set(selectedTargets).size !== selectedTargets.length) return c.json({ error: 'Two selected TradeZella accounts cannot be matched against the same RR account.' }, 400);
     const matches = selectedAccounts.flatMap((accountName: string) => {
       const account = settingsBySource.get(accountName)!;
       const accountRows = unrecorded.filter(row => row.sourceAccount === accountName);
-      return matchTradeZellaRowsAcrossAccounts(accountRows, candidates, account.matchAccount);
+      return matchTradeZellaRowsAcrossAccounts(accountRows, candidates, account.matchAccount, allCandidates);
     });
     const rowByNumber = new Map(unrecorded.map(row => [row.sourceRow, row]));
     const upsertAccount = db.prepare(
