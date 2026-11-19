@@ -46,6 +46,7 @@ const App = () => {
   const [tags, setTags] = useState([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTrade, setEditingTrade] = useState(null);
+  const [forceEditModal, setForceEditModal] = useState(false);
   const [prefillDate, setPrefillDate] = useState(null);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [syncPopupOpen, setSyncPopupOpen] = useState(false);
@@ -457,9 +458,9 @@ const App = () => {
     setTimeout(() => setSyncNotification(null), 4000);
   };
 
-  const openForm = () => setIsFormOpen(true);
-  const openFormWithDate = (dateKey) => { setPrefillDate(dateKey); setIsFormOpen(true); };
-  const openEditForm = (trade) => { setEditingTrade(trade); setIsFormOpen(true); };
+  const openForm = () => { setForceEditModal(false); setIsFormOpen(true); };
+  const openFormWithDate = (dateKey) => { setForceEditModal(false); setPrefillDate(dateKey); setIsFormOpen(true); };
+  const openEditForm = (trade) => { setForceEditModal(currentPage === 'dashboard'); setEditingTrade(trade); setIsFormOpen(true); };
 
   const filteredTrades = selectedAccounts.length === 0
     ? trades
@@ -474,7 +475,7 @@ const App = () => {
           <TradeListPage
             trades={filteredTrades}
             triggerReload={triggerReload}
-            onEdit={(trade) => { setEditingTrade(trade); setIsFormOpen(true); }}
+            onEdit={(trade) => { setForceEditModal(false); setEditingTrade(trade); setIsFormOpen(true); }}
            
             onOpenForm={openForm}
             onOpenImport={() => setCsvImportOpen(true)}
@@ -530,7 +531,8 @@ const App = () => {
 
       <TradeFormPopup
         isOpen={isFormOpen}
-        onClose={() => { setIsFormOpen(false); setEditingTrade(null); setPrefillDate(null); }} onBack={() => { setIsFormOpen(false); setEditingTrade(null); }}
+        onClose={() => { setIsFormOpen(false); setEditingTrade(null); setPrefillDate(null); setForceEditModal(false); }} onBack={() => { setIsFormOpen(false); setEditingTrade(null); setForceEditModal(false); }}
+        forceModal={forceEditModal}
         triggerReload={triggerReload}
         editingTrade={editingTrade}
         prefillDate={prefillDate}
