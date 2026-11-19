@@ -48,6 +48,37 @@ export function getDb(): Db {
   const tradezellaAccountColumns = new Set((db.prepare('PRAGMA table_info(tradezella_accounts)').all() as Array<{ name: string }>).map(column => column.name));
   if (!tradezellaAccountColumns.has('match_account')) db.exec('ALTER TABLE tradezella_accounts ADD COLUMN match_account TEXT');
 
+  // TradeZella source rows can map to multiple RR partial-exit trades.
+  // Rebuild older versions of this table whose UNIQUE key allowed only one trade_id.
+  const tradezellaIndexes = db.prepare('PRAGMA index_list(tradezella_imported_trades)').all() as Array<{ name: string; unique: number }>;
+  const hasLegacyTradeZellaUnique = tradezellaIndexes.some(index => {
+    if (!index.unique) return false;
+    const columns = (db.prepare(`PRAGMA index_info("${index.name}")`).all() as Array<{ name: string }>).map(column => column.name);
+    return columns.join(',') === 'user_id,source_account_name,source_fingerprint';
+  });
+  if (hasLegacyTradeZellaUnique) {
+    db.exec(`
+      CREATE TABLE tradezella_imported_trades_new (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+        source_account_name TEXT NOT NULL,
+        source_fingerprint TEXT NOT NULL,
+        source_row INTEGER,
+        trade_id TEXT NOT NULL REFERENCES trades(id) ON DELETE CASCADE,
+        imported_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        UNIQUE(user_id, source_account_name, source_fingerprint, trade_id)
+      );
+      INSERT INTO tradezella_imported_trades_new
+        (id, user_id, source_account_name, source_fingerprint, source_row, trade_id, imported_at)
+      SELECT id, user_id, source_account_name, source_fingerprint, source_row, trade_id, imported_at
+      FROM tradezella_imported_trades;
+      DROP TABLE tradezella_imported_trades;
+      ALTER TABLE tradezella_imported_trades_new RENAME TO tradezella_imported_trades;
+      CREATE INDEX IF NOT EXISTS idx_tradezella_imported_trades_user_id
+        ON tradezella_imported_trades(user_id);
+    `);
+  }
+
   instance = db;
   return db;
 }
