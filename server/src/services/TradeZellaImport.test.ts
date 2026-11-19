@@ -43,3 +43,28 @@ test('matches two one-contract CSV rows to one two-contract RR position', () => 
   assert.deepEqual(matches[0].sourceRows, [2, 3]);
   assert.deepEqual(matches[0].existingTradeIds, ['rr-1']);
 });
+
+test('matches one consolidated CSV trade to multiple RR partial exits', () => {
+  const source = parseTradeZellaRows([{
+    'Account Name': 'Practice', Instrument: 'MGC', Side: 'long', Quantity: '2',
+    'Open Date': '2026-07-15', 'Open Time': '14:00:00 CEST',
+    'Close Date': '2026-07-15', 'Close Time': '14:05:00 CEST',
+    'Entry Price': '2400.00', 'Exit Price': '2401.00', 'Net P&L': '20.00',
+  }]);
+  const matches = matchTradeZellaRows(source, [
+    {
+      id: 'rr-partial-1', ticker: 'MGC', enter_time: '2026-07-15T12:00:00.000Z',
+      exit_time: '2026-07-15T12:04:00.000Z', enter_price: 2400,
+      exit_price: 2400.5, quantity: 1, manual_pl: 5,
+    },
+    {
+      id: 'rr-partial-2', ticker: 'MGC', enter_time: '2026-07-15T12:00:00.000Z',
+      exit_time: '2026-07-15T12:05:00.000Z', enter_price: 2400,
+      exit_price: 2401.5, quantity: 1, manual_pl: 15,
+    },
+  ]);
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].status, 'matched');
+  assert.deepEqual(matches[0].sourceRows, [2]);
+  assert.deepEqual(matches[0].existingTradeIds, ['rr-partial-1', 'rr-partial-2']);
+});
