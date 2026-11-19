@@ -479,10 +479,16 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
     });
     return [...groups.values()].sort((a, b) => b.key.localeCompare(a.key));
   })();
+  useEffect(() => {
+    if (trackingView === 'week' && groupedTrades.length > 0) {
+      setExpandedGroups(Object.fromEntries(groupedTrades.map((group, index) => [group.key, index === 0])));
+    }
+  }, [trackingView, groupedTrades.map(group => group.key).join('|')]);
+
   const displayRows = trackingView === 'all'
     ? filtered.map(trade => ({ type: 'trade', trade }))
     : groupedTrades.flatMap(group => {
-        const isExpanded = trackingView === 'day' ? expandedGroups[group.key] === true : expandedGroups[group.key] !== false;
+        const isExpanded = expandedGroups[group.key] === true;
         if (!isExpanded) return [{ type: 'group', group }];
         const orderedTrades = trackingView === 'day' ? [...group.trades].sort((a, b) => new Date(a.exitTime) - new Date(b.exitTime)) : group.trades;
         return [{ type: 'group', group }, ...((trackingView === 'day' || trackingView === 'week') ? [{ type: trackingView === 'day' ? 'dayHeader' : 'weekHeader', key: group.key }] : []), ...orderedTrades.map(trade => ({ type: 'trade', trade }))];
