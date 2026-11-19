@@ -86,12 +86,8 @@ const TradeZellaImportPage = ({ triggerReload }) => {
   const number = (value) => Number(value || 0).toLocaleString();
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <div>
-        <div className="text-xs uppercase tracking-wider text-text-muted font-semibold mb-2">Import tools</div>
-        <h1 className="text-2xl font-semibold text-text-primary">TradeZella Import</h1>
-        <p className="text-sm text-text-secondary mt-1">Scan an export, review account mapping and duplicate detection, then import only the accounts you choose.</p>
-      </div>
+    <div className="space-y-6">
+      <p className="text-sm text-text-secondary">Scan an export, review account mapping and duplicate detection, then import only the accounts you choose.</p>
 
       {error && <div className="rounded-lg border border-negative/30 bg-negative/10 text-negative px-4 py-3 text-sm">{error}</div>}
 
