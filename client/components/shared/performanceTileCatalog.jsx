@@ -3,6 +3,7 @@ const StatCard = require('./StatCard');
 const WinRateCard = require('./WinRateCard');
 const AvgWinLossCard = require('./AvgWinLossCard');
 const { formatDuration } = require('../../utils/dateUtils');
+const TilePreview = require('./TilePreview');
 
 /**
  * Shared performance tile catalogue used by Dashboard and Analytics.
@@ -39,7 +40,7 @@ const createPerformanceTiles = ({
   changes = {},
 }) => {
   const definitions = Object.fromEntries(PERFORMANCE_TILE_DEFINITIONS.map(item => [item.id, item]));
-  const card = (id, render) => ({ ...definitions[id], render });
+  const card = (id, render) => ({ ...definitions[id], render, preview: <TilePreview item={definitions[id]} /> });
 
   return [
     card('totalPL', () => <StatCard label="Total P/L" tooltip="Net profit or loss across the selected trades, after fees and commissions." value={`$${stats.totalPL.toFixed(2)}`} color={stats.totalPL >= 0 ? 'text-positive' : 'text-negative'} change={changes.totalPL} />),
