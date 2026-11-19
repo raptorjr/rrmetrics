@@ -287,14 +287,23 @@ test('reconstructs the attached ProjectX diagnostic and matches daily counts', {
 });
 
 
-test('refreshes voided-order overrides only for accounts successfully queried', () => {
+test('incremental sync preserves historical overrides outside the queried order window', () => {
+  const previous = ['7:100', '8:200', '9:300'];
+  const fresh = new Set(['7:101']);
+  // Incremental sync passes no fully refreshed accounts, even though the
+  // Orders API successfully returned its recent-window response for account 7.
+  const merged = mergeVoidedOrderOverrides(previous, fresh, new Set());
+  assert.deepEqual([...merged].sort(), ['7:100', '7:101', '8:200', '9:300']);
+});
+
+test('full-history refresh replaces overrides only for accounts fully queried', () => {
   const previous = ['7:100', '8:200', '9:300'];
   const fresh = new Set(['7:101']);
   const merged = mergeVoidedOrderOverrides(previous, fresh, new Set([7]));
   assert.deepEqual([...merged].sort(), ['7:101', '8:200', '9:300']);
 });
 
-test('clears stale overrides when a successfully queried account has no qualifying orders', () => {
+test('clears stale overrides when a full-history query finds no qualifying orders', () => {
   const merged = mergeVoidedOrderOverrides(
     ['7:100', '8:200'],
     new Set(),
