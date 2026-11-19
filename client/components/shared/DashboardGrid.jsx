@@ -13,44 +13,65 @@ const getDefaultSize = (item) => ({
   h: clamp(Math.trunc(Number(item.defaultRows) || 1), Number(item.minRows) || 1, MAX_ROWS),
 });
 
-const readLayout = (storageKey, defaultOrder, defaultVisible, items) => {
+const normalizeLayout = (saved, defaultOrder, defaultVisible, items) => {
   const ids = items.map(item => item.id);
   const valid = new Set(ids);
   const defaults = [...new Set(defaultOrder.filter(id => valid.has(id))), ...ids.filter(id => !defaultOrder.includes(id))];
-
-  try {
-    const saved = JSON.parse(localStorage.getItem(storageKey));
-    if (!saved || !Array.isArray(saved.order) || !Array.isArray(saved.hidden)) {
-      return {
-        order: defaults,
-        hidden: defaults.filter(id => !defaultVisible.includes(id)),
-        sizes: Object.fromEntries(items.map(item => [item.id, getDefaultSize(item)])),
-      };
-    }
-
-    const savedOrder = [...new Set(saved.order.filter(id => valid.has(id)))];
-    const newIds = defaults.filter(id => !savedOrder.includes(id));
-    const order = [...savedOrder, ...newIds];
-    const hidden = [...new Set([
-      ...saved.hidden.filter(id => valid.has(id)),
-      ...newIds.filter(id => !defaultVisible.includes(id)),
-    ])];
-    const sizes = Object.fromEntries(items.map(item => {
-      const fallback = getDefaultSize(item);
-      const savedSize = saved.sizes && saved.sizes[item.id];
-      return [item.id, {
-        w: clamp(Math.trunc(Number(savedSize && savedSize.w) || fallback.w), Number(item.minColumns) || 1, MAX_COLUMNS),
-        h: clamp(Math.trunc(Number(savedSize && savedSize.h) || fallback.h), Number(item.minRows) || 1, MAX_ROWS),
-      }];
-    }));
-
-    return { order, hidden, sizes };
-  } catch {
+  if (!saved || !Array.isArray(saved.order) || !Array.isArray(saved.hidden)) {
     return {
       order: defaults,
       hidden: defaults.filter(id => !defaultVisible.includes(id)),
       sizes: Object.fromEntries(items.map(item => [item.id, getDefaultSize(item)])),
     };
+  }
+  const savedOrder = [...new Set(saved.order.filter(id => valid.has(id)))];
+  const newIds = defaults.filter(id => !savedOrder.includes(id));
+  const order = [...savedOrder, ...newIds];
+  const hidden = [...new Set([
+    ...saved.hidden.filter(id => valid.has(id)),
+    ...newIds.filter(id => !defaultVisible.includes(id)),
+  ])];
+  const sizes = Object.fromEntries(items.map(item => {
+    const fallback = getDefaultSize(item);
+    const savedSize = saved.sizes && saved.sizes[item.id];
+    return [item.id, {
+      w: clamp(Math.trunc(Number(savedSize && savedSize.w) || fallback.w), Number(item.minColumns) || 1, MAX_COLUMNS),
+      h: clamp(Math.trunc(Number(savedSize && savedSize.h) || fallback.h), Number(item.minRows) || 1, MAX_ROWS),
+    }];
+  }));
+  return { order, hidden, sizes };
+};
+
+const readLayoutFromValue = (saved, defaultOrder, defaultVisible, items) => {
+  try {
+    return normalizeLayout(saved, defaultOrder, defaultVisible, items);
+  } catch {
+    return normalizeLayout(null, defaultOrder, defaultVisible, items);
+  }
+};
+
+const readTemplates = (storageKey) => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(`${storageKey}_templates`) || '[]');
+    if (!Array.isArray(saved)) return [];
+    return saved.filter(template =>
+      template &&
+      typeof template.name === 'string' &&
+      template.name.trim() &&
+      template.layout &&
+      Array.isArray(template.layout.order) &&
+      Array.isArray(template.layout.hidden)
+    );
+  } catch {
+    return [];
+  }
+};
+
+const readLayout = (storageKey, defaultOrder, defaultVisible, items) => {
+  try {
+    return readLayoutFromValue(JSON.parse(localStorage.getItem(storageKey)), defaultOrder, defaultVisible, items);
+  } catch {
+    return readLayoutFromValue(null, defaultOrder, defaultVisible, items);
   }
 };
 
@@ -61,10 +82,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const [draggedId, setDraggedId] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
   const [columns, setColumns] = useState(2);
-  const [templates, setTemplates] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(`${storageKey}_templates`) || '[]'); }
-    catch { return []; }
-  });
+  const [templates, setTemplates] = useState(() => readTemplates(storageKey));
   const [templateName, setTemplateName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [previewItemId, setPreviewItemId] = useState(null);
@@ -97,10 +115,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
 
   useEffect(() => {
     setLayout(readLayout(storageKey, defaultOrder, defaultVisible, items));
-    try {
-      const savedTemplates = JSON.parse(localStorage.getItem(`${storageKey}_templates`) || '[]');
-      setTemplates(Array.isArray(savedTemplates) ? savedTemplates : []);
-    } catch { setTemplates([]); }
+    setTemplates(readTemplates(storageKey));
     setSelectedTemplate('');
   }, [storageKey, ids.join('|')]);
 
@@ -155,8 +170,9 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const applyTemplate = () => {
     const template = templates.find(candidate => candidate.name === selectedTemplate);
     if (!template) return;
-    localStorage.setItem(storageKey, JSON.stringify(template.layout));
-    setLayout(readLayout(storageKey, defaultOrder, defaultVisible, items));
+    const normalized = readLayoutFromValue(template.layout, defaultOrder, defaultVisible, items);
+    localStorage.setItem(storageKey, JSON.stringify(normalized));
+    setLayout(normalized);
   };
 
   const deleteTemplate = () => {
