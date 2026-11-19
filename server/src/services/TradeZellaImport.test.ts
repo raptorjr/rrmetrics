@@ -68,3 +68,16 @@ test('matches one consolidated CSV trade to multiple RR partial exits', () => {
   assert.deepEqual(matches[0].sourceRows, [2]);
   assert.deepEqual(matches[0].existingTradeIds, ['rr-partial-1', 'rr-partial-2']);
 });
+
+test('does not combine CSV rows from different source accounts', () => {
+  const source = parseTradeZellaRows([
+    { 'Account Name': 'Practice', Instrument: 'MES', Side: 'long', Quantity: '1', 'Open Date': '2026-04-07', 'Open Time': '14:48:48 CEST', 'Close Date': '2026-04-07', 'Close Time': '16:00:17 CEST', 'Entry Price': '6616.75', 'Exit Price': '6601.25', 'Net P&L': '-78.24' },
+    { 'Account Name': '150k XFA', Instrument: 'MES', Side: 'long', Quantity: '1', 'Open Date': '2026-04-07', 'Open Time': '16:00:12 CEST', 'Close Date': '2026-04-07', 'Close Time': '16:00:17 CEST', 'Entry Price': '6602.75', 'Exit Price': '6601.25', 'Net P&L': '-8.24' },
+  ]);
+  const matches = matchTradeZellaRows(source, [{
+    id: 'rr-1', ticker: 'MES', enter_time: '2026-04-07T12:48:48.000Z',
+    exit_time: '2026-04-07T14:00:17.000Z', enter_price: 6609.75,
+    exit_price: 6601.25, quantity: 2, manual_pl: -86.48,
+  }]);
+  assert.equal(matches.some((match) => match.status === 'matched'), false);
+});
