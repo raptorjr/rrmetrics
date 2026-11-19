@@ -105,7 +105,7 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
   const [bulkTagPickerOpen, setBulkTagPickerOpen] = useState(false);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
-  const [trackingView, setTrackingView] = useState('all');
+  const [trackingView, setTrackingView] = useState('day');
   const [expandedGroups, setExpandedGroups] = useState({});
   const [editingNoteDate, setEditingNoteDate] = useState(null);
   const [noteDraft, setNoteDraft] = useState('');
@@ -922,17 +922,59 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
                         </tr>
                       );
                     }
+                    const currency = [...group.currencyCodes][0] || 'USD';
+                    const dailyBreakdown = (() => {
+                      const days = new Map();
+                      group.trades.forEach(trade => {
+                        const day = getSessionDateKey(trade);
+                        days.set(day, (days.get(day) || 0) + getTradePL(trade));
+                      });
+                      return [...days.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+                    })();
+                    const maxDailyAbs = Math.max(1, ...dailyBreakdown.map(([, value]) => Math.abs(value)));
                     return (
-                      <tr key={'group-' + group.key} className="bg-bg-input/60 border-y border-border">
-                        <td colSpan={visibleColCount} className="px-4 py-3">
-                          <button type="button" onClick={() => toggleGroup(group.key)} className="w-full flex flex-wrap items-center gap-x-4 gap-y-2 text-left">
-                            <span className="text-text-secondary">{isOpen ? '⌄' : '›'}</span>
-                            <span className="font-semibold text-text-primary text-sm min-w-[170px]">{group.label}</span>
-                            <span className={'font-mono text-sm font-semibold ' + (group.totalPL >= 0 ? 'text-positive' : 'text-negative')}>{groupHasMixedCurrencies ? 'Mixed currencies' : formatMoney(group.totalPL, [...group.currencyCodes][0])}</span>
-                            <span className="text-text-tertiary text-xs">{group.trades.length} trades</span>
-                            <span className="text-text-tertiary text-xs">{winRate.toFixed(1)}% win rate</span>
-                            <span className="text-text-tertiary text-xs">PF {groupHasMixedCurrencies ? '—' : profitFactor === Infinity ? '∞' : profitFactor.toFixed(2)}</span>
-                          </button>
+                      <tr key={'group-' + group.key} className="border-b border-border/60">
+                        <td colSpan={visibleColCount} className="p-3">
+                          <div className="rounded-xl border border-border bg-bg-surface overflow-hidden">
+                            <button type="button" onClick={() => toggleGroup(group.key)} aria-expanded={isOpen} className="w-full flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-left hover:bg-bg-input/40 transition-colors">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <span className="text-text-secondary">{isOpen ? '⌄' : '›'}</span>
+                                <div>
+                                  <div className="font-semibold text-text-primary text-sm">{group.label}</div>
+                                  <div className="text-[11px] text-text-tertiary mt-0.5">{group.trades.length} closed trades · {group.wins} wins · {group.losses} losses</div>
+                                </div>
+                              </div>
+                              <div className={'font-mono text-lg font-bold whitespace-nowrap ' + (group.totalPL >= 0 ? 'text-positive' : 'text-negative')}>
+                                {groupHasMixedCurrencies ? 'Mixed currencies' : (group.totalPL > 0 ? '+' : '') + formatMoney(group.totalPL, currency)}
+                              </div>
+                            </button>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-4 px-4 pb-4 pt-1">
+                              <DailyMetric label="Total trades" value={group.trades.length} />
+                              <DailyMetric label="Win rate" value={winRate.toFixed(1) + '%'} />
+                              <DailyMetric label="Winners / losers" value={group.wins + ' / ' + group.losses} />
+                              <DailyMetric label="Profit factor" value={groupHasMixedCurrencies ? '—' : profitFactor === Infinity ? '∞' : profitFactor.toFixed(2)} />
+                              <DailyMetric label="Gross P&L" value={group.grossPLComplete && !groupHasMixedCurrencies ? formatMoney(group.grossPL, currency) : '—'} />
+                              <DailyMetric label="Commissions" value={!groupHasMixedCurrencies ? formatMoney(group.commissions, currency) : '—'} />
+                              <DailyMetric label="Volume" value={group.volume.toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' contracts'} />
+                              <DailyMetric label="Breakeven" value={group.trades.filter(trade => getTradePL(trade) === 0).length} />
+                            </div>
+                            <div className="border-t border-border px-4 py-3">
+                              <div className="text-[10px] uppercase tracking-wider text-text-tertiary mb-3">Daily performance</div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                                {dailyBreakdown.map(([day, value]) => (
+                                  <div key={day} className="min-w-0">
+                                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                                      <span className="text-xs text-text-secondary">{formatGroupDate(day, { weekday: 'short' })}</span>
+                                      <span className={'font-mono text-xs font-semibold ' + (value >= 0 ? 'text-positive' : 'text-negative')}>{groupHasMixedCurrencies ? '—' : formatMoney(value, currency)}</span>
+                                    </div>
+                                    <div className="h-1.5 rounded-full bg-bg-input overflow-hidden">
+                                      <div className={'h-full rounded-full ' + (value >= 0 ? 'bg-positive' : 'bg-negative')} style={{ width: Math.max(3, Math.abs(value) / maxDailyAbs * 100) + '%' }} />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
                         </td>
                       </tr>
                     );
