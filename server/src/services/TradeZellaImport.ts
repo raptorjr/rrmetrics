@@ -153,7 +153,54 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
       available.delete(matched.trade.id);
       matched.group.forEach((row) => processed.add(row.sourceRow));
       results.push({ status: 'matched', sourceRows: matched.group.map((row) => row.sourceRow), existingTradeIds: [matched.trade.id], reason: 'Aggregated position match' });
-    } else if (candidates.length) {
+      continue;
+    }
+
+    // The reverse shape also occurs: TradeZella may export one consolidated
+    // position while RR contains several partial-exit trades for that entry.
+    const existingGroupCandidates = existing.filter((trade) => available.has(trade.id)
+      && trade.ticker.toUpperCase() === source.ticker
+      && Math.sign(trade.quantity) === Math.sign(source.quantity)
+      && near(epoch(trade.enter_time), epoch(source.enterTime), 2)
+      && epoch(trade.exit_time) >= epoch(source.enterTime) - 2
+      && epoch(trade.exit_time) <= epoch(source.exitTime) + 2);
+    let existingGroupMatch: ExistingTrade[] | undefined;
+    const groupLimit = Math.min(existingGroupCandidates.length, 6);
+    const existingSubsets: ExistingTrade[][] = [];
+    const visitExisting = (start: number, selected: ExistingTrade[]) => {
+      if (selected.length >= 2) existingSubsets.push(selected);
+      if (selected.length === groupLimit) return;
+      for (let i = start; i < existingGroupCandidates.length; i += 1) {
+        visitExisting(i + 1, [...selected, existingGroupCandidates[i]]);
+      }
+    };
+    if (groupLimit >= 2) visitExisting(0, []);
+    existingGroupMatch = existingSubsets.find((subset) => {
+      const qty = subset.reduce((sum, trade) => sum + Math.abs(trade.quantity), 0);
+      const entry = subset.reduce((sum, trade) => sum + trade.enter_price * Math.abs(trade.quantity), 0) / qty;
+      const exit = subset.reduce((sum, trade) => sum + trade.exit_price * Math.abs(trade.quantity), 0) / qty;
+      const netValues = subset.map((trade) => trade.manual_pl);
+      const net = netValues.every((value) => value != null)
+        ? netValues.reduce((sum, value) => sum + (value || 0), 0)
+        : null;
+      const finalExit = Math.max(...subset.map((trade) => epoch(trade.exit_time)));
+      return near(qty, Math.abs(source.quantity), 0.0001)
+        && near(entry, source.enterPrice, 0.01)
+        && near(exit, source.exitPrice, 0.01)
+        && near(finalExit, epoch(source.exitTime), 2)
+        && (source.manualPL == null || net == null || near(net, source.manualPL, 0.03));
+    });
+
+    if (existingGroupMatch) {
+      existingGroupMatch.forEach((trade) => available.delete(trade.id));
+      processed.add(source.sourceRow);
+      results.push({
+        status: 'matched',
+        sourceRows: [source.sourceRow],
+        existingTradeIds: existingGroupMatch.map((trade) => trade.id),
+        reason: 'Consolidated trade matches multiple partial-exit positions',
+      });
+    } else if (candidates.length || existingGroupCandidates.length) {
       processed.add(source.sourceRow);
       results.push({ status: 'review', sourceRows: [source.sourceRow], existingTradeIds: candidates.map((trade) => trade.id), reason: 'Similar position found; details do not agree closely enough for automatic matching' });
     } else {
