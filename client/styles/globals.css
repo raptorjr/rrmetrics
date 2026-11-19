@@ -112,7 +112,7 @@
 
 @layer components {
   .font-data {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'Roboto Mono', monospace;
   }
 
   /* Bento grid */
