@@ -1055,7 +1055,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                 {expandedBroker === 'tradezella' && (
                   <div className="mt-3 bg-bg-surface border border-border rounded-xl overflow-hidden">
                     <div className="flex items-center gap-3 p-5">
-                      <img src="/assets/img/tradezella.svg" alt="TradeZella" className="w-10 h-10 rounded-lg object-contain" />
+                      <img src="https://cdn.brandfetch.io/iduLtkFARE/w/400/h/400/theme/dark/icon.jpeg?c=1bxid64Mup7aczewSAYMX&t=1775393450208" alt="TradeZella" className="w-10 h-10 rounded-lg object-contain" />
                       <div>
                         <h3 className="text-text-primary font-semibold text-sm">TradeZella</h3>
                         <p className="text-text-tertiary text-xs">Trading journal CSV import</p>
