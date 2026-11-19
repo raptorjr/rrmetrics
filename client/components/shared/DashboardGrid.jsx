@@ -231,7 +231,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                 setDraggedId(null);
               } : undefined}
               onDragEnd={editing ? () => setDraggedId(null) : undefined}
-              className={`relative min-w-0 h-full ${editing ? `rounded-xl outline outline-1 outline-dashed outline-accent cursor-grab ${draggedId === item.id ? 'opacity-50' : ''}` : ''}`}
+              className={`relative min-w-0 h-full [&>*]:h-full ${editing ? `rounded-xl outline outline-1 outline-dashed outline-accent cursor-grab ${draggedId === item.id ? 'opacity-50' : ''}` : ''}`}
               style={{
                 gridColumn: `span ${getColumnSpan(size)} / span ${getColumnSpan(size)}`,
                 gridRow: `span ${size.h} / span ${size.h}`,
