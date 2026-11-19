@@ -343,9 +343,9 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
 
   const viewModes = [
     { id: 'daily', label: 'Daily', icon: Icons.Calendar },
-    { id: 'heatmap', label: 'Heatmap', icon: Icons.Grid },
     { id: 'monthly', label: 'Monthly', icon: Icons.Layers },
     { id: 'yearly', label: 'Yearly', icon: Icons.Layers },
+    { id: 'heatmap', label: 'Heatmap', icon: Icons.Grid },
   ];
 
   // Compute month P&L for the header badge (daily view only)
@@ -617,8 +617,8 @@ const DailyCalendar = ({ year, month, dailyData, onSelectDay, onOpenNote, dailyN
                   {hasActivity && (
                     <>
                       <div className={`font-mono text-sm font-semibold mt-1 ${pl >= 0 ? 'text-positive' : 'text-negative'}`}>${pl.toFixed(0)}</div>
-                      <div className="text-text-primary text-[10px] mt-0.5">{data.tradeCount} trade{data.tradeCount !== 1 ? 's' : ''}</div>
-                      {dayWinRate !== null && <div className="font-sans text-text-primary text-[11px] font-semibold mt-0.5">{dayWinRate}% WR</div>}
+                      <div className="font-mono text-text-primary text-[10px] mt-0.5">{data.tradeCount} trade{data.tradeCount !== 1 ? 's' : ''}</div>
+                      {dayWinRate !== null && <div className="font-mono text-text-primary text-[10px] font-normal mt-0.5">{dayWinRate}% WR</div>}
                     </>
                   )}
                 </div>
