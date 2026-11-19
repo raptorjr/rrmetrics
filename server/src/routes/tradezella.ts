@@ -123,6 +123,47 @@ tradezella.post('/api/tradezella/accounts', requiresLogin, async (c) => {
   return c.json({ saved: accounts.length });
 });
 
+
+tradezella.delete('/api/tradezella/accounts/:sourceAccountName', requiresLogin, async (c) => {
+  const user = c.get('user');
+  const db = c.get('db');
+  const sourceAccountName = decodeURIComponent(c.req.param('sourceAccountName') || '').trim();
+  if (!sourceAccountName) return c.json({ error: 'Source account name is required.' }, 400);
+
+  try {
+    let removedTrades = 0;
+    let removedLinks = 0;
+    const run = db.transaction(() => {
+      // Only delete trades created by this importer. Matches that point to
+      // existing Topstep/manual trades are unlinked, never deleted.
+      const owned = db.prepare(
+        `SELECT DISTINCT t.id FROM trades t
+         INNER JOIN tradezella_imported_trades m ON m.trade_id = t.id
+         WHERE m.user_id = ? AND m.source_account_name = ?
+           AND t.user_id = ? AND t.tradovate_source = 'tradezella'`,
+      ).all(user.id, sourceAccountName, user.id) as Array<{ id: string }>;
+      for (const trade of owned) {
+        db.prepare("DELETE FROM trades WHERE id = ? AND user_id = ? AND tradovate_source = 'tradezella'")
+          .run(trade.id, user.id);
+        removedTrades += 1;
+      }
+      const links = db.prepare(
+        'SELECT COUNT(*) AS count FROM tradezella_imported_trades WHERE user_id = ? AND source_account_name = ?',
+      ).get(user.id, sourceAccountName) as { count: number };
+      removedLinks = Number(links?.count || 0);
+      db.prepare('DELETE FROM tradezella_imported_trades WHERE user_id = ? AND source_account_name = ?')
+        .run(user.id, sourceAccountName);
+      db.prepare('DELETE FROM tradezella_accounts WHERE user_id = ? AND source_account_name = ?')
+        .run(user.id, sourceAccountName);
+    });
+    run();
+    return c.json({ deleted: true, sourceAccountName, removedTrades, removedLinks });
+  } catch (error: any) {
+    console.error('TradeZella account deletion error:', error);
+    return c.json({ error: error?.message || 'Could not remove this TradeZella account.' }, 500);
+  }
+});
+
 tradezella.post('/api/tradezella/preview', requiresLogin, async (c) => {
   const user = c.get('user');
   const db = c.get('db');
@@ -233,7 +274,7 @@ tradezella.post('/api/tradezella/import', requiresLogin, async (c) => {
       `INSERT INTO trades (id, user_id, ticker, enter_time, exit_time, enter_price, exit_price,
         quantity, manual_pl, gross_pl, fees, commissions, currency_code, is_eval, account,
         tradovate_source, created_date)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'tradezella', ?)`,
     );
     const insertMapping = db.prepare(
       `INSERT OR IGNORE INTO tradezella_imported_trades
