@@ -221,9 +221,10 @@ tradezella.post('/api/tradezella/import', requiresLogin, async (c) => {
     if (new Set(selectedTargets).size !== selectedTargets.length) return c.json({ error: 'Two selected TradeZella accounts cannot be matched against the same RR account.' }, 400);
     const matches = selectedAccounts.flatMap(accountName => {
       const account = settingsBySource.get(accountName)!;
-      if (!account.matchAccount) return [];
       const accountRows = unrecorded.filter(row => row.sourceAccount === accountName);
-      return matchTradeZellaRows(accountRows, candidates.filter(trade => trade.account === account.matchAccount));
+      return matchTradeZellaRows(accountRows, account.matchAccount
+        ? candidates.filter(trade => trade.account === account.matchAccount)
+        : []);
     });
     const rowByNumber = new Map(unrecorded.map(row => [row.sourceRow, row]));
     const upsertAccount = db.prepare(
