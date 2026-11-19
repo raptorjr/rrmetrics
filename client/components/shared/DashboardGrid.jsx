@@ -328,7 +328,8 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     const max = dimension === 'w' ? (columns === 2 ? 2 : MAX_COLUMNS) : MAX_ROWS;
     setLayout(current => {
       const size = current.sizes[item.id] || getDefaultSize(item);
-      const nextValue = clamp(size[dimension] + delta, min, max);
+      const currentValue = clamp(size[dimension], min, max);
+      const nextValue = clamp(currentValue + delta, min, max);
       if (nextValue === size[dimension]) return current;
       return {
         ...current,
