@@ -85,6 +85,26 @@ export function findFullyFilledVoidedOrderOverrides(
   return overrides;
 }
 
+/**
+ * Refresh corroborated voided-order overrides only for accounts whose Orders
+ * history was successfully queried. Accounts not included in a sync (for
+ * example, deselected historical accounts) retain their previous evidence.
+ */
+export function mergeVoidedOrderOverrides(
+  previous: string[],
+  fresh: Set<string>,
+  refreshedAccountIds: Set<number>,
+): Set<string> {
+  const result = new Set(previous);
+  for (const key of result) {
+    const separator = key.indexOf(':');
+    const accountId = Number(key.slice(0, separator));
+    if (separator > 0 && refreshedAccountIds.has(accountId)) result.delete(key);
+  }
+  for (const key of fresh) result.add(key);
+  return result;
+}
+
 export interface ReconstructionResult {
   positions: ReconstructedPosition[];
   openPositions: Array<{
