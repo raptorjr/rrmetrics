@@ -177,6 +177,10 @@ const runMonteCarloSimulation = (trades, config = {}) => {
           if (!path) break;
         }
       }
+
+      // Sample paths must stop when the evaluation passes or breaches drawdown,
+      // just like simulations that are not being collected for the chart.
+      if (resolved && path) break;
     }
 
     if (path) paths.push({ points: path, passed });
