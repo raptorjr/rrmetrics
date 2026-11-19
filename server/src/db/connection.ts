@@ -45,6 +45,9 @@ export function getDb(): Db {
   if (!projectxColumns.has('auto_sync_last_error')) db.exec('ALTER TABLE projectx_connections ADD COLUMN auto_sync_last_error TEXT');
   if (!projectxColumns.has('auto_sync_last_result')) db.exec('ALTER TABLE projectx_connections ADD COLUMN auto_sync_last_result TEXT');
 
+  const tradezellaAccountColumns = new Set((db.prepare('PRAGMA table_info(tradezella_accounts)').all() as Array<{ name: string }>).map(column => column.name));
+  if (!tradezellaAccountColumns.has('match_account')) db.exec('ALTER TABLE tradezella_accounts ADD COLUMN match_account TEXT');
+
   instance = db;
   return db;
 }
