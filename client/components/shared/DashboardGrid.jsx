@@ -379,7 +379,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
         style={{
           gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
           gridAutoRows: `minmax(${ROW_UNIT - GRID_GAP}px, auto)`,
-          gridAutoFlow: 'row dense',
+          gridAutoFlow: 'row',
         }}
       >
         {visibleItems.map((item, itemIndex) => {
