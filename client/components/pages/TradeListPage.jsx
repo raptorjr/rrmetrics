@@ -978,7 +978,7 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, tags, strate
                     <React.Fragment key={trade._id}>
                       <tr
                         className={`border-b transition-colors cursor-pointer ${selectedTradeIds.has(trade._id)
-                          ? 'bg-accent/10 border-y border-accent/70 shadow-[inset_0_0_0_1px_rgb(var(--accent)/0.45)]'
+                          ? 'bg-accent/10 border-y border-x-2 border-accent shadow-[inset_0_0_0_1px_rgb(var(--accent)/0.45)]'
                           : 'border-border/50 hover:bg-bg-input/50'}`}
                         onClick={() => onEdit(trade)}
                       >
