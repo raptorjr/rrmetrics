@@ -212,6 +212,20 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     }
   };
 
+  const adjustSize = (item, dimension, delta) => {
+    const min = dimension === 'w' ? Number(item.minColumns) || 1 : Number(item.minRows) || 1;
+    const max = dimension === 'w' ? (columns === 2 ? 2 : MAX_COLUMNS) : 8;
+    setLayout(current => {
+      const size = current.sizes[item.id] || getDefaultSize(item);
+      const nextValue = clamp(size[dimension] + delta, min, max);
+      if (nextValue === size[dimension]) return current;
+      return {
+        ...current,
+        sizes: { ...current.sizes, [item.id]: { ...size, [dimension]: nextValue } },
+      };
+    });
+  };
+
   const getColumnSpan = (size) => {
     if (columns === 12) return size.w * 3;
     if (columns === 6) return Math.min(6, Math.max(2, Math.round(size.w * 1.5)));
@@ -235,7 +249,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-semibold text-text-primary">Dashboard tile catalogue</h3>
-              <p className="text-xs text-text-tertiary mt-1">Add or remove tiles, drag them to reorder, and resize them directly on the grid. A highlighted edge shows where a tile will be placed. Use the arrow controls for precise reordering on touch devices.</p>
+              <p className="text-xs text-text-tertiary mt-1">Add or remove tiles, drag them to reorder, and resize them directly on the grid. Use the arrow and size controls for precise keyboard- and touch-friendly adjustments.</p>
             </div>
             <button type="button" onClick={reset} className="text-xs text-text-secondary hover:text-text-primary underline">Reset layout</button>
           </div>
@@ -350,13 +364,17 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
           gridAutoFlow: 'row dense',
         }}
       >
-        {visibleItems.map(item => {
+        {visibleItems.map((item, itemIndex) => {
           const size = layout.sizes[item.id] || getDefaultSize(item);
           return (
             <div
               key={item.id}
               draggable={editing}
               onDragStart={editing ? event => {
+                if (event.target.closest && event.target.closest('button')) {
+                  event.preventDefault();
+                  return;
+                }
                 setDraggedId(item.id);
                 setDropTarget(null);
                 event.dataTransfer.effectAllowed = 'move';
@@ -427,14 +445,20 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                     className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30"
                   >↓</button>
                   <span className="select-none pointer-events-none">{size.w}×{size.h}</span>
+                  <span className="flex items-center gap-0.5 border-l border-border pl-1">
+                    <button type="button" onClick={() => adjustSize(item, 'w', -1)} disabled={size.w <= (Number(item.minColumns) || 1)} aria-label={`Make ${item.label} narrower`} title="Narrower" className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30">−</button>
+                    <button type="button" onClick={() => adjustSize(item, 'w', 1)} disabled={size.w >= (columns === 2 ? 2 : MAX_COLUMNS)} aria-label={`Make ${item.label} wider`} title="Wider" className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30">＋</button>
+                    <button type="button" onClick={() => adjustSize(item, 'h', -1)} disabled={size.h <= (Number(item.minRows) || 1)} aria-label={`Make ${item.label} shorter`} title="Shorter" className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30">−</button>
+                    <button type="button" onClick={() => adjustSize(item, 'h', 1)} disabled={size.h >= 8} aria-label={`Make ${item.label} taller`} title="Taller" className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30">＋</button>
+                  </span>
                 </div>
               )}
               {item.render()}
               {editing && (
                 <div
                   role="separator"
-                  aria-label={`Resize ${item.label}`}
-                  title="Drag to resize"
+                  aria-label={`Resize ${item.label}. Use the size controls above for keyboard-accessible resizing.`}
+                  title="Drag to resize; use the size controls above for precise keyboard-accessible adjustments"
                   onPointerDown={event => startResize(event, item)}
                   onPointerMove={moveResize}
                   onPointerUp={stopResize}
