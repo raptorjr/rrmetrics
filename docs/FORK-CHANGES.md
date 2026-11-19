@@ -9,6 +9,14 @@ git clone --branch development https://github.com/raptorjr/rrmetrics.git
 cd rrmetrics
 ```
 
+## 2026-11-19
+
+### Topstep historical account integrity
+
+- Retained raw executions and saved account settings for accounts that are deselected or no longer appear in the current broker account list.
+- Scoped voided-order reconciliation refreshes to accounts whose Orders history was successfully queried, preserving previously corroborated overrides for deselected accounts and accounts with failed Orders queries.
+- Added tests for retaining, refreshing, and clearing per-account override evidence.
+
 ## 2026-11-18
 
 ### Topstep execution reconstruction
