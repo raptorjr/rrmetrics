@@ -18,6 +18,13 @@ trade.get('/api/getTrades', requiresLogin, async (c) => {
   const db = c.get('db');
   try {
     const trades = await tradesDb.getTrades(db, user.id);
+    const tradeProviders = db.prepare(`SELECT t.id, bc.broker
+      FROM trades t LEFT JOIN broker_connections bc ON bc.id = t.broker_connection_id
+      WHERE t.user_id = ?`).all(user.id) as Array<{ id: string; broker: string | null }>;
+    const providerByTradeId = new Map(tradeProviders.map(row => [row.id, row.broker]));
+    for (const item of trades as any[]) {
+      item.provider = item.tradovateSource === 'tradezella' ? 'tradezella' : (providerByTradeId.get(item._id) || null);
+    }
 
     // Build account → broker mapping from broker_connections
     const accountBrokers: Record<string, string> = {};
