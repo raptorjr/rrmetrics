@@ -57,6 +57,35 @@ CREATE INDEX IF NOT EXISTS idx_trades_tradovate_order_id ON trades(tradovate_ord
 CREATE INDEX IF NOT EXISTS idx_trades_projectx_trade_id ON trades(projectx_trade_id)
   WHERE projectx_trade_id IS NOT NULL;
 
+-- ─── TradeZella imported account configuration and source mapping ────────────
+CREATE TABLE IF NOT EXISTS tradezella_accounts (
+  id                  TEXT PRIMARY KEY,
+  user_id             TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  source_account_name TEXT NOT NULL,
+  display_name        TEXT NOT NULL,
+  currency_code       TEXT NOT NULL DEFAULT 'USD',
+  is_eval             INTEGER NOT NULL DEFAULT 0,
+  created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  UNIQUE(user_id, source_account_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tradezella_accounts_user_id
+  ON tradezella_accounts(user_id);
+
+CREATE TABLE IF NOT EXISTS tradezella_imported_trades (
+  id                  TEXT PRIMARY KEY,
+  user_id             TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  source_account_name TEXT NOT NULL,
+  source_fingerprint  TEXT NOT NULL,
+  source_row          INTEGER,
+  trade_id            TEXT NOT NULL REFERENCES trades(id) ON DELETE CASCADE,
+  imported_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  UNIQUE(user_id, source_account_name, source_fingerprint)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tradezella_imported_trades_user_id
+  ON tradezella_imported_trades(user_id);
+
 -- ─── tags ────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS tags (
   id      TEXT PRIMARY KEY,                               -- uuid
