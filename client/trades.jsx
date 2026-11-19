@@ -29,6 +29,7 @@ const PreMarketPage = require('./components/pages/PreMarketPage');
 const StrategyPage = require('./components/pages/StrategyPage');
 const BacktestingPage = require('./components/pages/BacktestingPage');
 const TradeSyncerPage = require('./components/pages/TradeSyncerPage');
+const TradeZellaImportPage = require('./components/pages/TradeZellaImportPage');
 const DotGrid = require('./components/shared/DotGrid');
 const OnboardingFlow = require('./components/OnboardingFlow');
 const { useThemeFavicon } = require('./components/shared/LogoIcon');
@@ -498,6 +499,8 @@ const App = () => {
         return <SettingsPage onSyncComplete={triggerReload} onNavigate={setCurrentPage} theme={theme} onThemeChange={handleThemeChange} customColors={customColors} tags={tags} triggerReload={triggerReload} />;
       case 'syncer':
         return <TradeSyncerPage />;
+      case 'tradezella':
+        return <TradeZellaImportPage triggerReload={triggerReload} />;
       default:
         return <DashboardPage trades={filteredTrades} onOpenForm={openForm} onOpenImport={() => setCsvImportOpen(true)} onManualSync={handleManualSync} brokerStatuses={brokerStatuses} onOpenAddTrade={openFormWithDate} onEditTrade={openEditForm} dailyNotes={dailyNotes} onSaveNote={handleSaveNote} onDeleteNote={handleDeleteNote} tags={tags} strategyRules={strategyRules} evalFilter={evalFilter} setEvalFilter={setEvalFilter} sidebarCollapsed={sidebarCollapsed} />;
     }
