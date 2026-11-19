@@ -370,6 +370,13 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
             </div>
           </div>
           <p className="text-[10px] text-text-tertiary">Saved layouts are stored in this browser. Saving an existing name replaces that template.</p>
+          {selectedTemplate && (
+            <p className="text-xs text-text-secondary" role="status" aria-live="polite">
+              {selectedTemplateHasChanges
+                ? <><span className="font-semibold text-amber-600">Unsaved changes</span> — the dashboard differs from “{selectedTemplate}”. Select Update to save the current arrangement to this template.</>
+                : <>The current dashboard matches “{selectedTemplate}”.</>}
+            </p>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {orderedItems.map(item => {
               const added = !layout.hidden.includes(item.id);
