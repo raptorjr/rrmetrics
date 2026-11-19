@@ -243,7 +243,69 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
         && (source.manualPL == null || net == null || near(net, source.manualPL, 0.03));
     });
 
-    if (existingGroupMatch) {
+    // TradeZella can merge a sequence of RR position episodes into one
+    // journal row (including a reversal). Match only when the first entry,
+    // final exit, signed net size, and every financial total reconcile.
+    const episodeCandidates = existing.filter((trade) => available.has(trade.id)
+      && trade.ticker.toUpperCase() === source.ticker
+      && epoch(trade.enter_time) >= epoch(source.enterTime) - 2
+      && epoch(trade.enter_time) <= epoch(source.exitTime) + 2
+      && epoch(trade.exit_time) >= epoch(source.enterTime) - 2
+      && epoch(trade.exit_time) <= epoch(source.exitTime) + 2);
+    const episodeSubsets: ExistingTrade[][] = [];
+    const episodeLimit = Math.min(episodeCandidates.length, 6);
+    const visitEpisodes = (start: number, selected: ExistingTrade[]) => {
+      if (selected.length >= 2) episodeSubsets.push(selected);
+      if (selected.length === episodeLimit) return;
+      for (let i = start; i < episodeCandidates.length; i += 1) {
+        visitEpisodes(i + 1, [...selected, episodeCandidates[i]]);
+      }
+    };
+    if (episodeCandidates.length <= 12 && episodeLimit >= 2) visitEpisodes(0, []);
+    const validEpisodes = episodeSubsets.filter((subset) => {
+      const firstEntry = Math.min(...subset.map((trade) => epoch(trade.enter_time)));
+      const lastExit = Math.max(...subset.map((trade) => epoch(trade.exit_time)));
+      const firstTrade = subset.find((trade) => near(epoch(trade.enter_time), firstEntry, 0.001));
+      const lastTrade = subset.find((trade) => near(epoch(trade.exit_time), lastExit, 0.001));
+      const signedNetQuantity = subset.reduce((sum, trade) => sum + trade.quantity, 0);
+      const net = subset.every((trade) => trade.manual_pl != null)
+        ? subset.reduce((sum, trade) => sum + (trade.manual_pl || 0), 0) : null;
+      const gross = subset.every((trade) => trade.gross_pl != null)
+        ? subset.reduce((sum, trade) => sum + (trade.gross_pl || 0), 0) : null;
+      const fees = subset.reduce((sum, trade) => sum + (trade.fees || 0), 0);
+      const commissions = subset.reduce((sum, trade) => sum + (trade.commissions || 0), 0);
+      return !!firstTrade && !!lastTrade
+        && near(firstEntry, epoch(source.enterTime), 2)
+        && near(lastExit, epoch(source.exitTime), 2)
+        && Math.sign(firstTrade.quantity) === Math.sign(source.quantity)
+        && near(Math.abs(signedNetQuantity), Math.abs(source.quantity), 0.0001)
+        && near(firstTrade.enter_price, source.enterPrice, 0.01)
+        && near(lastTrade.exit_price, source.exitPrice, 0.01)
+        && source.manualPL != null && net != null && near(net, source.manualPL, 0.03)
+        && source.grossPL != null && gross != null && near(gross, source.grossPL, 0.03)
+        && near(fees, source.fees, 0.03)
+        && near(commissions, source.commissions, 0.03);
+    });
+    const episodeMatch = validEpisodes.length === 1 ? validEpisodes[0] : undefined;
+
+    if (episodeMatch) {
+      episodeMatch.forEach((trade) => available.delete(trade.id));
+      processed.add(source.sourceRow);
+      results.push({
+        status: 'matched',
+        sourceRows: [source.sourceRow],
+        existingTradeIds: episodeMatch.map((trade) => trade.id),
+        reason: 'Merged trading episode matches first entry, final exit, net size and all financial totals',
+      });
+    } else if (validEpisodes.length > 1) {
+      processed.add(source.sourceRow);
+      results.push({
+        status: 'review',
+        sourceRows: [source.sourceRow],
+        existingTradeIds: validEpisodes.flatMap((subset) => subset.map((trade) => trade.id)),
+        reason: 'Multiple merged trading episodes have matching totals; automatic linking would be ambiguous',
+      });
+    } else if (existingGroupMatch) {
       existingGroupMatch.forEach((trade) => available.delete(trade.id));
       processed.add(source.sourceRow);
       results.push({
