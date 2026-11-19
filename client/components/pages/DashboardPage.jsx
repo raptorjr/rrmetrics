@@ -67,15 +67,13 @@ const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpe
   const handleMonteCarloSettingsChange = (key, value) => {
     const numericValue = Number(value);
     if (!Number.isFinite(numericValue) || numericValue <= 0) return;
-    setMonteCarloSettings(current => {
-      const next = { ...current, [key]: numericValue };
-      try {
-        localStorage.setItem(MONTE_CARLO_STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // Keep the setting usable for this session when browser storage is unavailable.
-      }
-      return next;
-    });
+    const next = { ...monteCarloSettings, [key]: numericValue };
+    setMonteCarloSettings(next);
+    try {
+      localStorage.setItem(MONTE_CARLO_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // Keep the setting usable for this session when browser storage is unavailable.
+    }
   };
   const hasBrokers = brokerStatuses && brokerStatuses.length > 0;
 
