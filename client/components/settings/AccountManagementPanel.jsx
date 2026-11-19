@@ -78,7 +78,7 @@ const AccountManagementPanel = ({ triggerReload }) => {
       config.key.toLowerCase().replace(/[ _-]+/g, '') === normalized
       || config.label.toLowerCase().replace(/[ _-]+/g, '') === normalized
     );
-    return configured?.label || String(provider || 'Other').split(/[_\\s-]+/).map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+    return configured?.label || String(provider || 'Other').split(/[_\s-]+/).map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
   };
   const providerIcon = provider => {
     const label = providerLabel(provider);
