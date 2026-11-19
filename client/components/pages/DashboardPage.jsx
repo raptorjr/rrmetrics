@@ -7,7 +7,7 @@ const AvgWinLossCard = require('../shared/AvgWinLossCard');
 const StatCard = require('../shared/StatCard');
 const PeriodFilter = require('../shared/PeriodFilter');
 const EvalFilterControl = require('../shared/EvalFilterControl');
-const CustomizableStats = require('../shared/CustomizableStats');
+const DashboardGrid = require('../shared/DashboardGrid');
 const { createPerformanceTiles } = require('../shared/performanceTileCatalog');
 const { createAnalyticsTiles } = require('../shared/analyticsTileCatalog');
 const { createAnalyticsChartTiles } = require('../shared/analyticsChartTileCatalog');
@@ -125,7 +125,7 @@ const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpe
         <EvalFilterControl trades={trades} evalFilter={evalFilter} setEvalFilter={setEvalFilter} />
       </div>
 
-      <CustomizableStats
+      <DashboardGrid
         storageKey="rrmetrics_dashboard_tiles"
         defaultOrder={['totalPL', 'winRate', 'totalTrades', 'avgDuration', 'avgWinLoss', 'bestTrade', 'worstTrade', 'breakevenRate', 'profitFactor', 'expectancy', 'maxDrawdown', 'sharpeRatio', 'sortinoRatio', 'kellyRisk', 'tradingCalendar', 'longShortBreakdown', 'detailedStatistics', 'tickerPerformance', 'equityCurve', 'performanceByDay']}
         defaultVisible={['totalPL', 'winRate', 'totalTrades', 'avgDuration', 'avgWinLoss', 'bestTrade', 'worstTrade', 'breakevenRate', 'tradingCalendar']}
