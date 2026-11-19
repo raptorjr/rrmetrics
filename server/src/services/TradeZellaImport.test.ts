@@ -51,6 +51,51 @@ test('holds identical existing-trade candidates for manual review instead of lin
   assert.deepEqual(new Set(matches[0].existingTradeIds), new Set(['rr-duplicate-1', 'rr-duplicate-2']));
 });
 
+test('reviews multiple RR candidates for the same aggregated CSV rows', () => {
+  const source = parseTradeZellaRows([
+    { 'Account Name': '150k XFA', Instrument: 'MES', Side: 'long', Quantity: '1', 'Open Date': '2026-04-07', 'Open Time': '14:48:48 CEST', 'Close Date': '2026-04-07', 'Close Time': '16:00:17 CEST', 'Entry Price': '6616.75', 'Exit Price': '6601.25', 'Net P&L': '-78.24' },
+    { 'Account Name': '150k XFA', Instrument: 'MES', Side: 'long', Quantity: '1', 'Open Date': '2026-04-07', 'Open Time': '16:00:12 CEST', 'Close Date': '2026-04-07', 'Close Time': '16:00:17 CEST', 'Entry Price': '6602.75', 'Exit Price': '6601.25', 'Net P&L': '-8.24' },
+  ]);
+  const duplicate = {
+    ticker: 'MES', enter_time: '2026-04-07T12:48:48.000Z',
+    exit_time: '2026-04-07T14:00:17.000Z', enter_price: 6609.75,
+    exit_price: 6601.25, quantity: 2, manual_pl: -86.48,
+  };
+  const matches = matchTradeZellaRows(source, [
+    { ...duplicate, id: 'rr-aggregate-1' },
+    { ...duplicate, id: 'rr-aggregate-2' },
+  ]);
+
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].status, 'review');
+  assert.deepEqual(matches[0].sourceRows, [2, 3]);
+  assert.deepEqual(new Set(matches[0].existingTradeIds), new Set(['rr-aggregate-1', 'rr-aggregate-2']));
+});
+
+test('reviews multiple RR partial-position groups for one consolidated CSV trade', () => {
+  const source = parseTradeZellaRows([{
+    'Account Name': 'Practice', Instrument: 'MGC', Side: 'long', Quantity: '2',
+    'Open Date': '2026-07-15', 'Open Time': '14:00:00 CEST',
+    'Close Date': '2026-07-15', 'Close Time': '14:05:00 CEST',
+    'Entry Price': '2400.00', 'Exit Price': '2401.00', 'Net P&L': '20.00',
+  }]);
+  const partial = (id: string) => ({
+    id, ticker: 'MGC', enter_time: '2026-07-15T12:00:00.000Z',
+    exit_time: '2026-07-15T12:05:00.000Z', enter_price: 2400,
+    exit_price: 2401, quantity: 1, manual_pl: 10,
+  });
+  const matches = matchTradeZellaRows(source, [
+    partial('rr-partial-a'), partial('rr-partial-b'),
+    partial('rr-partial-c'), partial('rr-partial-d'),
+  ]);
+
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].status, 'review');
+  assert.deepEqual(new Set(matches[0].existingTradeIds), new Set([
+    'rr-partial-a', 'rr-partial-b', 'rr-partial-c', 'rr-partial-d',
+  ]));
+});
+
 test('matches two one-contract CSV rows to one two-contract RR position', () => {
   const source = parseTradeZellaRows([
     { 'Account Name': '150k XFA', Instrument: 'MES', Side: 'long', Quantity: '1', 'Open Date': '2026-04-07', 'Open Time': '14:48:48 CEST', 'Close Date': '2026-04-07', 'Close Time': '16:00:17 CEST', 'Entry Price': '6616.75', 'Exit Price': '6601.25', 'Net P&L': '-78.24' },
