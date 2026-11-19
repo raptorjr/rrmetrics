@@ -2,6 +2,7 @@ const React = require('react');
 const { useEffect, useState } = React;
 const { authFetch } = require('../../helper.js');
 const { BROKER_CONFIGS } = require('../../hooks/useBrokerConnection');
+const { getTradePL } = require('../../utils/analytics');
 
 const AccountManagementPanel = ({ triggerReload }) => {
   const [accounts, setAccounts] = useState([]);
@@ -47,6 +48,40 @@ const AccountManagementPanel = ({ triggerReload }) => {
     if (failures.length) setError(failures.join(' · '));
     setSelectedIds([]);
     await load(); triggerReload(); setBusy('');
+  };
+
+  const exportSelected = async () => {
+    const selected = accounts.filter(account => selectedIds.includes(account.id));
+    if (!selected.length) return;
+    setBusy('export'); setError(''); setNotice('');
+    try {
+      const response = await authFetch('/api/getTrades');
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.error || 'Could not load trades for export.');
+      const accountNames = new Set(selected.flatMap(account => [account.name, account.sourceName].filter(Boolean).map(String)));
+      const rows = (data.trades || []).filter(trade => accountNames.has(String(trade.account || 'Manual')));
+      if (!rows.length) throw new Error('No trades were found for the selected accounts.');
+      const headers = ['Account', 'Date', 'Ticker', 'Side', 'Quantity', 'Entry Price', 'Exit Price', 'Enter Time', 'Exit Time', 'Gross P/L', 'Fees', 'Commissions', 'Net P/L', 'Comments'];
+      const quote = value => '"' + String(value ?? '').replace(/"/g, '""') + '"';
+      const csvRows = rows.map(trade => [
+        trade.account, trade.exitTime, trade.ticker, Number(trade.quantity) >= 0 ? 'Long' : 'Short',
+        Math.abs(Number(trade.quantity) || 0), trade.enterPrice, trade.exitPrice,
+        trade.enterTime, trade.exitTime, trade.grossPL, trade.fees, trade.commissions,
+        getTradePL(trade), trade.comments,
+      ].map(quote).join(','));
+      const blob = new Blob([[headers.map(quote).join(','), ...csvRows].join('\\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `rr-metrics-${providerLabel(expandedProvider).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-accounts-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setNotice(`Exported ${rows.length} trades from ${selected.length} selected account(s).`);
+    } catch (err) {
+      setError(err.message || 'Could not export selected accounts.');
+    } finally {
+      setBusy('');
+    }
   };
 
   const rename = async (account) => {
@@ -105,9 +140,6 @@ const AccountManagementPanel = ({ triggerReload }) => {
       </p>
       {error && <div className="p-3 rounded-lg text-sm bg-negative/10 border border-negative/30 text-negative">{error}</div>}
       {notice && <div className="p-3 rounded-lg text-sm bg-positive/10 border border-positive/30 text-positive">{notice}</div>}
-      <div className="flex justify-end">
-        <button onClick={load} disabled={loading || !!busy} className="px-3 py-2 rounded-lg border border-border text-text-primary text-sm disabled:opacity-50">{loading ? 'Loading…' : 'Refresh accounts'}</button>
-      </div>
       {loading ? <div className="bg-bg-surface border border-border rounded-xl p-6 text-sm text-text-secondary">Loading accounts…</div>
         : accounts.length === 0 ? <div className="bg-bg-surface border border-border rounded-xl p-8 text-center">
           <div className="text-text-primary font-medium">No accounts found</div>
@@ -146,11 +178,12 @@ const AccountManagementPanel = ({ triggerReload }) => {
               <section className="bg-bg-surface border border-border rounded-xl p-5 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div><h3 className="text-text-primary font-semibold">{providerLabel(expandedProvider)} accounts</h3><span className="text-xs text-text-secondary">{visibleAccounts.length} visible {visibleAccounts.length === 1 ? 'account' : 'accounts'}</span></div>
-                  <label className="flex items-center gap-2 text-xs text-text-secondary"><input type="checkbox" checked={visibleAccounts.length > 0 && visibleAccounts.every(account => selectedIds.includes(account.id))} onChange={e => toggleVisibleSelection(e.target.checked)} className="w-4 h-4 rounded border-border text-accent focus:ring-accent" />Select all visible</label>
+                  <label className="flex items-center gap-2 text-xs text-text-secondary"><input type="checkbox" checked={visibleAccounts.length > 0 && visibleAccounts.every(account => selectedIds.includes(account.id))} onChange={e => toggleVisibleSelection(e.target.checked)} className="w-4 h-4 rounded border-border text-accent focus:ring-accent" />Select all</label>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2 bg-bg-page/50 border border-border rounded-lg p-3">
                   <span className="text-xs text-text-secondary">{selectedIds.length} selected in {providerLabel(expandedProvider)}</span>
                   <div className="flex gap-2">
+                    <button onClick={exportSelected} disabled={!selectedIds.length || !!busy} className="px-3 py-2 rounded-lg border border-border text-text-secondary text-xs font-medium disabled:opacity-40">Export selected</button>
                     <button onClick={() => bulkAct('clear')} disabled={!selectedIds.length || !!busy} className="px-3 py-2 rounded-lg border border-warning/40 text-warning text-xs font-medium disabled:opacity-40">Clear selected trades</button>
                     <button onClick={() => bulkAct('delete')} disabled={!selectedIds.length || !!busy} className="px-3 py-2 rounded-lg border border-negative/40 text-negative text-xs font-medium disabled:opacity-40">Delete selected accounts</button>
                   </div>
