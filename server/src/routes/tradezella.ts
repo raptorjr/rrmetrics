@@ -15,6 +15,7 @@ type AccountSetting = {
   displayName: string;
   currencyCode: string;
   isEval: boolean;
+  matchAccount: string | null;
 };
 
 const tradezella = new Hono<HonoEnv>();
@@ -32,12 +33,14 @@ function accountSettingsFromBody(value: unknown): AccountSetting[] | null {
     if (!item || typeof item.sourceAccountName !== 'string' || !item.sourceAccountName.trim()
       || typeof item.displayName !== 'string' || !item.displayName.trim()
       || typeof item.currencyCode !== 'string' || !currencies.has(item.currencyCode.toUpperCase())
-      || typeof item.isEval !== 'boolean') return null;
+      || typeof item.isEval !== 'boolean'
+      || (item.matchAccount != null && typeof item.matchAccount !== 'string')) return null;
     result.push({
       sourceAccountName: item.sourceAccountName.trim(),
       displayName: item.displayName.trim(),
       currencyCode: item.currencyCode.toUpperCase(),
       isEval: item.isEval,
+      matchAccount: typeof item.matchAccount === 'string' && item.matchAccount.trim() ? item.matchAccount.trim() : null,
     });
   }
   return result;
@@ -45,11 +48,11 @@ function accountSettingsFromBody(value: unknown): AccountSetting[] | null {
 
 function existingRows(db: any, userId: string) {
   return db.prepare(
-    `SELECT id, ticker, enter_time, exit_time, enter_price, exit_price, quantity, manual_pl
+    `SELECT id, ticker, enter_time, exit_time, enter_price, exit_price, quantity, manual_pl, account
      FROM trades WHERE user_id = ?`,
   ).all(userId) as Array<{
     id: string; ticker: string; enter_time: string; exit_time: string;
-    enter_price: number; exit_price: number; quantity: number; manual_pl: number | null;
+    enter_price: number; exit_price: number; quantity: number; manual_pl: number | null; account: string | null;
   }>;
 }
 
@@ -84,10 +87,11 @@ tradezella.get('/api/tradezella/accounts', requiresLogin, async (c) => {
   const db = c.get('db');
   const accounts = db.prepare(
     `SELECT source_account_name AS sourceAccountName, display_name AS displayName,
-            currency_code AS currencyCode, is_eval AS isEval
+            currency_code AS currencyCode, is_eval AS isEval, match_account AS matchAccount
      FROM tradezella_accounts WHERE user_id = ? ORDER BY source_account_name`,
   ).all(user.id);
-  return c.json({ accounts });
+  const rrAccounts = db.prepare('SELECT DISTINCT account FROM trades WHERE user_id = ? AND account IS NOT NULL AND account != \'\' ORDER BY account').all(user.id).map((row: any) => row.account);
+  return c.json({ accounts, rrAccounts });
 });
 
 tradezella.post('/api/tradezella/accounts', requiresLogin, async (c) => {
@@ -98,17 +102,18 @@ tradezella.post('/api/tradezella/accounts', requiresLogin, async (c) => {
   if (!accounts) return c.json({ error: 'Account names, display names, supported currencies and Eval settings are required.' }, 400);
 
   const upsert = db.prepare(
-    `INSERT INTO tradezella_accounts (id, user_id, source_account_name, display_name, currency_code, is_eval)
-     VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO tradezella_accounts (id, user_id, source_account_name, display_name, currency_code, is_eval, match_account)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id, source_account_name) DO UPDATE SET
        display_name = excluded.display_name,
        currency_code = excluded.currency_code,
-       is_eval = excluded.is_eval`,
+       is_eval = excluded.is_eval,
+       match_account = excluded.match_account`,
   );
   const save = db.transaction(() => {
     for (const account of accounts) upsert.run(
       generateId(), user.id, account.sourceAccountName, account.displayName,
-      account.currencyCode, account.isEval ? 1 : 0,
+      account.currencyCode, account.isEval ? 1 : 0, account.matchAccount,
     );
   });
   save();
@@ -127,12 +132,20 @@ tradezella.post('/api/tradezella/preview', requiresLogin, async (c) => {
     const existing = existingRows(db, user.id).filter(trade => !reserved.has(trade.id));
     const mappings = sourceMappings(db, user.id, parsedRows);
     const unrecorded = parsedRows.filter(row => !mappings.has(row.sourceAccount + '|' + row.sourceFingerprint));
-    const matches = matchTradeZellaRows(unrecorded, existing);
+    const matches = unrecorded.flatMap(() => [] as ReturnType<typeof matchTradeZellaRows>);
+    for (const accountName of new Set(unrecorded.map(row => row.sourceAccount))) {
+      const saved = savedAccounts.get(accountName);
+      const inferred = accountName === '150k XFA' ? '$150k Express' : accountName === '50k XFA' ? '$50k Express' : accountName === 'Practice' ? 'Practice' : null;
+      const matchAccount = saved?.match_account ?? inferred;
+      if (!matchAccount) continue;
+      const accountRows = unrecorded.filter(row => row.sourceAccount === accountName);
+      matches.push(...matchTradeZellaRows(accountRows, existing.filter(trade => trade.account === matchAccount)));
+    }
     const resultsByRow = new Map<number, typeof matches[number]>();
     for (const match of matches) for (const sourceRow of match.sourceRows) resultsByRow.set(sourceRow, match);
 
     const savedAccounts = new Map((db.prepare(
-      `SELECT source_account_name, display_name, currency_code, is_eval
+      `SELECT source_account_name, display_name, currency_code, is_eval, match_account
        FROM tradezella_accounts WHERE user_id = ?`,
     ).all(user.id) as any[]).map(row => [row.source_account_name, row]));
 
@@ -152,6 +165,7 @@ tradezella.post('/api/tradezella/preview', requiresLogin, async (c) => {
         displayName: saved?.display_name || account.accountName,
         currencyCode: saved?.currency_code || 'USD',
         isEval: saved ? !!saved.is_eval : /eval|combine/i.test(account.accountName),
+        matchAccount: saved?.match_account ?? (account.accountName === '150k XFA' ? '$150k Express' : account.accountName === '50k XFA' ? '$50k Express' : account.accountName === 'Practice' ? 'Practice' : ''),
       };
     });
 
@@ -198,13 +212,20 @@ tradezella.post('/api/tradezella/import', requiresLogin, async (c) => {
     const unrecorded = selectedRows.filter(row => !mappings.has(row.sourceAccount + '|' + row.sourceFingerprint));
     const reserved = reservedTradeIds(db, user.id);
     const candidates = existingRows(db, user.id).filter(trade => !reserved.has(trade.id));
-    const matches = matchTradeZellaRows(unrecorded, candidates);
+    const selectedTargets = selectedAccounts.map(name => settingsBySource.get(name)!.matchAccount).filter(Boolean);
+    if (new Set(selectedTargets).size !== selectedTargets.length) return c.json({ error: 'Two selected TradeZella accounts cannot be matched against the same RR account.' }, 400);
+    const matches = selectedAccounts.flatMap(accountName => {
+      const account = settingsBySource.get(accountName)!;
+      if (!account.matchAccount) return [];
+      const accountRows = unrecorded.filter(row => row.sourceAccount === accountName);
+      return matchTradeZellaRows(accountRows, candidates.filter(trade => trade.account === account.matchAccount));
+    });
     const rowByNumber = new Map(unrecorded.map(row => [row.sourceRow, row]));
     const upsertAccount = db.prepare(
-      `INSERT INTO tradezella_accounts (id, user_id, source_account_name, display_name, currency_code, is_eval)
-       VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO tradezella_accounts (id, user_id, source_account_name, display_name, currency_code, is_eval, match_account)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(user_id, source_account_name) DO UPDATE SET
-         display_name = excluded.display_name, currency_code = excluded.currency_code, is_eval = excluded.is_eval`,
+         display_name = excluded.display_name, currency_code = excluded.currency_code, is_eval = excluded.is_eval, match_account = excluded.match_account`,
     );
     const insertTrade = db.prepare(
       `INSERT INTO trades (id, user_id, ticker, enter_time, exit_time, enter_price, exit_price,
@@ -226,7 +247,7 @@ tradezella.post('/api/tradezella/import', requiresLogin, async (c) => {
       for (const accountName of selectedAccounts) {
         const account = settingsBySource.get(accountName)!;
         upsertAccount.run(generateId(), user.id, account.sourceAccountName, account.displayName,
-          account.currencyCode, account.isEval ? 1 : 0);
+          account.currencyCode, account.isEval ? 1 : 0, account.matchAccount);
       }
 
       for (const match of matches) {
