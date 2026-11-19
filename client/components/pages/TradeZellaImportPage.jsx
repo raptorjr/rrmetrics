@@ -169,6 +169,40 @@ const TradeZellaImportPage = ({ triggerReload }) => {
             </div>
           </section>
 
+          {preview.matches?.some(match => match.status === 'review') && (
+            <section className="rounded-xl border border-negative/30 bg-bg-surface p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <div>
+                  <h2 className="font-semibold text-text-primary">Trades held for review</h2>
+                  <p className="text-xs text-text-secondary mt-1">These rows resemble existing RR trades but do not meet the automatic matching rules. They will not be imported.</p>
+                </div>
+                <span className="text-sm font-semibold text-negative">{number(preview.matches.filter(match => match.status === 'review').reduce((sum, match) => sum + match.sourceRows.length, 0))} need review</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="text-text-muted border-b border-border">
+                    <tr><th className="py-2 pr-3">Source account</th><th className="py-2 pr-3">Date</th><th className="py-2 pr-3">Instrument</th><th className="py-2 pr-3">Side / Qty</th><th className="py-2 pr-3">Entry → Exit</th><th className="py-2 pr-3">Net P&L</th><th className="py-2">Why held</th></tr>
+                  </thead>
+                  <tbody>
+                    {preview.matches.filter(match => match.status === 'review').flatMap(match => match.sourceRows.map(sourceRow => {
+                      const row = rows[sourceRow - 2];
+                      if (!row) return null;
+                      return <tr key={row['Account Name'] + '-' + sourceRow} className="border-b border-border/60 last:border-0">
+                        <td className="py-2 pr-3 text-text-primary">{row['Account Name']}</td>
+                        <td className="py-2 pr-3 whitespace-nowrap text-text-secondary">{row['Open Date']} {row['Open Time']}</td>
+                        <td className="py-2 pr-3 text-text-primary">{row.Instrument || row.Symbol}</td>
+                        <td className="py-2 pr-3 whitespace-nowrap text-text-secondary">{row.Side} / {row.Quantity}</td>
+                        <td className="py-2 pr-3 whitespace-nowrap text-text-secondary">{row['Entry Price']} → {row['Exit Price']}</td>
+                        <td className="py-2 pr-3 whitespace-nowrap text-text-primary">{row['Net P&L']}</td>
+                        <td className="py-2 text-text-secondary">{match.reason}</td>
+                      </tr>;
+                    }))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
           <section className="rounded-xl border border-border bg-bg-surface p-5">
             <h2 className="font-semibold text-text-primary mb-2">Import safeguards</h2>
             <ul className="list-disc pl-5 space-y-1 text-sm text-text-secondary">
