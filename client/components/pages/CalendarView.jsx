@@ -151,24 +151,24 @@ const DayDetailPanel = ({ dateKey, dayData, onClose, dailyNotes, onSaveNote, onD
           <div className="text-center">
             <div className="text-text-secondary text-xs mb-1">Total P/L</div>
             {dayData.tradeCount > 0 ? (
-              <div className={`font-mono text-sm font-bold ${dayData.totalPL >= 0 ? 'text-positive' : 'text-negative'}`}>
+              <div className={`font-sans text-sm font-bold ${dayData.totalPL >= 0 ? 'text-positive' : 'text-negative'}`}>
                 ${dayData.totalPL.toFixed(2)}
               </div>
             ) : (
-              <div className="font-mono text-sm font-bold text-text-muted">N/A</div>
+              <div className="font-sans text-sm font-bold text-text-muted">N/A</div>
             )}
           </div>
           <div className="text-center">
             <div className="text-text-secondary text-xs mb-1">Win Rate</div>
-            <div className="font-mono text-sm font-bold text-text-primary">{dayData.tradeCount > 0 ? `${winRate}%` : 'N/A'}</div>
+            <div className="font-sans text-sm font-bold text-text-primary">{dayData.tradeCount > 0 ? `${winRate}%` : 'N/A'}</div>
           </div>
           <div className="text-center">
             <div className="text-text-secondary text-xs mb-1">Trades</div>
-            <div className="font-mono text-sm font-bold text-text-primary">{dayData.tradeCount}</div>
+            <div className="font-sans text-sm font-bold text-text-primary">{dayData.tradeCount}</div>
           </div>
           <div className="text-center">
             <div className="text-text-secondary text-xs mb-1">Avg Duration</div>
-            <div className="font-mono text-sm font-bold text-text-primary">{dayData.tradeCount > 0 ? formatDuration(avgDuration) : 'N/A'}</div>
+            <div className="font-sans text-sm font-bold text-text-primary">{dayData.tradeCount > 0 ? formatDuration(avgDuration) : 'N/A'}</div>
           </div>
         </div>
 
@@ -198,11 +198,11 @@ const DayDetailPanel = ({ dateKey, dayData, onClose, dailyNotes, onSaveNote, onD
                         <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${isLong ? 'bg-positive/15 text-positive' : 'bg-negative/15 text-negative'}`}>
                           {isLong ? 'L' : 'S'}
                         </span>
-                        <span className="font-mono text-sm font-semibold text-text-primary">{trade.ticker}</span>
+                        <span className="font-sans text-sm font-semibold text-text-primary">{trade.ticker}</span>
                         <span className="text-text-tertiary text-xs">{entryTime} - {exitTime}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`font-mono text-sm font-semibold ${pl >= 0 ? 'text-positive' : 'text-negative'}`}>
+                        <span className={`font-sans text-sm font-semibold ${pl >= 0 ? 'text-positive' : 'text-negative'}`}>
                           {pl >= 0 ? '+' : ''}${pl.toFixed(2)}
                         </span>
                         {onEditTrade && (
@@ -222,19 +222,19 @@ const DayDetailPanel = ({ dateKey, dayData, onClose, dailyNotes, onSaveNote, onD
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
                           <div className="flex justify-between">
                             <span className="text-text-secondary">Entry Price</span>
-                            <span className="font-mono text-text-primary">${trade.enterPrice.toFixed(2)}</span>
+                            <span className="font-sans text-text-primary">${trade.enterPrice.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-text-secondary">Exit Price</span>
-                            <span className="font-mono text-text-primary">${trade.exitPrice.toFixed(2)}</span>
+                            <span className="font-sans text-text-primary">${trade.exitPrice.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-text-secondary">Quantity</span>
-                            <span className="font-mono text-text-primary">{Math.abs(trade.quantity)}</span>
+                            <span className="font-sans text-text-primary">{Math.abs(trade.quantity)}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-text-secondary">Duration</span>
-                            <span className="font-mono text-text-primary">{formatDuration(duration)}</span>
+                            <span className="font-sans text-text-primary">{formatDuration(duration)}</span>
                           </div>
                         </div>
                         {tradeTags.length > 0 && (
@@ -423,7 +423,7 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
         {viewMode === 'daily' && (
           <div className="flex items-center gap-2 text-xs">
             <span className="font-semibold text-text-primary">Monthly stats:</span>
-            <span className={`font-mono font-bold px-2 py-1 rounded-md ${monthTrades > 0 ? (monthPL >= 0 ? 'text-positive bg-positive/10' : 'text-negative bg-negative/10') : 'text-text-muted bg-bg-input'}`}>
+            <span className={`font-sans font-bold px-2 py-1 rounded-md ${monthTrades > 0 ? (monthPL >= 0 ? 'text-positive bg-positive/10' : 'text-negative bg-negative/10') : 'text-text-muted bg-bg-input'}`}>
               {monthTrades > 0 ? (monthCurrencies.size === 1 ? formatCurrency(monthPL, [...monthCurrencies][0]) : 'Mixed currencies') : formatCurrency(0, 'USD')}
             </span>
             <span className="font-semibold text-text-primary px-2 py-1 rounded-md bg-bg-input">{monthTradingDays} days</span>
@@ -616,9 +616,9 @@ const DailyCalendar = ({ year, month, dailyData, onSelectDay, onOpenNote, dailyN
                   </div>
                   {hasActivity && (
                     <>
-                      <div className={`font-mono text-sm font-semibold mt-1 ${pl >= 0 ? 'text-positive' : 'text-negative'}`}>${pl.toFixed(0)}</div>
-                      <div className="font-mono text-text-primary text-[10px] mt-0.5">{data.tradeCount} trade{data.tradeCount !== 1 ? 's' : ''}</div>
-                      {dayWinRate !== null && <div className="font-mono text-text-primary text-[10px] font-normal mt-0.5">{dayWinRate}% WR</div>}
+                      <div className={`font-sans text-sm font-semibold mt-1 ${pl >= 0 ? 'text-positive' : 'text-negative'}`}>${pl.toFixed(0)}</div>
+                      <div className="font-sans text-text-primary text-[10px] mt-0.5">{data.tradeCount} trade{data.tradeCount !== 1 ? 's' : ''}</div>
+                      {dayWinRate !== null && <div className="font-sans text-text-primary text-[10px] font-normal mt-0.5">{dayWinRate}% WR</div>}
                     </>
                   )}
                 </div>
@@ -635,7 +635,7 @@ const DailyCalendar = ({ year, month, dailyData, onSelectDay, onOpenNote, dailyN
               <div className="text-text-primary text-xs font-semibold">Week {getCalendarWeekNumber(year, month, week)}</div>
               {weekTrades > 0 ? (
                 <>
-                  <div className={`font-mono text-sm font-bold mt-1 ${weekPL >= 0 ? 'text-positive' : 'text-negative'}`}>{weekCurrencies.size === 1 ? formatCurrency(weekPL, [...weekCurrencies][0]) : 'Mixed currencies'}</div>
+                  <div className={`font-sans text-sm font-bold mt-1 ${weekPL >= 0 ? 'text-positive' : 'text-negative'}`}>{weekCurrencies.size === 1 ? formatCurrency(weekPL, [...weekCurrencies][0]) : 'Mixed currencies'}</div>
                   <div className="text-text-primary text-[10px] mt-0.5">{week.filter(slot => slot && dailyData[slot.dateKey]).length} days</div>
                 </>
               ) : null}
@@ -797,7 +797,7 @@ const YearHeatmap = ({ year, dailyData, onSelectDay }) => {
             style={{ left: tooltip.x, top: tooltip.y, transform: 'translate(-50%, -100%)' }}
           >
             <div className="text-[11px] text-text-secondary">{tooltip.dateKey}</div>
-            <div className={`font-mono text-sm font-semibold ${tooltip.pl >= 0 ? 'text-positive' : 'text-negative'}`}>
+            <div className={`font-sans text-sm font-semibold ${tooltip.pl >= 0 ? 'text-positive' : 'text-negative'}`}>
               ${tooltip.pl.toFixed(2)}
             </div>
             <div className="text-[10px] text-text-tertiary">{tooltip.trades} trade{tooltip.trades !== 1 ? 's' : ''}</div>
@@ -809,25 +809,25 @@ const YearHeatmap = ({ year, dailyData, onSelectDay }) => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
         <div className="bg-bg-input rounded-lg p-3 border border-border">
           <div className="text-text-tertiary text-[10px] uppercase tracking-wider mb-1">Avg Daily Trades</div>
-          <div className="font-mono text-lg font-bold text-text-primary">{avgDailyTrades.toFixed(1)}</div>
+          <div className="font-sans text-lg font-bold text-text-primary">{avgDailyTrades.toFixed(1)}</div>
         </div>
         <div className="bg-bg-input rounded-lg p-3 border border-border">
           <div className="text-text-tertiary text-[10px] uppercase tracking-wider mb-1">Avg Daily P&L</div>
-          <div className={`font-mono text-lg font-bold ${avgDailyPL >= 0 ? 'text-positive' : 'text-negative'}`}>
+          <div className={`font-sans text-lg font-bold ${avgDailyPL >= 0 ? 'text-positive' : 'text-negative'}`}>
             ${avgDailyPL.toFixed(2)}
           </div>
         </div>
         <div className="bg-bg-input rounded-lg p-3 border border-border">
           <div className="text-text-tertiary text-[10px] uppercase tracking-wider mb-1">Year Active</div>
-          <div className="font-mono text-lg font-bold text-text-primary">{pctYearTrading.toFixed(1)}%</div>
+          <div className="font-sans text-lg font-bold text-text-primary">{pctYearTrading.toFixed(1)}%</div>
           <div className="text-text-muted text-[10px] mt-0.5">{tradingDays} of {tradingWeekdays} weekdays</div>
         </div>
         <div className="bg-bg-input rounded-lg p-3 border border-border">
           <div className="text-text-tertiary text-[10px] uppercase tracking-wider mb-1">Win / Loss Days</div>
           <div className="flex items-center gap-2">
-            <span className="font-mono text-sm font-bold text-positive">{winDays}</span>
+            <span className="font-sans text-sm font-bold text-positive">{winDays}</span>
             <span className="text-text-muted text-xs">/</span>
-            <span className="font-mono text-sm font-bold text-negative">{lossDays}</span>
+            <span className="font-sans text-sm font-bold text-negative">{lossDays}</span>
           </div>
         </div>
       </div>
@@ -945,7 +945,7 @@ const YearlyGrid = ({ currentYear, dailyData, onSelectMonth }) => {
 
     const inner = (
       <>
-        <div className={`font-mono text-sm font-bold ${colorClass}`}>{content}</div>
+        <div className={`font-sans text-sm font-bold ${colorClass}`}>{content}</div>
         <div className="text-[10px] text-text-secondary mt-0.5">
           {hasTrades ? `${stats.tradeCount} trade${stats.tradeCount !== 1 ? 's' : ''}` : ''}
         </div>
@@ -1068,7 +1068,7 @@ const MonthlyGrid = ({ year, dailyData }) => {
               {hasActivity ? (
                 <>
                   <div className="flex items-baseline gap-1.5">
-                    <div className={`font-mono text-xl font-bold ${m.totalPL >= 0 ? 'text-positive' : 'text-negative'}`}>
+                    <div className={`font-sans text-xl font-bold ${m.totalPL >= 0 ? 'text-positive' : 'text-negative'}`}>
                       ${m.totalPL.toFixed(2)}
                     </div>
                     {m.prevTradeCount > 0 && (
@@ -1096,7 +1096,7 @@ const MonthlyGrid = ({ year, dailyData }) => {
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-text-secondary">Year Total</span>
           <div className="text-right">
-            <div className={`font-mono text-xl font-bold ${yearTotal >= 0 ? 'text-positive' : 'text-negative'}`}>
+            <div className={`font-sans text-xl font-bold ${yearTotal >= 0 ? 'text-positive' : 'text-negative'}`}>
               ${yearTotal.toFixed(2)}
             </div>
             <div className="text-text-tertiary text-xs">{yearTrades} trade{yearTrades !== 1 ? 's' : ''}</div>
