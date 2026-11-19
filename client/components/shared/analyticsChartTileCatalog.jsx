@@ -96,8 +96,8 @@ const EntryTimeTile = ({ trades }) => {
   );
 };
 
-const MonteCarloTile = ({ trades }) => {
-  const results = useMemo(() => runMonteCarloSimulation(trades), [trades]);
+const MonteCarloTile = ({ trades, settings }) => {
+  const results = useMemo(() => runMonteCarloSimulation(trades, settings), [trades, settings.profitTarget, settings.maxDrawdown]);
   if (results.insufficientTrades || !results.paths || results.paths.length === 0) {
     return <Panel title="Monte Carlo Eval Simulation"><p className="text-sm text-text-tertiary">At least five trades are needed to run the simulation.</p></Panel>;
   }
@@ -145,7 +145,9 @@ const MonteCarloTile = ({ trades }) => {
   );
 };
 
-const createAnalyticsChartTiles = (trades = []) => {
+const createAnalyticsChartTiles = (trades = [], options = {}) => {
+  const monteCarloSettings = options.monteCarloSettings || { profitTarget: 3000, maxDrawdown: 2000 };
+  const onMonteCarloSettingsChange = options.onMonteCarloSettingsChange || (() => {});
   const defs = Object.fromEntries(DEFINITIONS.map(item => [item.id, item]));
   const tile = (id, render) => ({ ...defs[id], preview: <Preview item={defs[id]} />, render });
   const sorted = [...trades].sort((a, b) => new Date(a.exitTime) - new Date(b.exitTime));
@@ -182,7 +184,21 @@ const createAnalyticsChartTiles = (trades = []) => {
       <p className="text-[11px] text-text-tertiary text-right">Total P/L by exit weekday</p>
     </Panel>),
     tile('performanceByEntryTime', () => <EntryTimeTile trades={trades} />),
-    tile('monteCarloSimulation', () => <MonteCarloTile trades={trades} />),
+    {
+      ...tile('monteCarloSimulation', () => <MonteCarloTile trades={trades} settings={monteCarloSettings} />),
+      settings: [
+        {
+          id: 'profitTarget', label: 'Profit target ($)', description: 'Evaluation profit target used by each simulation.',
+          type: 'number', min: 1, step: 100, value: monteCarloSettings.profitTarget,
+          onChange: value => onMonteCarloSettingsChange('profitTarget', value),
+        },
+        {
+          id: 'maxDrawdown', label: 'Maximum drawdown ($)', description: 'Trailing drawdown limit checked at the end of each simulated day.',
+          type: 'number', min: 1, step: 100, value: monteCarloSettings.maxDrawdown,
+          onChange: value => onMonteCarloSettingsChange('maxDrawdown', value),
+        },
+      ],
+    },
   ];
 };
 

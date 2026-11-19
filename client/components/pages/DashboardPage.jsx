@@ -3,6 +3,22 @@ const { useState } = React;
 
 const KELLY_DRAWDOWN_STORAGE_KEY = 'rrmetrics_kelly_drawdown';
 const DEFAULT_KELLY_DRAWDOWN = 2000;
+const MONTE_CARLO_STORAGE_KEY = 'rrmetrics_monte_carlo_settings';
+const DEFAULT_MONTE_CARLO_SETTINGS = { profitTarget: 3000, maxDrawdown: 2000 };
+
+const readMonteCarloSettings = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(MONTE_CARLO_STORAGE_KEY) || 'null');
+    return {
+      profitTarget: Number.isFinite(Number(saved && saved.profitTarget)) && Number(saved.profitTarget) > 0
+        ? Number(saved.profitTarget) : DEFAULT_MONTE_CARLO_SETTINGS.profitTarget,
+      maxDrawdown: Number.isFinite(Number(saved && saved.maxDrawdown)) && Number(saved.maxDrawdown) > 0
+        ? Number(saved.maxDrawdown) : DEFAULT_MONTE_CARLO_SETTINGS.maxDrawdown,
+    };
+  } catch {
+    return { ...DEFAULT_MONTE_CARLO_SETTINGS };
+  }
+};
 
 const readKellyDrawdown = () => {
   try {
@@ -37,6 +53,7 @@ const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpe
   const [period, setPeriod] = useState('all');
   const [syncing, setSyncing] = useState(false);
   const [kellyDrawdown, setKellyDrawdown] = useState(readKellyDrawdown);
+  const [monteCarloSettings, setMonteCarloSettings] = useState(readMonteCarloSettings);
 
   const handleKellyDrawdownChange = value => {
     const nextValue = Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
@@ -46,6 +63,19 @@ const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpe
     } catch {
       // Keep the setting usable for this session when browser storage is unavailable.
     }
+  };
+  const handleMonteCarloSettingsChange = (key, value) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue) || numericValue <= 0) return;
+    setMonteCarloSettings(current => {
+      const next = { ...current, [key]: numericValue };
+      try {
+        localStorage.setItem(MONTE_CARLO_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // Keep the setting usable for this session when browser storage is unavailable.
+      }
+      return next;
+    });
   };
   const hasBrokers = brokerStatuses && brokerStatuses.length > 0;
 
@@ -110,7 +140,10 @@ const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpe
     defaultRows: 2,
     preview: <div className="h-[82px] rounded-md border border-border bg-bg-page p-2 flex flex-col justify-between"><div className="flex items-center justify-between"><span className="text-[10px] font-semibold text-text-secondary">Trading Calendar</span><span className="text-[9px] text-text-tertiary">Monthly</span></div><div className="grid grid-cols-7 gap-1">{Array.from({ length: 21 }, (_, index) => <span key={index} className={`h-2 rounded-[2px] ${[2, 5, 9, 12, 16, 19].includes(index) ? 'bg-positive/70' : [7, 14].includes(index) ? 'bg-negative/70' : 'bg-bg-input'}`} />)}</div></div>,
     render: () => <div className="bg-bg-surface border border-border rounded-xl p-4"><CalendarView trades={baseTrades} dailyNotes={dailyNotes} onSaveNote={onSaveNote} onDeleteNote={onDeleteNote} tags={tags} strategyRules={strategyRules} onOpenAddTrade={onOpenAddTrade} onEditTrade={onEditTrade} sidebarCollapsed={sidebarCollapsed} /></div>,
-  }]).concat(createAnalyticsTiles(filteredTrades), createAnalyticsChartTiles(filteredTrades));
+  }]).concat(createAnalyticsTiles(filteredTrades), createAnalyticsChartTiles(filteredTrades, {
+    monteCarloSettings,
+    onMonteCarloSettingsChange: handleMonteCarloSettingsChange,
+  }));
 
   return (
     <div className="space-y-6">
