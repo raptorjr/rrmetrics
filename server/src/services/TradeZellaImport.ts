@@ -374,6 +374,7 @@ export function matchTradeZellaRowsAcrossAccounts(
   existing: ExistingTrade[],
   targetAccount: string | null,
   crossAccountExisting: ExistingTrade[] = existing,
+  otherSourceRows: TradeZellaRow[] = [],
 ): MatchResult[] {
   const primary = matchTradeZellaRows(
     rows,
@@ -385,6 +386,41 @@ export function matchTradeZellaRowsAcrossAccounts(
   if (!newRows.length) return primary;
 
   const possibleByRow = new Map<number, { ids: Set<string>; accounts: Set<string> }>();
+  // TradeZella Practice exports can overlap the account-specific exports
+  // from the same CSV. Compare each source account separately and hold overlaps
+  // rather than importing two copies in one batch.
+  const otherSourceAccounts = [...new Set(otherSourceRows
+    .map(row => row.sourceAccount)
+    .filter(account => account !== rows[0]?.sourceAccount))];
+  for (const sourceAccount of otherSourceAccounts) {
+    const sourceCandidates: ExistingTrade[] = otherSourceRows
+      .filter(row => row.sourceAccount === sourceAccount)
+      .map(row => ({
+        id: `source-row:${row.sourceRow}`,
+        ticker: row.ticker,
+        enter_time: row.enterTime,
+        exit_time: row.exitTime,
+        enter_price: row.enterPrice,
+        exit_price: row.exitPrice,
+        quantity: row.quantity,
+        manual_pl: row.manualPL,
+        gross_pl: row.grossPL,
+        fees: row.fees,
+        commissions: row.commissions,
+        account: sourceAccount,
+      }));
+    const sourceMatches = matchTradeZellaRows(newRows, sourceCandidates);
+    for (const match of sourceMatches) {
+      if (match.status === 'new') continue;
+      for (const sourceRow of match.sourceRows) {
+        const item = possibleByRow.get(sourceRow) || { ids: new Set<string>(), accounts: new Set<string>() };
+        match.existingTradeIds.forEach(id => item.ids.add(id));
+        item.accounts.add(`TradeZella account ${sourceAccount}`);
+        possibleByRow.set(sourceRow, item);
+      }
+    }
+  }
+
   const availableIds = new Set(existing.map(trade => trade.id));
   const alreadyLinkedInTarget = targetAccount
     ? crossAccountExisting.filter(trade => trade.account === targetAccount && !availableIds.has(trade.id))
