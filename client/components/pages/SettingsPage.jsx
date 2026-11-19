@@ -5,6 +5,7 @@ const { TAG_COLOR_PRESETS } = require('../../utils/tagConstants');
 const Icons = require('../shared/Icons');
 const { useBrokerConnection, TRADOVATE_BROKERS, BROKER_CONFIGS } = require('../../hooks/useBrokerConnection');
 const AccountManagementPanel = require('../settings/AccountManagementPanel');
+const TradeZellaImportPage = require('./TradeZellaImportPage');
 
 const TIME_ZONE_OPTIONS = (() => {
   try {
@@ -366,7 +367,7 @@ const RobinhoodBrokerSection = ({ hook, expandedBroker, toggleBroker, brokerHead
 };
 
 const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, customColors, tags, triggerReload }) => {
-  const [activeTab, setActiveTab] = useState('brokers');
+  const [activeTab, setActiveTab] = useState('providers');
   const [message, setMessage] = useState(null);
   const [timeFormat, setTimeFormat] = useState(() => {
     try { return localStorage.getItem('rrmetrics_time_format') === '24h' ? '24h' : '12h'; }
@@ -879,7 +880,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
   // UI helpers
   // =============================================
   const tabs = [
-    { id: 'brokers', label: 'Broker Connections' },
+    { id: 'brokers', label: 'Providers' },
     { id: 'accounts', label: 'Account Management' },
     { id: 'tags', label: 'Tags' },
     { id: 'preferences', label: 'Preferences' },
@@ -950,7 +951,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
         ))}
       </div>
 
-      {/* Broker Connections tab */}
+      {/* Providers tab */}
       {activeTab === 'brokers' && (
         <div className="space-y-6">
           {/* Message */}
@@ -978,11 +979,13 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
             const providers = [
               ...TRADOVATE_BROKERS,
               { key: 'projectx', label: 'Topstep', icon: '/assets/img/topstep.png', subtitle: 'Prop trading firm' },
+              { key: 'tradezella', label: 'TradeZella', icon: '/assets/img/tradezella.svg', subtitle: 'Trading journal CSV import', importProvider: true },
               { key: 'robinhood', label: 'Robinhood', icon: BROKER_CONFIGS.robinhood.icon, subtitle: BROKER_CONFIGS.robinhood.subtitle, comingSoon: true },
               { key: 'webull', label: 'Webull', icon: BROKER_CONFIGS.webull.icon, subtitle: BROKER_CONFIGS.webull.subtitle, comingSoon: true },
             ];
 
             const getProviderStatus = (provider) => {
+              if (provider.importProvider) return { configured: 0, expired: 0 };
               if (provider.key === 'projectx') {
                 return {
                   configured: pxConnections.filter(c => c.configured && !c.expired).length,
@@ -1021,7 +1024,9 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                       >
                         <img src={provider.icon} alt={provider.label} className="w-10 h-10 rounded-lg object-contain" />
                         <span className="text-text-primary font-semibold text-sm leading-tight">{provider.label}</span>
-                        {provider.comingSoon ? (
+                        {provider.importProvider ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-text-secondary/10 text-text-secondary">CSV Import</span>
+                        ) : provider.comingSoon ? (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium">Coming Soon</span>
                         ) : provider.configured > 0 ? (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-positive/10 text-positive font-medium">
@@ -1036,7 +1041,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                     );
                   })}
                 </div>
-                {expandedBroker && expandedBroker !== 'projectx' && brokerHooks[expandedBroker] && (
+                {expandedBroker && expandedBroker !== 'projectx' && expandedBroker !== 'tradezella' && brokerHooks[expandedBroker] && (
                   <div className="mt-3">
                     <TradovateBrokerSection
                       hook={brokerHooks[expandedBroker]}
@@ -1045,6 +1050,20 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                       brokerHeaderBadge={brokerHeaderBadge}
                       statusDot={statusDot}
                     />
+                  </div>
+                )}
+                {expandedBroker === 'tradezella' && (
+                  <div className="mt-3 bg-bg-surface border border-border rounded-xl overflow-hidden">
+                    <div className="flex items-center gap-3 p-5">
+                      <img src="/assets/img/tradezella.svg" alt="TradeZella" className="w-10 h-10 rounded-lg object-contain" />
+                      <div>
+                        <h3 className="text-text-primary font-semibold text-sm">TradeZella</h3>
+                        <p className="text-text-tertiary text-xs">Trading journal CSV import</p>
+                      </div>
+                    </div>
+                    <div className="px-5 pb-5 border-t border-border pt-4">
+                      <TradeZellaImportPage triggerReload={triggerReload} />
+                    </div>
                   </div>
                 )}
                 {expandedBroker === 'projectx' && (
