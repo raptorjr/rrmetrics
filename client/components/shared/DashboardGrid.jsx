@@ -88,12 +88,45 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const [previewItemId, setPreviewItemId] = useState(null);
   const gridRef = useRef(null);
   const resizeRef = useRef(null);
+  const previewDialogRef = useRef(null);
 
   useEffect(() => {
     if (!previewItemId) return undefined;
-    const onKeyDown = event => { if (event.key === 'Escape') setPreviewItemId(null); };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    const previouslyFocused = document.activeElement;
+    const dialog = previewDialogRef.current;
+    if (dialog) dialog.focus();
+
+    const onKeyDown = event => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setPreviewItemId(null);
+        return;
+      }
+      if (event.key !== 'Tab' || !dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )).filter(element => element.getAttribute('aria-hidden') !== 'true');
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      if (previouslyFocused && typeof previouslyFocused.focus === 'function') previouslyFocused.focus();
+    };
   }, [previewItemId]);
 
   useEffect(() => {
@@ -339,17 +372,20 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
             onMouseDown={event => { if (event.target === event.currentTarget) setPreviewItemId(null); }}
           >
             <div
+              ref={previewDialogRef}
               role="dialog"
               aria-modal="true"
               aria-labelledby="dashboard-tile-preview-title"
-              className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-bg-surface p-5 shadow-2xl"
+              aria-describedby="dashboard-tile-preview-description"
+              tabIndex={-1}
+              className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-bg-surface p-5 shadow-2xl focus:outline-none"
               onMouseDown={event => event.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
                   <div className="text-[11px] uppercase tracking-wide text-text-tertiary">{item.category || 'Metrics'} · {size.w}×{size.h} grid units</div>
                   <h2 id="dashboard-tile-preview-title" className="text-lg font-semibold text-text-primary mt-1">{item.label}</h2>
-                  <p className="text-sm text-text-secondary mt-2">{item.description || 'A reusable dashboard component based on your selected trading data and period filters.'}</p>
+                  <p id="dashboard-tile-preview-description" className="text-sm text-text-secondary mt-2">{item.description || 'A reusable dashboard component based on your selected trading data and period filters.'}</p>
                 </div>
                 <button type="button" onClick={() => setPreviewItemId(null)} aria-label="Close preview" className="shrink-0 rounded-lg border border-border px-3 py-2 text-sm text-text-secondary hover:text-text-primary">✕</button>
               </div>
