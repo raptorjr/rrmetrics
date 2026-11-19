@@ -278,7 +278,7 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
         && near(firstEntry, epoch(source.enterTime), 2)
         && near(lastExit, epoch(source.exitTime), 2)
         && Math.sign(firstTrade.quantity) === Math.sign(source.quantity)
-        && near(Math.abs(signedNetQuantity), Math.abs(source.quantity), 0.0001)
+        && near(signedNetQuantity, source.quantity, 0.0001)
         && near(firstTrade.enter_price, source.enterPrice, 0.01)
         && near(lastTrade.exit_price, source.exitPrice, 0.01)
         && source.manualPL != null && net != null && near(net, source.manualPL, 0.03)
@@ -314,9 +314,14 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
         existingTradeIds: existingGroupMatch.map((trade) => trade.id),
         reason: 'Consolidated trade matches multiple partial-exit positions',
       });
-    } else if (candidates.length || existingGroupCandidates.length) {
+    } else if (candidates.length || existingGroupCandidates.length || episodeCandidates.length) {
       processed.add(source.sourceRow);
-      results.push({ status: 'review', sourceRows: [source.sourceRow], existingTradeIds: candidates.map((trade) => trade.id), reason: 'Similar position found; details do not agree closely enough for automatic matching' });
+      const relatedIds = [...new Set([
+        ...candidates.map((trade) => trade.id),
+        ...existingGroupCandidates.map((trade) => trade.id),
+        ...episodeCandidates.map((trade) => trade.id),
+      ])];
+      results.push({ status: 'review', sourceRows: [source.sourceRow], existingTradeIds: relatedIds, reason: 'Similar position found; signed direction, quantity or financial totals do not agree closely enough for automatic matching' });
     } else {
       processed.add(source.sourceRow);
       results.push({ status: 'new', sourceRows: [source.sourceRow], existingTradeIds: [], reason: 'No existing position match' });
