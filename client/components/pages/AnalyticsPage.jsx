@@ -215,6 +215,8 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
     const dayBreakevens = [0, 0, 0, 0, 0, 0, 0];
     const dayWinPL = [0, 0, 0, 0, 0, 0, 0];
     const dayLossPL = [0, 0, 0, 0, 0, 0, 0];
+    const dayGrossWinPL = [0, 0, 0, 0, 0, 0, 0];
+    const dayGrossLossPL = [0, 0, 0, 0, 0, 0, 0];
 
     trades.forEach(t => {
       const estDate = toEST(t.exitTime);
@@ -222,6 +224,8 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
       const pl = getTradePL(t);
       dayPL[day] += pl;
       dayCounts[day]++;
+      if (pl > 0) dayGrossWinPL[day] += pl;
+      else dayGrossLossPL[day] += Math.abs(pl);
       if (isBreakevenTrade(t)) dayBreakevens[day]++;
       else if (pl > 0) { dayWins[day]++; dayWinPL[day] += pl; }
       else { dayLosses[day]++; dayLossPL[day] += Math.abs(pl); }
@@ -295,7 +299,7 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
       const i = hoveredDayIndex;
       const decisive = dayWins[i] + dayLosses[i];
       const wr = decisive > 0 ? ((dayWins[i] / decisive) * 100).toFixed(1) : '0.0';
-      const pf = dayLossPL[i] === 0 ? (dayWinPL[i] > 0 ? '∞' : '0.00') : (dayWinPL[i] / dayLossPL[i]).toFixed(2);
+      const pf = dayGrossLossPL[i] === 0 ? (dayGrossWinPL[i] > 0 ? '∞' : '0.00') : (dayGrossWinPL[i] / dayGrossLossPL[i]).toFixed(2);
       const avgW = dayWins[i] > 0 ? (dayWinPL[i] / dayWins[i]).toFixed(2) : '0.00';
       const avgL = dayLosses[i] > 0 ? (dayLossPL[i] / dayLosses[i]).toFixed(2) : '0.00';
       const r = rects[i];
@@ -414,10 +418,12 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
       const h = estParts.hours;
       const m = estParts.minutes < 30 ? 0 : 30;
       const key = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-      if (!buckets[key]) buckets[key] = { totalPL: 0, wins: 0, losses: 0, breakevens: 0, count: 0, winPL: 0, lossPL: 0 };
+      if (!buckets[key]) buckets[key] = { totalPL: 0, wins: 0, losses: 0, breakevens: 0, count: 0, winPL: 0, lossPL: 0, grossWinPL: 0, grossLossPL: 0 };
       const pl = getTradePL(t);
       buckets[key].totalPL += pl;
       buckets[key].count++;
+      if (pl > 0) buckets[key].grossWinPL += pl;
+      else buckets[key].grossLossPL += Math.abs(pl);
       if (isBreakevenTrade(t)) buckets[key].breakevens++;
       else if (pl > 0) { buckets[key].wins++; buckets[key].winPL += pl; }
       else { buckets[key].losses++; buckets[key].lossPL += Math.abs(pl); }
@@ -432,7 +438,7 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
       for (const m of [0, 30]) {
         if (h === 16 && m === 30) continue; // session ends at 17:00, last slot is 16:30
         const key = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-        const data = buckets[key] || { totalPL: 0, wins: 0, losses: 0, breakevens: 0, count: 0, winPL: 0, lossPL: 0 };
+        const data = buckets[key] || { totalPL: 0, wins: 0, losses: 0, breakevens: 0, count: 0, winPL: 0, lossPL: 0, grossWinPL: 0, grossLossPL: 0 };
         allSlots.push({
           time: key,
           ...data,
@@ -556,7 +562,7 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
     // Draw tooltip for hovered time bucket
     if (hoveredTimeIndex !== null && hoveredTimeIndex < timeOfDayStats.length) {
       const stat = timeOfDayStats[hoveredTimeIndex];
-      const pf = stat.lossPL === 0 ? (stat.winPL > 0 ? '∞' : '0.00') : (stat.winPL / stat.lossPL).toFixed(2);
+      const pf = stat.grossLossPL === 0 ? (stat.grossWinPL > 0 ? '∞' : '0.00') : (stat.grossWinPL / stat.grossLossPL).toFixed(2);
       const r = rects[hoveredTimeIndex];
       drawTooltip(ctx, r.barX + r.barW / 2, r.barY, stat.time, [
         { label: 'Trades', value: `${stat.count}` },

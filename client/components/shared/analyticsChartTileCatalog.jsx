@@ -23,10 +23,12 @@ const EntryTimeTile = ({ trades }) => {
       const est = toEST(trade.enterTime);
       const minute = est.minutes < 30 ? 0 : 30;
       const key = String(est.hours).padStart(2, '0') + ':' + String(minute).padStart(2, '0');
-      if (!buckets[key]) buckets[key] = { totalPL: 0, wins: 0, losses: 0, breakevens: 0, count: 0, winPL: 0, lossPL: 0 };
+      if (!buckets[key]) buckets[key] = { totalPL: 0, wins: 0, losses: 0, breakevens: 0, count: 0, winPL: 0, lossPL: 0, grossWinPL: 0, grossLossPL: 0 };
       const pl = getTradePL(trade);
       buckets[key].totalPL += pl;
       buckets[key].count++;
+      if (pl > 0) buckets[key].grossWinPL += pl;
+      else buckets[key].grossLossPL += Math.abs(pl);
       if (isBreakevenTrade(trade)) buckets[key].breakevens++;
       else if (pl > 0) { buckets[key].wins++; buckets[key].winPL += pl; }
       else { buckets[key].losses++; buckets[key].lossPL += Math.abs(pl); }
@@ -38,7 +40,7 @@ const EntryTimeTile = ({ trades }) => {
     hours.forEach(hour => [0, 30].forEach(minute => {
       if (hour === 16 && minute === 30) return;
       const time = String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0');
-      const data = buckets[time] || { totalPL: 0, wins: 0, losses: 0, breakevens: 0, count: 0, winPL: 0, lossPL: 0 };
+      const data = buckets[time] || { totalPL: 0, wins: 0, losses: 0, breakevens: 0, count: 0, winPL: 0, lossPL: 0, grossWinPL: 0, grossLossPL: 0 };
       result.push({ time, ...data, winRate: data.wins + data.losses > 0 ? (data.wins / (data.wins + data.losses)) * 100 : 0, avgPL: data.count ? data.totalPL / data.count : 0 });
     }));
     return result;
@@ -67,7 +69,7 @@ const EntryTimeTile = ({ trades }) => {
             const barHeight = (Math.abs(value) / maxValue) * chartHalfHeight;
             const x = padding + index * barGap + (barGap - barWidth) / 2;
             const y = value >= 0 ? zeroY - barHeight : zeroY;
-            const pf = stat.lossPL === 0 ? (stat.winPL > 0 ? '∞' : '0.00') : (stat.winPL / stat.lossPL).toFixed(2);
+            const pf = stat.grossLossPL === 0 ? (stat.grossWinPL > 0 ? '∞' : '0.00') : (stat.grossWinPL / stat.grossLossPL).toFixed(2);
             const tooltip = stat.time + ' · ' + stat.count + ' trades · ' + stat.breakevens + ' breakeven · ' + stat.winRate.toFixed(1) + '% win rate · PF ' + pf + ' · Total $' + stat.totalPL.toFixed(2) + ' · Average $' + stat.avgPL.toFixed(2);
             return <g key={stat.time}>
               {stat.count > 0 && <rect x={x} y={y} width={barWidth} height={Math.max(1, barHeight)} rx="2" fill={value >= 0 ? 'var(--positive)' : 'var(--negative)'} opacity="0.85"><title>{tooltip}</title></rect>}
