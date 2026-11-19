@@ -154,7 +154,8 @@ account.get('/api/account/managed-accounts', requiresLogin, async (c) => {
           AND broker_connection_id = ? AND projectx_source = 'projectx' AND projectx_trade_id LIKE ?`)
           .all(user.id, conn.connection_id, `${prefix}%`) as any[];
         const setting = settings[accountId] || {};
-        const name = setting.displayName?.trim() || tradeRows[0]?.account || `Topstep account ${accountId}`;
+        const sourceAccountName = tradeRows[0]?.account || setting.accountName || `Topstep account ${accountId}`;
+        const name = setting.displayName?.trim() || sourceAccountName;
         const count = db.prepare(`SELECT COUNT(*) AS count FROM trades WHERE user_id = ?
           AND broker_connection_id = ? AND projectx_source = 'projectx' AND projectx_trade_id LIKE ?`)
           .get(user.id, conn.connection_id, `${prefix}%`) as any;
@@ -162,7 +163,7 @@ account.get('/api/account/managed-accounts', requiresLogin, async (c) => {
           .get(conn.connection_id, Number(accountId)) as any;
         accounts.push({ id: `projectx::${conn.connection_id}::${accountId}`, provider: 'Topstep',
           kind: 'projectx', connectionId: conn.connection_id, accountId: Number(accountId),
-          name, sourceName: String(accountId), currencyCode: setting.currencyCode || 'USD',
+          name, sourceName: String(accountId), sourceAccountName, currencyCode: setting.currencyCode || 'USD',
           accountType: setting.type || 'other', importedTrades: Number(count?.count || 0),
           rawExecutions: Number(raw?.count || 0) });
       }
