@@ -414,7 +414,7 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
             </button>
           )}
           {viewMode === 'daily' && (
-            <button type="button" onClick={() => setCurrentDate(new Date())} className="px-3 py-1.5 rounded-lg border border-border bg-bg-input text-xs font-semibold text-text-secondary hover:bg-bg-surface transition-colors">
+            <button type="button" onClick={() => setCurrentDate(new Date())} className="px-3 py-1.5 rounded-md bg-bg-surface text-xs font-medium text-text-secondary shadow-sm transition-colors">
               This month
             </button>
           )}
