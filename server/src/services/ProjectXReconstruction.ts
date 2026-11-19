@@ -114,6 +114,8 @@ export interface ReconstructionResult {
     enterTime: string;
   }>;
   warnings: string[];
+  /** Account/contract pairs whose previous projection must be retained. */
+  unsafeInstrumentKeys: string[];
 }
 
 interface WorkingPosition {
@@ -165,8 +167,9 @@ export function reconstructProjectXPositions(
 
   const positions: ReconstructedPosition[] = [];
   const openPositions: ReconstructionResult['openPositions'] = [];
+  const unsafeInstrumentKeys = new Set<string>();
 
-  for (const legs of instruments.values()) {
+  for (const [instrumentKey, legs] of instruments.entries()) {
     // If an instrument becomes inconsistent, keep positions completed before
     // the first warning but do not publish any later positions from that
     // instrument. A bad sequence must not contaminate subsequent trades.
@@ -176,6 +179,7 @@ export function reconstructProjectXPositions(
       if (!instrumentHasWarnings) {
         instrumentHasWarnings = true;
         safePositionCount = positions.length;
+        unsafeInstrumentKeys.add(instrumentKey);
       }
       warnings.push(message);
     };
@@ -347,5 +351,5 @@ export function reconstructProjectXPositions(
     }
   }
 
-  return { positions, openPositions, warnings };
+  return { positions, openPositions, warnings, unsafeInstrumentKeys: [...unsafeInstrumentKeys] };
 }
