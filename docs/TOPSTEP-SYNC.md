@@ -15,7 +15,7 @@ Topstep's execution history is treated as a sequence of execution legs, not as a
 
 The importer validates the execution sequence. If an instrument's history contains an unmatched close, conflicting side, or another unsafe sequence, it reports a warning and quarantines later reconstructed positions for that instrument rather than inventing a plausible-looking result. Positions completed before the first inconsistency can be retained. An uncertain open balance is not published as a reconstructed open position; the broker's open-position snapshot remains the authority for current exposure.
 
-The raw execution history is retained locally so positions can be rebuilt after incremental syncs. The importer does not silently discard anomalous records to make the journal appear complete; inspect the detailed sync diagnostics when warnings are reported.
+The raw execution history is retained locally so positions can be rebuilt after incremental syncs. Verified overrides for fully filled orders whose trade legs are marked voided are refreshed only for accounts whose Orders history was successfully queried. If an account is deselected, or its Orders query fails, its prior corroboration is retained alongside its historical raw executions. A successful query that no longer confirms an override clears that account's stale override. The importer does not silently discard anomalous records to make the journal appear complete; inspect the detailed sync diagnostics when warnings are reported.
 
 ## Incremental sync and historical reconciliation
 
