@@ -87,6 +87,25 @@ CREATE TABLE IF NOT EXISTS tradezella_imported_trades (
 CREATE INDEX IF NOT EXISTS idx_tradezella_imported_trades_user_id
   ON tradezella_imported_trades(user_id);
 
+-- ─── durable account registry for connected broker accounts ────────────────
+-- Keeps account identities available in Settings even after their trade history
+-- is cleared or the broker stops returning them in its live account list.
+CREATE TABLE IF NOT EXISTS managed_accounts (
+  id                  TEXT PRIMARY KEY,
+  user_id             TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  provider            TEXT NOT NULL,
+  source_key          TEXT NOT NULL,
+  connection_id       TEXT,
+  source_account_id   TEXT,
+  source_name         TEXT NOT NULL,
+  display_name        TEXT NOT NULL,
+  currency_code       TEXT NOT NULL DEFAULT 'USD',
+  account_type        TEXT NOT NULL DEFAULT 'other',
+  created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  UNIQUE(user_id, provider, source_key)
+);
+CREATE INDEX IF NOT EXISTS idx_managed_accounts_user_id ON managed_accounts(user_id);
+
 -- ─── tags ────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS tags (
   id      TEXT PRIMARY KEY,                               -- uuid
