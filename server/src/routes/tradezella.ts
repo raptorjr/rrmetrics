@@ -89,9 +89,17 @@ tradezella.get('/api/tradezella/accounts', requiresLogin, async (c) => {
   const user = c.get('user');
   const db = c.get('db');
   const accounts = db.prepare(
-    `SELECT source_account_name AS sourceAccountName, display_name AS displayName,
-            currency_code AS currencyCode, is_eval AS isEval, match_account AS matchAccount
-     FROM tradezella_accounts WHERE user_id = ? ORDER BY source_account_name`,
+    `SELECT a.source_account_name AS sourceAccountName, a.display_name AS displayName,
+            a.currency_code AS currencyCode, a.is_eval AS isEval, a.match_account AS matchAccount,
+            (SELECT COUNT(DISTINCT m.trade_id) FROM tradezella_imported_trades m
+             JOIN trades t ON t.id = m.trade_id
+             WHERE m.user_id = a.user_id AND m.source_account_name = a.source_account_name
+               AND t.tradovate_source = 'tradezella') AS importedTrades,
+            (SELECT COUNT(DISTINCT m.trade_id) FROM tradezella_imported_trades m
+             JOIN trades t ON t.id = m.trade_id
+             WHERE m.user_id = a.user_id AND m.source_account_name = a.source_account_name
+               AND t.tradovate_source != 'tradezella') AS linkedTrades
+     FROM tradezella_accounts a WHERE a.user_id = ? ORDER BY a.source_account_name`,
   ).all(user.id);
   const rrAccounts = db.prepare('SELECT DISTINCT account FROM trades WHERE user_id = ? AND account IS NOT NULL AND account != \'\' ORDER BY account').all(user.id).map((row: any) => row.account);
   return c.json({ accounts, rrAccounts });
