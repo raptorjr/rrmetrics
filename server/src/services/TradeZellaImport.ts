@@ -114,8 +114,11 @@ function exactMatch(source: TradeZellaRow, existing: ExistingTrade): boolean {
     && near(Math.abs(source.quantity), Math.abs(existing.quantity), 0.0001)
     && near(epoch(source.enterTime), epoch(existing.enter_time), 2)
     && near(epoch(source.exitTime), epoch(existing.exit_time), 2)
-    && near(source.enterPrice, existing.enter_price, 0.01)
     && near(source.exitPrice, existing.exit_price, 0.01)
+    // TradeZella and ProjectX can calculate different average entry prices from
+    // the same fills. Exact timestamps, size, exit and net P&L are stronger evidence.
+    && (near(source.enterPrice, existing.enter_price, 0.01)
+      || (source.manualPL != null && existing.manual_pl != null && near(source.manualPL, existing.manual_pl, 0.03)))
     && (source.manualPL == null || existing.manual_pl == null || near(source.manualPL, existing.manual_pl, 0.03));
 }
 
@@ -208,7 +211,8 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
         : null;
       const finalExit = Math.max(...subset.map((trade) => epoch(trade.exit_time)));
       return near(qty, Math.abs(source.quantity), 0.0001)
-        && near(entry, source.enterPrice, 0.01)
+        && (near(entry, source.enterPrice, 0.01)
+          || (source.manualPL != null && net != null && near(net, source.manualPL, 0.03)))
         && near(exit, source.exitPrice, 0.01)
         && near(finalExit, epoch(source.exitTime), 2)
         && (source.manualPL == null || net == null || near(net, source.manualPL, 0.03));
