@@ -3,6 +3,16 @@ const React = require("react");
 const KELLY_DRAWDOWN_STORAGE_KEY = 'rrmetrics_kelly_drawdown';
 const DEFAULT_KELLY_DRAWDOWN = 2000;
 
+const ENTRY_TIME_MODE_STORAGE_KEY = 'rrmetrics_entry_time_mode';
+
+const readEntryTimeMode = () => {
+  try {
+    return localStorage.getItem(ENTRY_TIME_MODE_STORAGE_KEY) === 'total' ? 'total' : 'avg';
+  } catch {
+    return 'avg';
+  }
+};
+
 const readKellyDrawdown = () => {
   try {
     const saved = localStorage.getItem(KELLY_DRAWDOWN_STORAGE_KEY);
@@ -43,9 +53,19 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
   const [hoveredTimeIndex, setHoveredTimeIndex] = useState(null);
   const [showTimeTable, setShowTimeTable] = useState(false);
   const [dayPLMode, setDayPLMode] = useState('total');
-  const [timePLMode, setTimePLMode] = useState('avg');
+  const [timePLMode, setTimePLMode] = useState(readEntryTimeMode);
   const [period, setPeriod] = useState('all');
   const [kellyDrawdown, setKellyDrawdown] = useState(readKellyDrawdown);
+
+  const handleTimePLModeChange = mode => {
+    if (mode !== 'avg' && mode !== 'total') return;
+    setTimePLMode(mode);
+    try {
+      localStorage.setItem(ENTRY_TIME_MODE_STORAGE_KEY, mode);
+    } catch {
+      // Keep the preference active for this session when browser storage is unavailable.
+    }
+  };
 
   const handleKellyDrawdownChange = value => {
     const nextValue = Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
@@ -918,8 +938,8 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-text-primary font-semibold">Performance by Entry Time (30-Min)</h3>
             <div className="flex bg-bg-input rounded-lg p-0.5 text-xs">
-              <button onClick={() => setTimePLMode('avg')} className={`px-2.5 py-1 rounded-md transition-colors ${timePLMode === 'avg' ? 'bg-accent text-accent-text' : 'text-text-secondary hover:text-text-primary'}`}>Avg P/L</button>
-              <button onClick={() => setTimePLMode('total')} className={`px-2.5 py-1 rounded-md transition-colors ${timePLMode === 'total' ? 'bg-accent text-accent-text' : 'text-text-secondary hover:text-text-primary'}`}>Total P/L</button>
+              <button onClick={() => handleTimePLModeChange('avg')} className={`px-2.5 py-1 rounded-md transition-colors ${timePLMode === 'avg' ? 'bg-accent text-accent-text' : 'text-text-secondary hover:text-text-primary'}`}>Avg P/L</button>
+              <button onClick={() => handleTimePLModeChange('total')} className={`px-2.5 py-1 rounded-md transition-colors ${timePLMode === 'total' ? 'bg-accent text-accent-text' : 'text-text-secondary hover:text-text-primary'}`}>Total P/L</button>
             </div>
           </div>
           <div className={showTimeTable ? 'mb-4' : ''}>
