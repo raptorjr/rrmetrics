@@ -137,6 +137,27 @@ test('detects a duplicate already linked to another TradeZella source account', 
   assert.deepEqual(matches[0].existingTradeIds, ['already-linked-topstep-trade']);
 });
 
+test('reviews a changed source row that resembles a trade already linked in its target RR account', () => {
+  const source = parseTradeZellaRows([{
+    'Account Name': 'Practice', Instrument: 'MGC', Side: 'long', Quantity: '1',
+    'Open Date': '2026-07-15', 'Open Time': '14:00:00 CEST',
+    'Close Date': '2026-07-15', 'Close Time': '14:05:00 CEST',
+    'Entry Price': '2400.00', 'Exit Price': '2401.00', 'Net P&L': '10.00',
+  }]);
+  const linked = {
+    id: 'already-linked-practice-trade', ticker: 'MGC',
+    enter_time: '2026-07-15T12:00:00.000Z', exit_time: '2026-07-15T12:05:00.000Z',
+    enter_price: 2400, exit_price: 2401, quantity: 1, manual_pl: 10,
+    account: 'Practice',
+  };
+  const matches = matchTradeZellaRowsAcrossAccounts(source, [], 'Practice', [linked]);
+
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].status, 'review');
+  assert.deepEqual(matches[0].existingTradeIds, ['already-linked-practice-trade']);
+  assert.match(matches[0].reason, /already linked to another source row/);
+});
+
 test('keeps a new TradeZella row new when no other RR account contains a match', () => {
   const source = parseTradeZellaRows([{
     'Account Name': 'Practice', Instrument: 'MGC', Side: 'long', Quantity: '1',
