@@ -224,9 +224,17 @@ projectx.post(
       const nextLead = copytradeConfig?.leadAccountId ?? null;
       const copytradeSourceChanged = previousLead !== nextLead;
 
+      // Preserve settings for historical accounts that are no longer returned
+      // by ProjectX. The account settings are a durable local record, not a
+      // mirror of the broker's current account list.
+      const mergedAccountSettings = {
+        ...(existingPxConn?.account_settings || {}),
+        ...(accountSettings || {}),
+      };
+
       await pxConnDb.updateByBrokerConnectionId(serviceClient, connectionId, {
         selected_accounts: selectedAccounts as any,
-        ...(accountSettings ? { account_settings: accountSettings as any } : {}),
+        ...(accountSettings ? { account_settings: mergedAccountSettings as any } : {}),
         copytrade_config: copytradeConfig as any,
         ...(accountSelectionChanged || copytradeSourceChanged ? { last_full_sync_time: null } : {}),
       });
@@ -468,7 +476,12 @@ projectx.post(
         user.id,
         connectionId,
         allTrades,
-        new Map(accounts.map(account => [account.id, pxConn.account_settings?.[String(account.id)]?.displayName?.trim() || account.name])),
+        new Map([
+          ...accounts.map(account => [account.id, pxConn.account_settings?.[String(account.id)]?.displayName?.trim() || account.name] as [number, string]),
+          ...Object.entries(pxConn.account_settings || {})
+            .filter(([, setting]) => !!setting.displayName?.trim())
+            .map(([accountId, setting]) => [Number(accountId), setting.displayName.trim()] as [number, string]),
+        ]),
         contractNames,
         multiplier,
         brokerConn.is_eval,
