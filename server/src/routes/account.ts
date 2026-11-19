@@ -117,4 +117,128 @@ account.post('/api/account/onboarding-complete', requiresLogin, async (c) => {
   }
 });
 
+
+account.get('/api/account/managed-accounts', requiresLogin, async (c) => {
+  const user = c.get('user');
+  const db = c.get('db');
+  try {
+    const accounts: any[] = [];
+    const tz = db.prepare(`SELECT source_account_name, display_name, currency_code, is_eval, match_account
+      FROM tradezella_accounts WHERE user_id = ? ORDER BY source_account_name`).all(user.id) as any[];
+    for (const row of tz) {
+      const counts = db.prepare(`SELECT
+        COUNT(DISTINCT CASE WHEN t.tradovate_source = 'tradezella' THEN t.id END) AS imported,
+        COUNT(DISTINCT CASE WHEN t.tradovate_source != 'tradezella' THEN t.id END) AS linked
+        FROM tradezella_imported_trades m LEFT JOIN trades t ON t.id = m.trade_id
+        WHERE m.user_id = ? AND m.source_account_name = ?`).get(user.id, row.source_account_name) as any;
+      accounts.push({ id: `tradezella::${row.source_account_name}`, provider: 'TradeZella',
+        kind: 'tradezella', name: row.display_name || row.source_account_name,
+        sourceName: row.source_account_name, currencyCode: row.currency_code || 'USD',
+        accountType: row.is_eval ? 'evaluation' : 'other',
+        importedTrades: Number(counts?.imported || 0), linkedTrades: Number(counts?.linked || 0) });
+    }
+
+    const pxRows = db.prepare(`SELECT bc.id AS connection_id, pc.account_settings, pc.selected_accounts
+      FROM broker_connections bc JOIN projectx_connections pc ON pc.broker_connection_id = bc.id
+      WHERE bc.owner = ? AND bc.broker = 'projectx'`).all(user.id) as any[];
+    for (const conn of pxRows) {
+      let settings: Record<string, any> = {};
+      let selected: number[] = [];
+      try { settings = conn.account_settings ? JSON.parse(conn.account_settings) : {}; } catch {}
+      try { selected = conn.selected_accounts ? JSON.parse(conn.selected_accounts) : []; } catch {}
+      const rawIds = db.prepare('SELECT DISTINCT account_id FROM projectx_trade_legs WHERE broker_connection_id = ?').all(conn.connection_id) as any[];
+      const ids = new Set([...Object.keys(settings), ...selected.map(String), ...rawIds.map(x => String(x.account_id))]);
+      for (const accountId of ids) {
+        const prefix = `px:${conn.connection_id}:px:${accountId}:`;
+        const tradeRows = db.prepare(`SELECT DISTINCT account FROM trades WHERE user_id = ?
+          AND broker_connection_id = ? AND projectx_source = 'projectx' AND projectx_trade_id LIKE ?`)
+          .all(user.id, conn.connection_id, `${prefix}%`) as any[];
+        const setting = settings[accountId] || {};
+        const name = setting.displayName?.trim() || tradeRows[0]?.account || `Topstep account ${accountId}`;
+        const count = db.prepare(`SELECT COUNT(*) AS count FROM trades WHERE user_id = ?
+          AND broker_connection_id = ? AND projectx_source = 'projectx' AND projectx_trade_id LIKE ?`)
+          .get(user.id, conn.connection_id, `${prefix}%`) as any;
+        const raw = db.prepare('SELECT COUNT(*) AS count FROM projectx_trade_legs WHERE broker_connection_id = ? AND account_id = ?')
+          .get(conn.connection_id, Number(accountId)) as any;
+        accounts.push({ id: `projectx::${conn.connection_id}::${accountId}`, provider: 'Topstep',
+          kind: 'projectx', connectionId: conn.connection_id, accountId: Number(accountId),
+          name, sourceName: String(accountId), currencyCode: setting.currencyCode || 'USD',
+          accountType: setting.type || 'other', importedTrades: Number(count?.count || 0),
+          rawExecutions: Number(raw?.count || 0) });
+      }
+    }
+
+    const others = db.prepare(`SELECT t.broker_connection_id AS connection_id, t.account, bc.broker,
+      COUNT(*) AS trade_count FROM trades t LEFT JOIN broker_connections bc ON bc.id = t.broker_connection_id
+      WHERE t.user_id = ? AND t.broker_connection_id IS NOT NULL
+      AND (t.projectx_source IS NULL OR t.projectx_source != 'projectx')
+      AND t.account IS NOT NULL AND t.account != ''
+      GROUP BY t.broker_connection_id, t.account, bc.broker ORDER BY bc.broker, t.account`).all(user.id) as any[];
+    for (const row of others) accounts.push({ id: `broker::${row.connection_id}::${row.account}`,
+      provider: row.broker || 'Broker', kind: 'broker', connectionId: row.connection_id,
+      name: row.account, sourceName: row.account, importedTrades: Number(row.trade_count || 0) });
+    return c.json({ accounts });
+  } catch (err: any) {
+    console.error('Managed account inventory error:', err);
+    return c.json({ error: 'Could not load managed accounts.' }, 500);
+  }
+});
+
+account.post('/api/account/managed-accounts/action', requiresLogin, async (c) => {
+  const user = c.get('user');
+  const db = c.get('db');
+  const body = await c.req.json();
+  const { id, action } = body as { id?: string; action?: string };
+  if (!id || !['clear', 'delete'].includes(action || '')) return c.json({ error: 'A valid account and action are required.' }, 400);
+  try {
+    const result = db.transaction(() => {
+      if (id.startsWith('tradezella::')) {
+        const sourceName = id.slice('tradezella::'.length);
+        const rows = db.prepare(`SELECT DISTINCT t.id FROM tradezella_imported_trades m
+          JOIN trades t ON t.id = m.trade_id WHERE m.user_id = ? AND m.source_account_name = ?
+          AND t.user_id = ? AND t.tradovate_source = 'tradezella'`).all(user.id, sourceName, user.id) as any[];
+        for (const row of rows) db.prepare("DELETE FROM trades WHERE id = ? AND user_id = ? AND tradovate_source = 'tradezella'").run(row.id, user.id);
+        db.prepare('DELETE FROM tradezella_imported_trades WHERE user_id = ? AND source_account_name = ?').run(user.id, sourceName);
+        if (action === 'delete') db.prepare('DELETE FROM tradezella_accounts WHERE user_id = ? AND source_account_name = ?').run(user.id, sourceName);
+        return { removedTrades: rows.length };
+      }
+      if (id.startsWith('projectx::')) {
+        const [, connectionId, accountIdText] = id.split('::');
+        const accountId = Number(accountIdText);
+        const owned = db.prepare("SELECT id FROM broker_connections WHERE id = ? AND owner = ? AND broker = 'projectx'").get(connectionId, user.id);
+        if (!owned || !Number.isSafeInteger(accountId)) throw new Error('Topstep account not found.');
+        const prefix = `px:${connectionId}:px:${accountId}:`;
+        const deleted = db.prepare(`DELETE FROM trades WHERE user_id = ? AND broker_connection_id = ?
+          AND projectx_source = 'projectx' AND projectx_trade_id LIKE ?`).run(user.id, connectionId, `${prefix}%`).changes;
+        const raw = db.prepare('DELETE FROM projectx_trade_legs WHERE broker_connection_id = ? AND account_id = ?').run(connectionId, accountId).changes;
+        const px = db.prepare('SELECT account_settings, selected_accounts, reinstated_order_keys FROM projectx_connections WHERE broker_connection_id = ?').get(connectionId) as any;
+        let settings: Record<string, any> = {}; let selected: number[] = []; let reinstated: string[] = [];
+        try { settings = px?.account_settings ? JSON.parse(px.account_settings) : {}; } catch {}
+        try { selected = px?.selected_accounts ? JSON.parse(px.selected_accounts) : []; } catch {}
+        try { reinstated = px?.reinstated_order_keys ? JSON.parse(px.reinstated_order_keys) : []; } catch {}
+        reinstated = reinstated.filter(key => !key.startsWith(`${accountId}:`));
+        if (action === 'delete') { delete settings[String(accountId)]; selected = selected.filter(value => value !== accountId); }
+        db.prepare('UPDATE projectx_connections SET account_settings = ?, selected_accounts = ?, reinstated_order_keys = ?, last_full_sync_time = NULL WHERE broker_connection_id = ?')
+          .run(JSON.stringify(settings), JSON.stringify(selected), JSON.stringify(reinstated), connectionId);
+        db.prepare('UPDATE broker_connections SET last_sync_time = NULL, updated_at = ? WHERE id = ? AND owner = ?')
+          .run(new Date().toISOString(), connectionId, user.id);
+        return { removedTrades: deleted, removedRawExecutions: raw };
+      }
+      if (id.startsWith('broker::')) {
+        const [, connectionId, accountName] = id.split('::');
+        const owned = db.prepare('SELECT id FROM broker_connections WHERE id = ? AND owner = ?').get(connectionId, user.id);
+        if (!owned) throw new Error('Broker account not found.');
+        const deleted = db.prepare('DELETE FROM trades WHERE user_id = ? AND broker_connection_id = ? AND account = ?')
+          .run(user.id, connectionId, accountName).changes;
+        return { removedTrades: deleted };
+      }
+      throw new Error('Unknown account type.');
+    })();
+    return c.json({ ok: true, action, ...result });
+  } catch (err: any) {
+    console.error('Managed account action error:', err);
+    return c.json({ error: err?.message || 'Could not update account.' }, 500);
+  }
+});
+
 export default account;
