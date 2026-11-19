@@ -520,9 +520,9 @@ const App = () => {
       <main className="flex-1 min-h-screen transition-[margin] duration-200 max-lg:!ml-0" style={{ marginLeft: sidebarWidth, paddingRight: sidePanelOffset }}>
         <div className="p-6 lg:p-8">
           {syncNotification && (
-            <div className="flex items-center gap-2 bg-info/10 border border-info/30 rounded-lg px-4 py-3 mb-6 text-info text-sm">
-              <Icons.RefreshCw className="w-4 h-4 animate-spin" />
-              {syncNotification}
+            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 bg-info/10 border border-info/30 rounded-lg px-4 py-3 text-info text-sm shadow-xl max-w-[min(90vw,560px)]">
+              <Icons.RefreshCw className="w-4 h-4 animate-spin shrink-0" />
+              <span>{syncNotification}</span>
             </div>
           )}
           {renderPage()}
