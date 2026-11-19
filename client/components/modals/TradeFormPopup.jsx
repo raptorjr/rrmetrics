@@ -218,30 +218,38 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
       return new Date(timestamp).toISOString();
     };
     const parseDisplayDateTime = (dateValue, timeValue) => {
-      const dateMatch = dateValue.trim().match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-      if (!dateMatch) return null;
-      const [, day, month, year] = dateMatch;
-      let hour, minute, second = 0;
-      const timeFormat = localStorage.getItem('rrmetrics_time_format') === '24h' ? '24h' : '12h';
-      if (timeFormat === '24h') {
-        const match = timeValue.trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-        if (!match) return null;
-        hour = Number(match[1]); minute = Number(match[2]); second = Number(match[3] || 0);
-      } else {
-        const match = timeValue.trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i);
-        if (!match) return null;
-        hour = Number(match[1]) % 12 + (match[4].toUpperCase() === 'PM' ? 12 : 0);
-        minute = Number(match[2]); second = Number(match[3] || 0);
+      const dateFormat = localStorage.getItem('rrmetrics_date_format') || 'auto';
+      const locale = Intl.DateTimeFormat().resolvedOptions().locale || 'en-GB';
+      let order;
+      if (dateFormat === 'dmy-dot' || dateFormat === 'dmy-slash') order = 'dmy';
+      else if (dateFormat === 'mdy-slash') order = 'mdy';
+      else if (dateFormat === 'ymd-dash') order = 'ymd';
+      else {
+        const types = new Intl.DateTimeFormat(locale).formatToParts(new Date(Date.UTC(2026, 10, 19)))
+          .filter(part => ['day', 'month', 'year'].includes(part.type)).map(part => part.type);
+        order = types.map(type => type === 'day' ? 'd' : type === 'month' ? 'm' : 'y').join('');
       }
+      const pieces = dateValue.trim().split(/[.\/-]/);
+      if (pieces.length !== 3) return null;
+      let day, month, year;
+      if (order === 'dmy') [day, month, year] = pieces;
+      else if (order === 'mdy') [month, day, year] = pieces;
+      else if (order === 'ymd') [year, month, day] = pieces;
+      else return null;
+      const hourMatch = timeValue.trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      if (!hourMatch) return null;
       const d = Number(day), m = Number(month), y = Number(year);
+      const hour = Number(hourMatch[1]), minute = Number(hourMatch[2]), second = Number(hourMatch[3] || 0);
       const check = new Date(Date.UTC(y, m - 1, d, hour, minute, second));
       if (check.getUTCFullYear() !== y || check.getUTCMonth() !== m - 1 || check.getUTCDate() !== d || hour > 23 || minute > 59 || second > 59) return null;
-      return localInputToISO(`${year}-${month}-${day}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`);
+      const isoLocal = [String(y).padStart(4, '0'), String(m).padStart(2, '0'), String(d).padStart(2, '0')].join('-') + 'T' +
+        [String(hour).padStart(2, '0'), String(minute).padStart(2, '0'), String(second).padStart(2, '0')].join(':');
+      return localInputToISO(isoLocal);
     };
     const enterTime = parseDisplayDateTime(enterDateRaw, enterClockRaw);
     const exitTime = parseDisplayDateTime(exitDateRaw, exitClockRaw);
     if (!enterTime || !exitTime) {
-      helper.handleError('Enter dates as DD.MM.YYYY and times in the selected 12/24-hour format');
+      helper.handleError('Check the selected date format and enter a valid date and time');
       return;
     }
     const tradeData = {
