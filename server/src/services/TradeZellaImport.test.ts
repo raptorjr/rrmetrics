@@ -193,7 +193,7 @@ test('links a TradeZella merged row to two RR positions with the same net financ
   assert.deepEqual(new Set(matches[0].existingTradeIds), new Set(['rr-aug-1', 'rr-aug-2']));
 });
 
-test('links a TradeZella merged reversal episode using net quantity and aggregate financial totals', () => {
+test('holds a merged reversal for review when the RR net direction contradicts TradeZella', () => {
   const source = parseTradeZellaRows([{
     'Account Name': 'Practice', Instrument: 'MGC', Side: 'short', Quantity: '4',
     'Open Date': '2026-09-22', 'Open Time': '15:39:48 CEST',
@@ -216,6 +216,7 @@ test('links a TradeZella merged reversal episode using net quantity and aggregat
     },
   ]);
   assert.equal(matches.length, 1);
-  assert.equal(matches[0].status, 'matched');
+  assert.equal(matches[0].status, 'review');
   assert.deepEqual(new Set(matches[0].existingTradeIds), new Set(['rr-sep-short', 'rr-sep-long']));
+  assert.match(matches[0].reason, /signed direction/);
 });
