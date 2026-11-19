@@ -186,7 +186,7 @@ tradezella.post('/api/tradezella/import', requiresLogin, async (c) => {
     return c.json({ error: 'Select at least one account and provide its account settings.' }, 400);
   }
   const settingsBySource = new Map(settings.map(item => [item.sourceAccountName, item]));
-  if (selectedAccounts.some(name => !settingsBySource.has(name))) {
+  if (selectedAccounts.some((name: string) => !settingsBySource.has(name))) {
     return c.json({ error: 'Every selected source account must have account settings.' }, 400);
   }
 
