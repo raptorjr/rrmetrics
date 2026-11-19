@@ -439,7 +439,7 @@ const App = () => {
           const res = await authFetch(`${broker.apiBase}/sync`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ connectionId: conn.connectionId }),
+            body: JSON.stringify(broker.name === 'Topstep' ? { connectionId: conn.connectionId, fullHistory: false } : { connectionId: conn.connectionId }),
           });
           const data = await res.json();
           totalSynced += data.synced || 0;
@@ -470,7 +470,7 @@ const App = () => {
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':
-        return <DashboardPage trades={filteredTrades} onOpenForm={openForm} onOpenImport={() => setCsvImportOpen(true)} onManualSync={handleManualSync} brokerStatuses={brokerStatuses} onOpenAddTrade={openFormWithDate} onEditTrade={openEditForm} dailyNotes={dailyNotes} onSaveNote={handleSaveNote} onDeleteNote={handleDeleteNote} tags={tags} strategyRules={strategyRules} evalFilter={evalFilter} setEvalFilter={setEvalFilter} sidebarCollapsed={sidebarCollapsed} />;
+        return <DashboardPage trades={filteredTrades} onOpenForm={openForm} onManualSync={handleManualSync} brokerStatuses={brokerStatuses} onOpenAddTrade={openFormWithDate} onEditTrade={openEditForm} dailyNotes={dailyNotes} onSaveNote={handleSaveNote} onDeleteNote={handleDeleteNote} tags={tags} strategyRules={strategyRules} evalFilter={evalFilter} setEvalFilter={setEvalFilter} sidebarCollapsed={sidebarCollapsed} />;
       case 'trades':
         return (
           <TradeListPage
@@ -479,7 +479,6 @@ const App = () => {
             onEdit={(trade) => { setForceEditModal(true); setEditingTrade(trade); setIsFormOpen(true); }}
            
             onOpenForm={openForm}
-            onOpenImport={() => setCsvImportOpen(true)}
             tags={tags}
             strategyRules={strategyRules}
             dailyNotes={dailyNotes}
@@ -496,7 +495,7 @@ const App = () => {
       case 'backtesting':
         return <BacktestingPage />;
       case 'settings':
-        return <SettingsPage onSyncComplete={triggerReload} onNavigate={setCurrentPage} theme={theme} onThemeChange={handleThemeChange} customColors={customColors} tags={tags} triggerReload={triggerReload} />;
+        return <SettingsPage onSyncComplete={triggerReload} onNavigate={setCurrentPage} onOpenImport={() => setCsvImportOpen(true)} theme={theme} onThemeChange={handleThemeChange} customColors={customColors} tags={tags} triggerReload={triggerReload} />;
       case 'syncer':
         return <TradeSyncerPage />;
       case 'tradezella':
