@@ -1,6 +1,7 @@
 const React = require('react');
 const { useEffect, useState } = React;
 const { authFetch } = require('../../helper.js');
+const { BROKER_CONFIGS } = require('../../hooks/useBrokerConnection');
 
 const AccountManagementPanel = ({ triggerReload }) => {
   const [accounts, setAccounts] = useState([]);
@@ -69,9 +70,27 @@ const AccountManagementPanel = ({ triggerReload }) => {
     return out;
   }, {});
   const [expandedProvider, setExpandedProvider] = useState(null);
-  const providerLabel = provider => provider === 'TradeZella'
-    ? provider
-    : provider.split(/[_\\s-]+/).map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+  const providerLabel = provider => {
+    const normalized = String(provider || '').trim().toLowerCase().replace(/[ _-]+/g, '');
+    if (['projectx', 'toptep', 'topstep'].includes(normalized)) return 'Topstep';
+    if (normalized === 'tradezella') return 'TradeZella';
+    const configured = Object.values(BROKER_CONFIGS).find(config =>
+      config.key.toLowerCase().replace(/[ _-]+/g, '') === normalized
+      || config.label.toLowerCase().replace(/[ _-]+/g, '') === normalized
+    );
+    return configured?.label || String(provider || 'Other').split(/[_\\s-]+/).map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+  };
+  const providerIcon = provider => {
+    const label = providerLabel(provider);
+    if (label === 'Topstep') return '/assets/img/topstep.png';
+    if (label === 'TradeZella') return '/assets/img/tradezella.svg';
+    const normalized = String(provider || '').trim().toLowerCase().replace(/[ _-]+/g, '');
+    const configured = Object.values(BROKER_CONFIGS).find(config =>
+      config.key.toLowerCase().replace(/[ _-]+/g, '') === normalized
+      || config.label.toLowerCase().replace(/[ _-]+/g, '') === normalized
+    );
+    return configured?.icon || null;
+  };
   const providers = Object.keys(groups).sort((a, b) => providerLabel(a).localeCompare(providerLabel(b)));
 
   return (
@@ -103,9 +122,13 @@ const AccountManagementPanel = ({ triggerReload }) => {
                       isExpanded ? 'border-accent ring-1 ring-accent/20' : 'border-border hover:border-accent/40 hover:bg-bg-page/50'
                     }`}
                   >
-                    <div className="w-10 h-10 rounded-lg bg-bg-page border border-border flex items-center justify-center text-text-primary font-semibold text-sm">
-                      {providerLabel(provider).slice(0, 2).toUpperCase()}
-                    </div>
+                    {providerIcon(provider) ? (
+                      <img src={providerIcon(provider)} alt={providerLabel(provider)} className="w-10 h-10 rounded-lg object-contain" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg bg-bg-page border border-border flex items-center justify-center text-text-primary font-semibold text-sm">
+                        {providerLabel(provider).slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
                     <span className="text-text-primary font-semibold text-sm leading-tight">{providerLabel(provider)}</span>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-text-secondary/10 text-text-secondary">
                       {count} {count === 1 ? 'account' : 'accounts'}
