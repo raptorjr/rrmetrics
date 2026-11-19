@@ -206,7 +206,7 @@ const TradeZellaImportPage = ({ triggerReload }) => {
           <section className="rounded-xl border border-border bg-bg-surface p-5">
             <h2 className="font-semibold text-text-primary mb-2">Import safeguards</h2>
             <ul className="list-disc pl-5 space-y-1 text-sm text-text-secondary">
-              <li>Duplicate checks only compare against the RR account selected for each TradeZella account.</li>
+              <li>Trades are checked against the selected RR account first, then other RR accounts for possible cross-account duplicates.</li>
               <li>Exact and consolidated position matches are linked to existing RR trades instead of duplicated.</li>
               <li>Rows with uncertain matches are held for review and are not imported automatically.</li>
               <li>Original TradeZella account names are retained in the import source mapping.</li>
