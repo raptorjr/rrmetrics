@@ -731,7 +731,7 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
         storageKey="rrmetrics_analytics_tiles"
         defaultOrder={['totalPL', 'winRate', 'totalTrades', 'avgDuration', 'avgWinLoss', 'bestTrade', 'worstTrade', 'breakevenRate', 'profitFactor', 'expectancy', 'maxDrawdown', 'sharpeRatio', 'sortinoRatio', 'kellyRisk']}
         defaultVisible={['totalPL', 'winRate', 'profitFactor', 'expectancy', 'maxDrawdown', 'breakevenRate', 'sharpeRatio', 'sortinoRatio', 'kellyRisk']}
-        items={performanceTiles}}
+        items={performanceTiles}
       />
 
       {/* Long vs Short Breakdown */}
