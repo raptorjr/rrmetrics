@@ -154,7 +154,7 @@ account.get('/api/account/managed-accounts', requiresLogin, async (c) => {
           AND broker_connection_id = ? AND projectx_source = 'projectx' AND projectx_trade_id LIKE ?`)
           .all(user.id, conn.connection_id, `${prefix}%`) as any[];
         const setting = settings[accountId] || {};
-        const sourceAccountName = tradeRows[0]?.account || setting.accountName || `Topstep account ${accountId}`;
+        const sourceAccountName = setting.accountName || tradeRows[0]?.account || `Topstep account ${accountId}`;
         const name = setting.displayName?.trim() || sourceAccountName;
         const count = db.prepare(`SELECT COUNT(*) AS count FROM trades WHERE user_id = ?
           AND broker_connection_id = ? AND projectx_source = 'projectx' AND projectx_trade_id LIKE ?`)
