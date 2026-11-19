@@ -97,7 +97,9 @@ const App = () => {
   useEffect(() => {
     if (trades && trades.length > 0 && selectedAccounts.length > 0) {
       const validAccounts = new Set(trades.map(t => t.account || 'Manual'));
-      const cleaned = selectedAccounts.filter(a => validAccounts.has(a));
+      const cleaned = selectedAccounts.includes('__rrmetrics_no_accounts__')
+        ? selectedAccounts
+        : selectedAccounts.filter(a => validAccounts.has(a));
       if (cleaned.length !== selectedAccounts.length) {
         setSelectedAccounts(cleaned);
       }
