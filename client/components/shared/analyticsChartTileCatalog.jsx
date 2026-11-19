@@ -93,9 +93,9 @@ const EntryTimeTile = ({ trades }) => {
 };
 
 const MonteCarloTile = ({ trades }) => {
-  const results = useMemo(() => trades.length < 5 ? null : runMonteCarloSimulation(trades), [trades]);
-  if (!results || !results.paths || results.paths.length === 0) {
-    return <Panel title="Monte Carlo Eval Simulation"><p className="text-sm text-text-tertiary">At least five trades are needed to run the simulation.</p></Panel>;
+  const results = useMemo(() => runMonteCarloSimulation(trades), [trades]);
+  if (results.insufficientTrades || !results.paths || results.paths.length === 0) {
+    return <Panel title="Monte Carlo Eval Simulation"><p className="text-sm text-text-tertiary">At least five non-breakeven trades are needed to run the simulation.</p></Panel>;
   }
   let maxDay = 1, minValue = 0, maxValue = 0;
   results.paths.forEach(path => {
