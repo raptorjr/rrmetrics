@@ -373,6 +373,7 @@ export function matchTradeZellaRowsAcrossAccounts(
   rows: TradeZellaRow[],
   existing: ExistingTrade[],
   targetAccount: string | null,
+  crossAccountExisting: ExistingTrade[] = existing,
 ): MatchResult[] {
   const primary = matchTradeZellaRows(
     rows,
@@ -384,14 +385,14 @@ export function matchTradeZellaRowsAcrossAccounts(
   if (!newRows.length) return primary;
 
   const possibleByRow = new Map<number, { ids: Set<string>; accounts: Set<string> }>();
-  const otherAccounts = [...new Set(existing
+  const otherAccounts = [...new Set(crossAccountExisting
     .map(trade => trade.account)
     .filter((account): account is string => !!account && account !== targetAccount))];
 
   for (const account of otherAccounts) {
     const crossMatches = matchTradeZellaRows(
       newRows,
-      existing.filter(trade => trade.account === account),
+      crossAccountExisting.filter(trade => trade.account === account),
     );
     for (const match of crossMatches) {
       if (match.status === 'new') continue;
