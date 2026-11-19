@@ -75,10 +75,16 @@ function sourceMappings(db: any, userId: string, rows: TradeZellaRow[]) {
      FROM tradezella_imported_trades
      WHERE user_id = ? AND source_account_name = ? AND source_fingerprint = ?`,
   );
+  const clearedQuery = db.prepare(
+    `SELECT 1 FROM tradezella_cleared_trades
+     WHERE user_id = ? AND source_account_name = ? AND source_fingerprint = ?`,
+  );
   for (const [account, fingerprints] of byAccount) {
     for (const fingerprint of fingerprints) {
+      const key = account + '|' + fingerprint;
       const matches = query.all(userId, account, fingerprint) as Array<{ trade_id: string }>;
-      if (matches.length) result.set(account + '|' + fingerprint, matches.map(row => row.trade_id));
+      if (matches.length) result.set(key, matches.map(row => row.trade_id));
+      else if (clearedQuery.get(userId, account, fingerprint)) result.set(key, []);
     }
   }
   return result;
