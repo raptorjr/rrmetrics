@@ -218,13 +218,17 @@ account.post('/api/account/managed-accounts/action', requiresLogin, async (c) =>
         let settings: Record<string, any> = {};
         try { settings = row.account_settings ? JSON.parse(row.account_settings) : {}; } catch {}
         settings[accountId] = { ...(settings[accountId] || {}), displayName };
+        const prefix = `px:${connectionId}:px:${accountId}:`;
+        db.prepare("UPDATE trades SET account = ? WHERE user_id = ? AND broker_connection_id = ? AND projectx_source = 'projectx' AND projectx_trade_id LIKE ?")
+          .run(displayName, user.id, connectionId, `${prefix}%`);
         db.prepare('UPDATE projectx_connections SET account_settings = ? WHERE broker_connection_id = ?').run(JSON.stringify(settings), connectionId);
       } else if (id.startsWith('broker::')) {
         const [, connectionId, oldName] = id.split('::');
         const owned = db.prepare('SELECT id FROM broker_connections WHERE id = ? AND owner = ?').get(connectionId, user.id);
         if (!owned) return c.json({ error: 'Broker account not found.' }, 404);
-        db.prepare('UPDATE trades SET account = ? WHERE user_id = ? AND broker_connection_id = ? AND account = ?').run(displayName, user.id, connectionId, oldName);
-        db.prepare('UPDATE managed_accounts SET display_name = ? WHERE user_id = ? AND connection_id = ? AND source_account_id = ?').run(displayName, user.id, connectionId, oldName);
+        const managed = db.prepare('SELECT display_name FROM managed_accounts WHERE id = ? AND user_id = ?').get(id, user.id) as any;
+        db.prepare('UPDATE trades SET account = ? WHERE user_id = ? AND broker_connection_id = ? AND account = ?').run(displayName, user.id, connectionId, managed?.display_name || oldName);
+        db.prepare('UPDATE managed_accounts SET display_name = ? WHERE id = ? AND user_id = ?').run(displayName, id, user.id);
       } else return c.json({ error: 'Unknown account type.' }, 400);
       return c.json({ ok: true, action: 'rename', displayName });
     }
@@ -265,10 +269,11 @@ account.post('/api/account/managed-accounts/action', requiresLogin, async (c) =>
         const [, connectionId, accountName] = id.split('::');
         const owned = db.prepare('SELECT id FROM broker_connections WHERE id = ? AND owner = ?').get(connectionId, user.id);
         if (!owned) throw new Error('Broker account not found.');
+        const managed = db.prepare('SELECT display_name FROM managed_accounts WHERE id = ? AND user_id = ?').get(id, user.id) as any;
         const deleted = db.prepare('DELETE FROM trades WHERE user_id = ? AND broker_connection_id = ? AND account = ?')
-          .run(user.id, connectionId, accountName).changes;
-        if (action === 'delete') db.prepare('DELETE FROM managed_accounts WHERE user_id = ? AND connection_id = ? AND source_account_id = ?')
-          .run(user.id, connectionId, accountName);
+          .run(user.id, connectionId, managed?.display_name || accountName).changes;
+        if (action === 'delete') db.prepare('DELETE FROM managed_accounts WHERE id = ? AND user_id = ?')
+          .run(id, user.id);
         return { removedTrades: deleted };
       }
       throw new Error('Unknown account type.');
