@@ -10,7 +10,7 @@ const readLayout = (storageKey, defaults, defaultVisible, availableIds) => {
     const order = [...saved.order.filter(id => valid.has(id)), ...newIds];
     return { order, hidden: [...saved.hidden.filter(id => valid.has(id)), ...newIds.filter(id => !defaultVisible.includes(id))] };
   } catch {
-    return { order: defaults, hidden: [] };
+    return { order: defaults, hidden: defaults.filter(id => !defaultVisible.includes(id)) };
   }
 };
 
@@ -25,7 +25,11 @@ const CustomizableStats = ({ storageKey, items, defaultOrder, defaultVisible = d
   }, [storageKey, ids.join('|')]);
 
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(layout));
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(layout));
+    } catch {
+      // Keep the current layout usable when browser storage is unavailable.
+    }
   }, [storageKey, layout]);
 
   const orderedItems = layout.order

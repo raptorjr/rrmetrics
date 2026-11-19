@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { runMonteCarloSimulation, calculateKellyCriterion, calculateAnalytics, calculateExpectancy } = require('./analytics');
+const { runMonteCarloSimulation, calculateKellyCriterion, calculateAnalytics, calculateExpectancy, calculateProfitFactor } = require('./analytics');
 const { isBreakevenTrade } = require('./tickValues');
 
 const makeTrade = (pl, priceMove = pl === 0 ? 0.1 : 1, day = '2026-01-05') => ({
@@ -163,4 +163,11 @@ test('expectancy is average net P/L per trade, including breakevens', () => {
   assert.equal(calculateExpectancy({ totalPL: -75, totalTrades: 3 }), -25);
   assert.equal(calculateExpectancy({ totalPL: 0, totalTrades: 0 }), 0);
   assert.equal(calculateExpectancy(null), 0);
+});
+
+test('profit factor uses gross wins and losses and preserves no-loss behaviour', () => {
+  assert.equal(calculateProfitFactor([makeTrade(100, 1), makeTrade(-50, -0.5), makeTrade(0, 0.1)]), 2);
+  assert.equal(calculateProfitFactor([makeTrade(100, 1), makeTrade(0, 0.1)]), 100);
+  assert.equal(calculateProfitFactor([makeTrade(-50, -0.5)]), 0);
+  assert.equal(calculateProfitFactor([]), 0);
 });

@@ -20,7 +20,7 @@ const PERFORMANCE_TILE_DEFINITIONS = [
   { id: 'worstTrade', label: 'Worst Trade', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "The largest net loss from a single trade in the selected period." },
   { id: 'breakevenRate', label: 'Breakeven Rate', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "The percentage of closed trades that finished near breakeven." },
   { id: 'profitFactor', label: 'Profit Factor', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "Gross profits divided by gross losses across the selected trades." },
-  { id: 'expectancy', label: 'Expectancy', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "Expected average profit or loss per trade based on the current win rate and average win/loss." },
+  { id: 'expectancy', label: 'Expectancy', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "Average net profit or loss per closed trade, including breakeven trades." },
   { id: 'maxDrawdown', label: 'Max Drawdown', category: 'Risk', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "The largest peak-to-trough decline in cumulative trading profit." },
   { id: 'sharpeRatio', label: 'Sharpe Ratio', category: 'Risk', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "Risk-adjusted performance measured using the Sharpe ratio." },
   { id: 'sortinoRatio', label: 'Sortino Ratio', category: 'Risk', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1, description: "Risk-adjusted performance that focuses on downside volatility." },

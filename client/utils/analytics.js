@@ -10,6 +10,18 @@ const calculateExpectancy = (stats) => (
   stats && stats.totalTrades > 0 ? stats.totalPL / stats.totalTrades : 0
 );
 
+const calculateProfitFactor = (trades) => {
+  if (!trades || trades.length === 0) return 0;
+  let grossWins = 0;
+  let grossLosses = 0;
+  trades.forEach(trade => {
+    const pl = getTradePL(trade);
+    if (pl > 0) grossWins += pl;
+    else grossLosses += Math.abs(pl);
+  });
+  return grossLosses === 0 ? grossWins : grossWins / grossLosses;
+};
+
 const calculateAnalytics = (trades) => {
   const empty = {
     totalPL: 0, winRate: 0, avgWin: 0, avgLoss: 0,
@@ -240,5 +252,5 @@ const applyEvalFilter = (trades, evalFilter) => {
 
 module.exports = {
   getTradePL, calculateAnalytics, groupTradesByDate, applyEvalFilter,
-  calculateSharpeRatio, calculateSortinoRatio, calculateKellyCriterion, calculateExpectancy, runMonteCarloSimulation,
+  calculateSharpeRatio, calculateSortinoRatio, calculateKellyCriterion, calculateExpectancy, calculateProfitFactor, runMonteCarloSimulation,
 };
