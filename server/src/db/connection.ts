@@ -44,6 +44,9 @@ export function getDb(): Db {
   if (!projectxColumns.has('auto_sync_last_attempt_at')) db.exec('ALTER TABLE projectx_connections ADD COLUMN auto_sync_last_attempt_at TEXT');
   if (!projectxColumns.has('auto_sync_last_error')) db.exec('ALTER TABLE projectx_connections ADD COLUMN auto_sync_last_error TEXT');
   if (!projectxColumns.has('auto_sync_last_result')) db.exec('ALTER TABLE projectx_connections ADD COLUMN auto_sync_last_result TEXT');
+  if (!projectxColumns.has('full_sync_enabled')) db.exec('ALTER TABLE projectx_connections ADD COLUMN full_sync_enabled INTEGER NOT NULL DEFAULT 0');
+  if (!projectxColumns.has('setup_completed')) db.exec('ALTER TABLE projectx_connections ADD COLUMN setup_completed INTEGER NOT NULL DEFAULT 0');
+  db.exec("UPDATE projectx_connections SET setup_completed = 1 WHERE setup_completed = 0 AND selected_accounts IS NOT NULL AND selected_accounts != '[]' AND EXISTS (SELECT 1 FROM broker_connections bc WHERE bc.id = projectx_connections.broker_connection_id AND bc.last_sync_time IS NOT NULL)");
 
   const tradezellaAccountColumns = new Set((db.prepare('PRAGMA table_info(tradezella_accounts)').all() as Array<{ name: string }>).map(column => column.name));
   if (!tradezellaAccountColumns.has('match_account')) db.exec('ALTER TABLE tradezella_accounts ADD COLUMN match_account TEXT');
