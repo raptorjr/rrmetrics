@@ -297,28 +297,57 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
     }
   };
 
+  const getDateFormat = () => {
+    try { return localStorage.getItem('rrmetrics_date_format') || 'auto'; } catch { return 'auto'; }
+  };
+  const getDateOrder = () => {
+    const format = getDateFormat();
+    if (format === 'dmy-dot' || format === 'dmy-slash') return 'dmy';
+    if (format === 'mdy-slash') return 'mdy';
+    if (format === 'ymd-dash') return 'ymd';
+    const locale = Intl.DateTimeFormat().resolvedOptions().locale || 'en-GB';
+    return new Intl.DateTimeFormat(locale).formatToParts(new Date(Date.UTC(2026, 10, 19)))
+      .filter(part => ['day', 'month', 'year'].includes(part.type))
+      .map(part => part.type === 'day' ? 'd' : part.type === 'month' ? 'm' : 'y').join('');
+  };
+  const formatDateValue = (year, month, day) => {
+    const order = getDateOrder();
+    const format = getDateFormat();
+    const separator = format === 'dmy-dot' ? '.' : format === 'ymd-dash' ? '-' : '/';
+    const values = { d: day, m: month, y: year };
+    return order.split('').map(key => values[key]).join(separator);
+  };
   const formatDateTimeForInput = (dateString) => {
-    if (!dateString) return { date: '', time: '' };
+    if (!dateString) return { date: '', isoDate: '', time: '' };
     const date = new Date(dateString);
     const parts = new Intl.DateTimeFormat('en-GB', {
       timeZone: getDisplayTimeZone(), year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
     }).formatToParts(date);
     const part = type => parts.find(item => item.type === type)?.value || '00';
-    const dateValue = `${part('day')}.${part('month')}.${part('year')}`;
-    const timeFormat = localStorage.getItem('rrmetrics_time_format') === '24h' ? '24h' : '12h';
-    const timeValue = new Intl.DateTimeFormat('en-US', {
-      timeZone: getDisplayTimeZone(), hour: '2-digit', minute: '2-digit', second: '2-digit',
-      hour12: timeFormat !== '24h', hourCycle: timeFormat === '24h' ? 'h23' : 'h12',
-    }).format(date);
-    return { date: dateValue, time: timeValue };
+    const year = part('year'), month = part('month'), day = part('day');
+    return {
+      date: formatDateValue(year, month, day),
+      isoDate: year + '-' + month + '-' + day,
+      time: part('hour') + ':' + part('minute') + ':' + part('second'),
+    };
   };
   const defaultDateTime = (dateString) => {
-    const value = dateString ? new Date(`${dateString}T09:30:00`) : new Date();
+    const value = dateString ? new Date(dateString + 'T09:30:00') : new Date();
     return formatDateTimeForInput(value.toISOString());
   };
   const enterDefaults = isEditing ? formatDateTimeForInput(editingTrade.enterTime) : defaultDateTime(prefillDate);
   const exitDefaults = isEditing ? formatDateTimeForInput(editingTrade.exitTime) : defaultDateTime(prefillDate);
+  const timeInputLang = (() => {
+    try { return localStorage.getItem('rrmetrics_time_format') === '24h' ? 'en-GB' : 'en-US'; }
+    catch { return 'en-GB'; }
+  })();
+  const updateDateFromPicker = (textId, event) => {
+    if (!event.target.value) return;
+    const [year, month, day] = event.target.value.split('-');
+    const field = document.getElementById(textId);
+    if (field) field.value = formatDateValue(year, month, day);
+  };
 
   const inputClass = "w-full px-3 py-2.5 bg-bg-input border border-border rounded-lg text-text-primary text-sm placeholder-text-muted focus:outline-none focus:border-accent transition-colors";
   const labelClass = "block text-xs font-medium text-text-secondary mb-1.5";
@@ -351,14 +380,20 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className={labelClass}>Enter Time</label>
-                <input id="enterDate" type="text" name="enterDate" placeholder="DD.MM.YYYY" aria-label="Enter date (DD.MM.YYYY)" defaultValue={enterDefaults.date} className={inputClass} />
-                <input id="enterClock" type="text" name="enterClock" placeholder={localStorage.getItem('rrmetrics_time_format') === '24h' ? 'HH:mm:ss' : 'hh:mm:ss AM/PM'} aria-label="Enter time" defaultValue={enterDefaults.time} className={inputClass} />
+                <label htmlFor="enterDate" className={labelClass}>Enter Date &amp; Time</label>
+                <div className="flex gap-2">
+                  <input id="enterDate" type="text" name="enterDate" placeholder={getDateFormat() === 'auto' ? 'Date' : getDateFormat() === 'dmy-dot' ? 'DD.MM.YYYY' : getDateFormat() === 'dmy-slash' ? 'DD/MM/YYYY' : getDateFormat() === 'mdy-slash' ? 'MM/DD/YYYY' : 'YYYY-MM-DD'} aria-label="Enter date" defaultValue={enterDefaults.date} className={inputClass} />
+                  <input type="date" aria-label="Choose enter date" title="Choose date from calendar" defaultValue={enterDefaults.isoDate} onChange={(e) => updateDateFromPicker('enterDate', e)} className="w-12 shrink-0 px-2 bg-bg-input border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:border-accent" />
+                </div>
+                <input id="enterClock" type="time" name="enterClock" step="1" lang={timeInputLang} defaultValue={enterDefaults.time} className={inputClass} />
               </div>
               <div className="space-y-2">
-                <label className={labelClass}>Exit Time</label>
-                <input id="exitDate" type="text" name="exitDate" placeholder="DD.MM.YYYY" aria-label="Exit date (DD.MM.YYYY)" defaultValue={exitDefaults.date} className={inputClass} />
-                <input id="exitClock" type="text" name="exitClock" placeholder={localStorage.getItem('rrmetrics_time_format') === '24h' ? 'HH:mm:ss' : 'hh:mm:ss AM/PM'} aria-label="Exit time" defaultValue={exitDefaults.time} className={inputClass} />
+                <label htmlFor="exitDate" className={labelClass}>Exit Date &amp; Time</label>
+                <div className="flex gap-2">
+                  <input id="exitDate" type="text" name="exitDate" placeholder={getDateFormat() === 'auto' ? 'Date' : getDateFormat() === 'dmy-dot' ? 'DD.MM.YYYY' : getDateFormat() === 'dmy-slash' ? 'DD/MM/YYYY' : getDateFormat() === 'mdy-slash' ? 'MM/DD/YYYY' : 'YYYY-MM-DD'} aria-label="Exit date" defaultValue={exitDefaults.date} className={inputClass} />
+                  <input type="date" aria-label="Choose exit date" title="Choose date from calendar" defaultValue={exitDefaults.isoDate} onChange={(e) => updateDateFromPicker('exitDate', e)} className="w-12 shrink-0 px-2 bg-bg-input border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:border-accent" />
+                </div>
+                <input id="exitClock" type="time" name="exitClock" step="1" lang={timeInputLang} defaultValue={exitDefaults.time} className={inputClass} />
               </div>
             </div>
 
