@@ -169,11 +169,11 @@ export function reconcileProjectXHistory(
       if (unsafePrefixes.some(prefix => existingId.startsWith(prefix))) continue;
       deleteStaleProjectionById.run(existingId, userId, connectionId);
     }
-    return { ...reconstruction, newTradesImported };
+    return { ...reconstruction, newTradesImported, rawLegCount: allLegs.length };
   })();
 
   return {
-    rawLegs: allLegs.length,
+    rawLegs: result.rawLegCount,
     positions: result.positions.length,
     newTradesImported: result.newTradesImported,
     openPositions: result.openPositions.length,
