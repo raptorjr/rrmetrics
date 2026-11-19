@@ -402,6 +402,18 @@ projectx.post(
       const accountNameMap = new Map<number, string>(
         accounts.map(account => [account.id, account.name]),
       );
+      // Persist the broker-provided name independently from the editable local display name.
+      const accountSettingsWithSourceNames = { ...(pxConn.account_settings || {}) };
+      for (const account of accounts) {
+        const key = String(account.id);
+        accountSettingsWithSourceNames[key] = {
+          ...(accountSettingsWithSourceNames[key] || { type: 'other', displayName: '', currencyCode: 'USD' }),
+          accountName: account.name,
+        } as any;
+      }
+      await pxConnDb.updateByBrokerConnectionId(serviceClient, connectionId, {
+        account_settings: accountSettingsWithSourceNames as any,
+      });
 
       const allTrades: import('../services/ProjectXAPI').Trade[] = [];
       const allOrders: import('../services/ProjectXAPI').ProjectXOrder[] = [];
