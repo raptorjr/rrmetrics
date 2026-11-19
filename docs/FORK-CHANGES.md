@@ -103,6 +103,14 @@ cd rrmetrics
 - The Yearly calendar formats P&L using the currency code instead of assuming a dollar sign. If a month or year contains more than one currency, its P&L cell displays “Mixed currencies” instead of presenting an invalid combined amount.
 - This is the currency metadata and display foundation. Currency conversion into a single reporting currency is a separate follow-up; mixed-currency totals are deliberately not converted or combined for display.
 
+### TradeZella CSV import and matching
+
+- Added a dedicated TradeZella CSV importer with account selection, persistent source-account mapping, friendly names, currency and Evaluation settings.
+- Preview matching is scoped to the explicitly mapped RR account and retains source fingerprints so repeat imports do not create duplicates.
+- Supports one TradeZella row matching multiple RR trades only when entry/exit boundaries, signed net quantity, gross/net P&L, fees and commissions reconcile uniquely.
+- Reversal episodes whose signed net direction conflicts with the TradeZella side remain in review; matching absolute quantities alone is not sufficient evidence.
+- Uncertain matches are skipped rather than imported as new trades. The detailed review table is a development diagnostic and is intended to become a simple matched/imported/skipped summary in the final user interface.
+
 ## Deployment notes
 
 - Fork-specific changes are developed on `development`; upstream's `main` branch is not the deployment target for these additions.
