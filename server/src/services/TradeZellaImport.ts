@@ -156,11 +156,24 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
       results.push({ status: 'matched', sourceRows: [source.sourceRow], existingTradeIds: [strongCandidates[0].id], reason: 'Entry time, quantity, gross/net P&L and trading costs match; exit execution details differ' });
       continue;
     }
-    const direct = existing.find((trade) => available.has(trade.id) && exactMatch(source, trade));
-    if (direct) {
-      available.delete(direct.id);
+    const directCandidates = existing.filter((trade) => available.has(trade.id) && exactMatch(source, trade));
+    if (directCandidates.length === 1) {
+      available.delete(directCandidates[0].id);
       processed.add(source.sourceRow);
-      results.push({ status: 'matched', sourceRows: [source.sourceRow], existingTradeIds: [direct.id], reason: 'Exact trade match' });
+      results.push({ status: 'matched', sourceRows: [source.sourceRow], existingTradeIds: [directCandidates[0].id], reason: 'Exact trade match' });
+      continue;
+    }
+    if (directCandidates.length > 1 || strongCandidates.length > 1) {
+      const ambiguousIds = directCandidates.length > 1
+        ? directCandidates.map(trade => trade.id)
+        : strongCandidates.map(trade => trade.id);
+      processed.add(source.sourceRow);
+      results.push({
+        status: 'review',
+        sourceRows: [source.sourceRow],
+        existingTradeIds: ambiguousIds,
+        reason: 'Multiple existing positions satisfy the automatic matching rules; manual review is required',
+      });
       continue;
     }
 
