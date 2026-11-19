@@ -241,6 +241,34 @@ test('incremental updates retain older locally stored executions when rebuilding
   db.close();
 });
 
+test('retains deselected accounts raw history and projections during another account sync', () => {
+  const db = createDb();
+  const account7 = legs;
+  const account8 = legs.map(leg => ({
+    ...leg, id: leg.id + 100, accountId: 8, orderId: leg.orderId + 100,
+  }));
+  const names = new Map([[7, 'Practice'], [8, 'Historical XFA']]);
+  reconcileProjectXHistory(
+    db, 'user-1', 'connection-1', [...account7, ...account8],
+    names, { 'CON.F.US.MGC.Z6': 'MGC' }, 1, false, [7, 8],
+  );
+
+  const updatedAccount7 = account7.map(leg => leg.id === 2
+    ? { ...leg, profitAndLoss: 12 }
+    : leg);
+  const result = reconcileProjectXHistory(
+    db, 'user-1', 'connection-1', updatedAccount7,
+    names, { 'CON.F.US.MGC.Z6': 'MGC' }, 1, false, [7],
+  );
+
+  assert.equal(result.rawLegs, 4);
+  assert.equal(result.positions, 2);
+  assert.equal((db.prepare('SELECT COUNT(*) AS count FROM projectx_trade_legs WHERE broker_connection_id = ?').get('connection-1') as { count: number }).count, 4);
+  assert.equal((db.prepare('SELECT COUNT(*) AS count FROM trades WHERE broker_connection_id = ?').get('connection-1') as { count: number }).count, 2);
+  assert.equal((db.prepare('SELECT COUNT(*) AS count FROM trades WHERE account = ?').get('Historical XFA') as { count: number }).count, 1);
+  db.close();
+});
+
 test('verified voided-order overrides remain effective during incremental reconstruction', () => {
   const db = createDb();
   const voidedLegs = legs.map(leg => ({ ...leg, voided: true }));
