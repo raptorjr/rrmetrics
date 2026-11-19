@@ -214,9 +214,10 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
     }
 
     if (aggregateMatches.length > 1) {
-      const relatedIds = aggregateMatches.map(match => match.trade.id);
-      processed.add(source.sourceRow);
-      results.push({ status: 'review', sourceRows: [source.sourceRow], existingTradeIds: relatedIds, reason: 'Multiple RR positions satisfy the aggregated CSV-row match; manual review is required' });
+      const relatedIds = [...new Set(aggregateMatches.map(match => match.trade.id))];
+      const sourceRows = [...new Set(aggregateMatches.flatMap(match => match.group.map(row => row.sourceRow)))];
+      sourceRows.forEach(rowNumber => processed.add(rowNumber));
+      results.push({ status: 'review', sourceRows, existingTradeIds: relatedIds, reason: 'Multiple RR positions satisfy the aggregated CSV-row match; manual review is required' });
       continue;
     }
     const matched = aggregateMatches[0];
