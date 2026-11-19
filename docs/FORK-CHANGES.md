@@ -114,7 +114,9 @@ cd rrmetrics
 ### TradeZella CSV import and matching
 
 - Added a dedicated TradeZella CSV importer with account selection, persistent source-account mapping, friendly names, currency and Evaluation settings.
-- Preview matching is scoped to the explicitly mapped RR account and retains source fingerprints so repeat imports do not create duplicates.
+- Matching first uses the explicitly mapped RR account, then checks other RR accounts for possible cross-account duplicates. A possible match outside the selected account is held for review, including trades already linked to another TradeZella source account, so umbrella exports such as Practice do not silently duplicate Topstep history.
+- Source fingerprints are retained so repeat imports do not create duplicates.
+- Supports aggregated matching in both directions only when the matching RR position or group is unique. If multiple individual trades, aggregate candidates, or partial-position groups satisfy the rules, affected rows are held for review rather than linked arbitrarily.
 - Supports one TradeZella row matching multiple RR trades only when entry/exit boundaries, signed net quantity, gross/net P&L, fees and commissions reconcile uniquely.
 - Reversal episodes whose signed net direction conflicts with the TradeZella side remain in review; matching absolute quantities alone is not sufficient evidence.
 - Uncertain matches are skipped rather than imported as new trades. The detailed review table is a development diagnostic and is intended to become a simple matched/imported/skipped summary in the final user interface.
