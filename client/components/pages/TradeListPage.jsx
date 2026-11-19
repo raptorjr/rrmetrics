@@ -39,10 +39,19 @@ const DailyPnlChart = ({ trades, currency, formatMoney, totalPL }) => {
   });
   const segments = points.slice(0, -1).map((point, index) => {
     const next = points[index + 1];
-    const midX = (point.x + next.x) / 2;
-    const midY = (point.y + next.y) / 2;
+    const previous = points[Math.max(0, index - 1)];
+    const following = points[Math.min(points.length - 1, index + 2)];
+    const dx = next.x - point.x;
+    const slopeStart = (next.y - previous.y) / Math.max(1, next.x - previous.x);
+    const slopeEnd = (following.y - point.y) / Math.max(1, following.x - point.x);
+    const minY = Math.min(point.y, next.y);
+    const maxY = Math.max(point.y, next.y);
+    const control1Y = Math.max(minY, Math.min(maxY, point.y + slopeStart * dx / 3));
+    const control2Y = Math.max(minY, Math.min(maxY, next.y - slopeEnd * dx / 3));
+    const control1X = point.x + dx / 3;
+    const control2X = next.x - dx / 3;
     const positive = (point.value + next.value) >= 0;
-    const path = `M${point.x},${point.y} Q${midX},${midY} ${next.x},${next.y}`;
+    const path = `M${point.x},${point.y} C${control1X},${control1Y} ${control2X},${control2Y} ${next.x},${next.y}`;
     const area = path + ` L${next.x},${zeroY} L${point.x},${zeroY} Z`;
     return { path, area, positive };
   });
