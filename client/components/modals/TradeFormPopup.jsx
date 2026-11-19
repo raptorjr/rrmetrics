@@ -338,10 +338,12 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
   };
   const enterDefaults = isEditing ? formatDateTimeForInput(editingTrade.enterTime) : defaultDateTime(prefillDate);
   const exitDefaults = isEditing ? formatDateTimeForInput(editingTrade.exitTime) : defaultDateTime(prefillDate);
-  const timeInputLang = (() => {
-    try { return localStorage.getItem('rrmetrics_time_format') === '24h' ? 'en-GB' : 'en-US'; }
-    catch { return 'en-GB'; }
+  const timeFormat24 = (() => {
+    try { return localStorage.getItem('rrmetrics_time_format') === '24h'; }
+    catch { return false; }
   })();
+  // Explicit locale makes Chromium's native time control use the selected clock convention.
+  const timeInputLang = timeFormat24 ? 'sv-SE' : 'en-US';
   const updateDateFromPicker = (textId, event) => {
     if (!event.target.value) return;
     const [year, month, day] = event.target.value.split('-');
@@ -381,19 +383,21 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label htmlFor="enterDate" className={labelClass}>Enter Date &amp; Time</label>
-                <div className="flex gap-2">
-                  <input id="enterDate" type="text" name="enterDate" placeholder={getDateFormat() === 'auto' ? 'Date' : getDateFormat() === 'dmy-dot' ? 'DD.MM.YYYY' : getDateFormat() === 'dmy-slash' ? 'DD/MM/YYYY' : getDateFormat() === 'mdy-slash' ? 'MM/DD/YYYY' : 'YYYY-MM-DD'} aria-label="Enter date" defaultValue={enterDefaults.date} className={inputClass} />
-                  <input type="date" aria-label="Choose enter date" title="Choose date from calendar" defaultValue={enterDefaults.isoDate} onChange={(e) => updateDateFromPicker('enterDate', e)} className="w-12 shrink-0 px-2 bg-bg-input border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:border-accent" />
+                <div className="relative">
+                  <input id="enterDate" type="text" name="enterDate" placeholder={getDateFormat() === 'auto' ? 'Date' : getDateFormat() === 'dmy-dot' ? 'DD.MM.YYYY' : getDateFormat() === 'dmy-slash' ? 'DD/MM/YYYY' : getDateFormat() === 'mdy-slash' ? 'MM/DD/YYYY' : 'YYYY-MM-DD'} aria-label="Enter date" defaultValue={enterDefaults.date} className={inputClass + " pr-12"} />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-primary pointer-events-none"><Icons.Calendar className="w-4 h-4" /></span>
+                  <input type="date" aria-label="Choose enter date" title="Choose date from calendar" defaultValue={enterDefaults.isoDate} onChange={(e) => updateDateFromPicker('enterDate', e)} className="absolute right-0 top-0 w-11 h-full opacity-0 cursor-pointer" style={{ colorScheme: 'dark' }} />
                 </div>
-                <input id="enterClock" type="time" name="enterClock" step="1" lang={timeInputLang} defaultValue={enterDefaults.time} className={inputClass} />
+                <input id="enterClock" type="time" name="enterClock" step="1" lang={timeInputLang} defaultValue={enterDefaults.time} className={inputClass} style={{ colorScheme: 'dark' }} />
               </div>
               <div className="space-y-2">
                 <label htmlFor="exitDate" className={labelClass}>Exit Date &amp; Time</label>
-                <div className="flex gap-2">
-                  <input id="exitDate" type="text" name="exitDate" placeholder={getDateFormat() === 'auto' ? 'Date' : getDateFormat() === 'dmy-dot' ? 'DD.MM.YYYY' : getDateFormat() === 'dmy-slash' ? 'DD/MM/YYYY' : getDateFormat() === 'mdy-slash' ? 'MM/DD/YYYY' : 'YYYY-MM-DD'} aria-label="Exit date" defaultValue={exitDefaults.date} className={inputClass} />
-                  <input type="date" aria-label="Choose exit date" title="Choose date from calendar" defaultValue={exitDefaults.isoDate} onChange={(e) => updateDateFromPicker('exitDate', e)} className="w-12 shrink-0 px-2 bg-bg-input border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:border-accent" />
+                <div className="relative">
+                  <input id="exitDate" type="text" name="exitDate" placeholder={getDateFormat() === 'auto' ? 'Date' : getDateFormat() === 'dmy-dot' ? 'DD.MM.YYYY' : getDateFormat() === 'dmy-slash' ? 'DD/MM/YYYY' : getDateFormat() === 'mdy-slash' ? 'MM/DD/YYYY' : 'YYYY-MM-DD'} aria-label="Exit date" defaultValue={exitDefaults.date} className={inputClass + " pr-12"} />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-primary pointer-events-none"><Icons.Calendar className="w-4 h-4" /></span>
+                  <input type="date" aria-label="Choose exit date" title="Choose date from calendar" defaultValue={exitDefaults.isoDate} onChange={(e) => updateDateFromPicker('exitDate', e)} className="absolute right-0 top-0 w-11 h-full opacity-0 cursor-pointer" style={{ colorScheme: 'dark' }} />
                 </div>
-                <input id="exitClock" type="time" name="exitClock" step="1" lang={timeInputLang} defaultValue={exitDefaults.time} className={inputClass} />
+                <input id="exitClock" type="time" name="exitClock" step="1" lang={timeInputLang} defaultValue={exitDefaults.time} className={inputClass} style={{ colorScheme: 'dark' }} />
               </div>
             </div>
 
