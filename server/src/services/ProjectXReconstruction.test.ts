@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   findFullyFilledVoidedOrderOverrides,
+  mergeVoidedOrderOverrides,
   reconstructProjectXPositions,
   type ProjectXTradeLeg,
 } from './ProjectXReconstruction';
@@ -237,4 +238,21 @@ test('reconstructs the attached ProjectX diagnostic and matches daily counts', {
   assert.equal(Number(daily['2026-11-04'].net.toFixed(2)), -3634.60);
   assert.equal(Number(daily['2026-11-10'].net.toFixed(2)), -1080.00);
   assert.equal(Number(daily['2026-11-17'].net.toFixed(2)), -676.80);
+});
+
+
+test('refreshes voided-order overrides only for accounts successfully queried', () => {
+  const previous = ['7:100', '8:200', '9:300'];
+  const fresh = new Set(['7:101']);
+  const merged = mergeVoidedOrderOverrides(previous, fresh, new Set([7]));
+  assert.deepEqual([...merged].sort(), ['7:101', '8:200', '9:300']);
+});
+
+test('clears stale overrides when a successfully queried account has no qualifying orders', () => {
+  const merged = mergeVoidedOrderOverrides(
+    ['7:100', '8:200'],
+    new Set(),
+    new Set([7]),
+  );
+  assert.deepEqual([...merged], ['8:200']);
 });
