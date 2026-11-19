@@ -123,7 +123,7 @@ const TradeZellaImportPage = ({ triggerReload }) => {
               {[
                 ['Accounts', accounts.length],
                 ['Selected trades', total],
-                ['Already imported', accounts.filter(a => selected.includes(a.accountName)).reduce((n,a)=>n+a.alreadyImported,0)],
+                ['Already imported', accounts.filter(a => selected.includes(a.accountName)).reduce((n,a)=>n+a.alreadyInRR,0)],
                 ['Needs review', accounts.filter(a => selected.includes(a.accountName)).reduce((n,a)=>n+a.needsReview,0)],
               ].map(([label, value]) => <div key={label} className="rounded-lg bg-bg-page border border-border p-3"><div className="text-xs text-text-muted">{label}</div><div className="text-xl font-semibold text-text-primary mt-1">{number(value)}</div></div>)}
             </div>
@@ -145,7 +145,7 @@ const TradeZellaImportPage = ({ triggerReload }) => {
                       <span className="text-xs text-text-muted font-normal">{number(a.tradeCount)} trades</span>
                     </label>
                     <div className="flex flex-wrap gap-3 text-xs">
-                      <span className="text-positive">{number(a.alreadyImported)} already in RR</span>
+                      <span className="text-positive">{number(a.alreadyInRR)} already in RR</span>
                       <span className="text-accent">{number(a.newTrades)} new</span>
                       <span className={a.needsReview ? 'text-negative' : 'text-text-muted'}>{number(a.needsReview)} review</span>
                     </div>
