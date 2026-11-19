@@ -133,8 +133,8 @@ const MonteCarloTile = ({ trades }) => {
       </div>
       <div className="grid grid-cols-3 gap-2 mt-3">
         <div className="bg-bg-page rounded-lg p-3 text-center"><div className="text-text-secondary text-[10px] uppercase">Pass Rate</div><div className={'text-xl font-bold ' + (results.passRate >= 50 ? 'text-positive' : 'text-negative')}>{results.passRate.toFixed(1)}%</div></div>
-        <div className="bg-bg-page rounded-lg p-3 text-center"><div className="text-text-secondary text-[10px] uppercase">Avg Days</div><div className="text-xl font-bold text-text-primary">{results.avgDaysToPass > 0 ? results.avgDaysToPass.toFixed(1) : '—'}</div></div>
-        <div className="bg-bg-page rounded-lg p-3 text-center"><div className="text-text-secondary text-[10px] uppercase">Median Days</div><div className="text-xl font-bold text-text-primary">{results.medianDaysToPass > 0 ? results.medianDaysToPass : '—'}</div></div>
+        <div className="bg-bg-page rounded-lg p-3 text-center"><div className="text-text-secondary text-[10px] uppercase">Avg Days to Pass</div><div className="text-xl font-bold text-text-primary">{results.avgDaysToPass > 0 ? results.avgDaysToPass.toFixed(1) : '—'}</div></div>
+        <div className="bg-bg-page rounded-lg p-3 text-center"><div className="text-text-secondary text-[10px] uppercase">Median Days to Pass</div><div className="text-xl font-bold text-text-primary">{results.medianDaysToPass > 0 ? results.medianDaysToPass.toFixed(1) : '—'}</div></div>
       </div>
     </Panel>
   );
