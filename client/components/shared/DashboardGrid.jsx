@@ -64,8 +64,16 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   });
   const [templateName, setTemplateName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('');
+  const [previewItemId, setPreviewItemId] = useState(null);
   const gridRef = useRef(null);
   const resizeRef = useRef(null);
+
+  useEffect(() => {
+    if (!previewItemId) return undefined;
+    const onKeyDown = event => { if (event.key === 'Escape') setPreviewItemId(null); };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [previewItemId]);
 
   useEffect(() => {
     const updateColumns = () => {
@@ -244,7 +252,15 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
               const size = layout.sizes[item.id] || getDefaultSize(item);
               return (
                 <div key={item.id} className="rounded-lg border border-border p-2.5 hover:border-accent/60 transition-colors">
-                  {item.preview || <div className="h-[82px] rounded-md bg-bg-page border border-border flex items-center justify-center text-xs text-text-tertiary">{item.label}</div>}
+                  <button
+                    type="button"
+                    onClick={() => setPreviewItemId(item.id)}
+                    aria-label={`Preview ${item.label}`}
+                    className="block w-full text-left rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
+                  >
+                    {item.preview || <div className="h-[82px] rounded-md bg-bg-page border border-border flex items-center justify-center text-xs text-text-tertiary">{item.label}</div>}
+                    <span className="sr-only">Open larger preview</span>
+                  </button>
                   <div className="flex items-center gap-2 mt-2">
                     <span className="flex-1 text-xs text-text-primary truncate">{item.label}</span>
                     <span className="text-[10px] text-text-tertiary">{size.w}×{size.h}</span>
@@ -263,6 +279,52 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
           </div>
         </div>
       )}
+
+      {previewItemId && (() => {
+        const item = items.find(candidate => candidate.id === previewItemId);
+        if (!item) return null;
+        const added = !layout.hidden.includes(item.id);
+        const size = layout.sizes[item.id] || getDefaultSize(item);
+        return (
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 p-4"
+            role="presentation"
+            onMouseDown={event => { if (event.target === event.currentTarget) setPreviewItemId(null); }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="dashboard-tile-preview-title"
+              className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-bg-surface p-5 shadow-2xl"
+              onMouseDown={event => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-text-tertiary">{item.category || 'Metrics'} · {size.w}×{size.h} grid units</div>
+                  <h2 id="dashboard-tile-preview-title" className="text-lg font-semibold text-text-primary mt-1">{item.label}</h2>
+                  <p className="text-sm text-text-secondary mt-2">{item.description || 'A reusable dashboard component based on your selected trading data and period filters.'}</p>
+                </div>
+                <button type="button" onClick={() => setPreviewItemId(null)} aria-label="Close preview" className="shrink-0 rounded-lg border border-border px-3 py-2 text-sm text-text-secondary hover:text-text-primary">✕</button>
+              </div>
+              <div className="rounded-xl border border-border bg-bg-page p-3 sm:p-5 overflow-hidden">
+                <div className="min-h-[220px] [&>*]:!h-auto">
+                  {item.render()}
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-3 mt-4">
+                <span className="text-xs text-text-tertiary">This is a live preview using the current dashboard filters.</span>
+                <button
+                  type="button"
+                  onClick={() => { if (!added) toggleItem(item.id); setPreviewItemId(null); }}
+                  className={`rounded-lg px-4 py-2 text-sm font-semibold ${added ? 'border border-border text-text-secondary' : 'bg-accent text-accent-text'}`}
+                >
+                  {added ? 'Already on dashboard' : 'Add to dashboard'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <div
         ref={gridRef}
