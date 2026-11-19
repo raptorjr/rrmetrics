@@ -177,20 +177,20 @@ const AccountManagementPanel = ({ triggerReload }) => {
             {expandedProvider && groups[expandedProvider] && (
               <section className="bg-bg-surface border border-border rounded-xl p-5 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div><h3 className="text-text-primary font-semibold">{providerLabel(expandedProvider)} accounts</h3><span className="text-xs text-text-secondary">{visibleAccounts.length} visible {visibleAccounts.length === 1 ? 'account' : 'accounts'}</span></div>
+                  <div><h3 className="text-text-primary font-semibold">{providerLabel(expandedProvider)} accounts</h3><span className="text-xs text-text-secondary">{visibleAccounts.length} {visibleAccounts.length === 1 ? 'account' : 'accounts'}</span></div>
                   <label className="flex items-center gap-2 text-xs text-text-secondary"><input type="checkbox" checked={visibleAccounts.length > 0 && visibleAccounts.every(account => selectedIds.includes(account.id))} onChange={e => toggleVisibleSelection(e.target.checked)} className="w-4 h-4 rounded border-border text-accent focus:ring-accent" />Select all</label>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2 bg-bg-page/50 border border-border rounded-lg p-3">
-                  <span className="text-xs text-text-secondary">{selectedIds.length} selected in {providerLabel(expandedProvider)}</span>
+                  <span className="text-xs text-text-secondary">{selectedIds.length} {selectedIds.length === 1 ? 'account' : 'accounts'} selected</span>
                   <div className="flex gap-2">
-                    <button onClick={exportSelected} disabled={!selectedIds.length || !!busy} className="px-3 py-2 rounded-lg border border-border text-text-secondary text-xs font-medium disabled:opacity-40">Export selected</button>
-                    <button onClick={() => bulkAct('clear')} disabled={!selectedIds.length || !!busy} className="px-3 py-2 rounded-lg border border-warning/40 text-warning text-xs font-medium disabled:opacity-40">Clear selected trades</button>
-                    <button onClick={() => bulkAct('delete')} disabled={!selectedIds.length || !!busy} className="px-3 py-2 rounded-lg border border-negative/40 text-negative text-xs font-medium disabled:opacity-40">Delete selected accounts</button>
+                    <button onClick={exportSelected} disabled={!selectedIds.length || !!busy} className="px-3 py-2 rounded-lg border border-border text-text-secondary text-xs font-medium disabled:opacity-40" title="Download a CSV file containing trades from the selected accounts.">Export CSV</button>
+                    <button onClick={() => bulkAct('clear')} disabled={!selectedIds.length || !!busy} className="px-3 py-2 rounded-lg border border-warning/40 text-warning text-xs font-medium disabled:opacity-40" title="Remove imported trades and stored source history for the selected accounts. The accounts and their settings will be kept.">Clear</button>
+                    <button onClick={() => bulkAct('delete')} disabled={!selectedIds.length || !!busy} className="px-3 py-2 rounded-lg border border-negative/40 text-negative text-xs font-medium disabled:opacity-40" title="Permanently remove the selected accounts, their saved settings and imported trade history. This does not disconnect broker connections.">Delete</button>
                   </div>
                 </div>
                 {groups[expandedProvider].map(account => (
                   <div key={account.id} className={`border rounded-lg p-4 space-y-3 transition-all ${selectedIds.includes(account.id) ? 'border-accent ring-1 ring-accent/20' : 'border-border'}`}>
-                    <div className="grid grid-cols-1 sm:grid-cols-[160px_minmax(0,1fr)_auto] items-center gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
                       <label className="flex items-center gap-2 text-xs text-text-secondary"><input type="checkbox" checked={selectedIds.includes(account.id)} onChange={e => setSelectedIds(prev => e.target.checked ? [...prev, account.id] : prev.filter(id => id !== account.id))} className="w-4 h-4 rounded border-border text-accent focus:ring-accent" />Select</label>
                       <div className="min-w-0">
                         <div className="text-text-primary text-sm font-medium">{account.name}</div>
