@@ -90,6 +90,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const [catalogueQuery, setCatalogueQuery] = useState('');
   const [catalogueCategory, setCatalogueCategory] = useState('all');
   const [catalogueStatus, setCatalogueStatus] = useState('all');
+  const [settingDrafts, setSettingDrafts] = useState({});
   const gridRef = useRef(null);
   const resizeRef = useRef(null);
   const previewDialogRef = useRef(null);
@@ -358,6 +359,27 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     return matchesCategory && matchesStatus && matchesQuery;
   });
   const addedCount = items.filter(item => !layout.hidden.includes(item.id)).length;
+
+  const updateSettingDraft = (key, value) => {
+    setSettingDrafts(current => ({ ...current, [key]: value }));
+  };
+
+  const commitSettingDraft = (key, setting) => {
+    const raw = settingDrafts[key];
+    if (raw === undefined) return;
+    const value = Number(raw);
+    const valid = raw.trim() !== ''
+      && Number.isFinite(value)
+      && (setting.min === undefined || value >= Number(setting.min))
+      && (setting.max === undefined || value <= Number(setting.max));
+    setSettingDrafts(current => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+    if (valid && typeof setting.onChange === 'function') setting.onChange(value);
+  };
+
 
   return (
     <div className="space-y-3">
@@ -636,11 +658,14 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                             {setting.description && <span className="block text-[10px] text-text-tertiary">{setting.description}</span>}
                             <input
                               type={setting.type || 'number'}
-                              value={setting.value}
+                              value={settingDrafts[item.id + ':' + setting.id] ?? setting.value}
                               min={setting.min}
                               max={setting.max}
                               step={setting.step || 'any'}
-                              onChange={event => setting.onChange(event.target.value)}
+                              onFocus={() => updateSettingDraft(item.id + ':' + setting.id, String(setting.value))}
+                              onChange={event => updateSettingDraft(item.id + ':' + setting.id, event.target.value)}
+                              onBlur={() => commitSettingDraft(item.id + ':' + setting.id, setting)}
+                              onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }}
                               className="w-full rounded-md border border-border bg-bg-input px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent"
                             />
                           </label>
