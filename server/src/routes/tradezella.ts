@@ -212,7 +212,7 @@ tradezella.post('/api/tradezella/import', requiresLogin, async (c) => {
     const unrecorded = selectedRows.filter(row => !mappings.has(row.sourceAccount + '|' + row.sourceFingerprint));
     const reserved = reservedTradeIds(db, user.id);
     const candidates = existingRows(db, user.id).filter(trade => !reserved.has(trade.id));
-    const selectedTargets = selectedAccounts.map((name: string) => settingsBySource.get(name)!.matchAccount).filter((name): name is string => Boolean(name));
+    const selectedTargets = selectedAccounts.map((name: string) => settingsBySource.get(name)!.matchAccount).filter((name: string | null): name is string => Boolean(name));
     if (new Set(selectedTargets).size !== selectedTargets.length) return c.json({ error: 'Two selected TradeZella accounts cannot be matched against the same RR account.' }, 400);
     const matches = selectedAccounts.flatMap((accountName: string) => {
       const account = settingsBySource.get(accountName)!;
