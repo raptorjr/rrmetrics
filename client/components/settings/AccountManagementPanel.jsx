@@ -69,7 +69,7 @@ const AccountManagementPanel = ({ triggerReload }) => {
         trade.enterTime, trade.exitTime, trade.grossPL, trade.fees, trade.commissions,
         getTradePL(trade), trade.comments,
       ].map(quote).join(','));
-      const blob = new Blob([[headers.map(quote).join(','), ...csvRows].join('\\n')], { type: 'text/csv;charset=utf-8;' });
+      const blob = new Blob([[headers.map(quote).join(','), ...csvRows].join('\n')], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
