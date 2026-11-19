@@ -366,7 +366,7 @@ const RobinhoodBrokerSection = ({ hook, expandedBroker, toggleBroker, brokerHead
   );
 };
 
-const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, customColors, tags, triggerReload }) => {
+const SettingsPage = ({ onSyncComplete, onNavigate, onOpenImport, theme, onThemeChange, customColors, tags, triggerReload }) => {
   const [activeTab, setActiveTab] = useState('providers');
   const [message, setMessage] = useState(null);
   const [timeFormat, setTimeFormat] = useState(() => {
@@ -985,6 +985,16 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
             </div>
           )}
 
+          <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h3 className="text-text-primary font-semibold">Import trades from CSV</h3>
+              <p className="text-text-secondary text-sm mt-1">Import a general trading-history CSV. RR Metrics detects supported broker formats or lets you map columns manually.</p>
+            </div>
+            <button onClick={onOpenImport} className="flex items-center gap-2 px-4 py-2.5 bg-accent text-accent-text text-sm font-semibold rounded-lg hover:brightness-110 transition-all">
+              <Icons.Download className="w-4 h-4" /> Import CSV
+            </button>
+          </div>
+
           {/* Shared pool counter */}
           {(brokerHooks.tradovate.connectionsUsed > 0 || pxConnectionsUsed > 0) && (
             <div className="flex items-center gap-2 text-xs text-text-secondary">
@@ -1042,7 +1052,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                           isExpanded ? 'border-accent ring-1 ring-accent/20 cursor-pointer' : 'border-border hover:border-accent/40 hover:bg-bg-page/50 cursor-pointer'
                         }`}
                       >
-                        <img src={provider.icon} alt={provider.label} className="w-10 h-10 rounded-lg object-contain" />
+                        {provider.icon ? <img src={provider.icon} alt={provider.label} className="w-10 h-10 rounded-lg object-contain" /> : provider.key === 'tradezella' ? <div className="w-10 h-10 rounded-lg bg-[#6d4aff]/15 border border-[#8b72ff]/30 flex items-center justify-center text-[#a895ff] font-bold text-sm tracking-tight">TZ</div> : <div className="w-10 h-10 rounded-lg bg-bg-page border border-border flex items-center justify-center text-text-secondary font-semibold text-sm">{provider.label.slice(0, 2).toUpperCase()}</div>}
                         <span className="text-text-primary font-semibold text-sm leading-tight">{provider.label}</span>
                         {provider.importProvider ? (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-text-secondary/10 text-text-secondary">CSV Import</span>
