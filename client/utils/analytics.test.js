@@ -14,7 +14,7 @@ const makeTrade = (pl, priceMove = pl === 0 ? 0.1 : 1, day = '2026-01-05') => ({
 
 const withRandom = (value, callback) => {
   const originalRandom = Math.random;
-  Math.random = () => value;
+  Math.random = typeof value === 'function' ? value : () => value;
   try {
     return callback();
   } finally {
