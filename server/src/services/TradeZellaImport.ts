@@ -182,7 +182,7 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
       && Math.sign(trade.quantity) === Math.sign(source.quantity)
       && near(epoch(trade.exit_time), epoch(source.exitTime), 2)
       && Math.abs(trade.quantity) >= Math.abs(source.quantity));
-    let matched: { trade: ExistingTrade; group: TradeZellaRow[] } | undefined;
+    const aggregateMatches: Array<{ trade: ExistingTrade; group: TradeZellaRow[] }> = [];
 
     for (const candidate of candidates) {
       const group = ordered.filter((row) => !processed.has(row.sourceRow)
@@ -210,9 +210,16 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
           && subset.every((row) => near(row.exitPrice, candidate.exit_price, 0.01))
           && (net == null || candidate.manual_pl == null || near(net, candidate.manual_pl, 0.03));
       });
-      if (found) { matched = { trade: candidate, group: found }; break; }
+      if (found) aggregateMatches.push({ trade: candidate, group: found });
     }
 
+    if (aggregateMatches.length > 1) {
+      const relatedIds = aggregateMatches.map(match => match.trade.id);
+      processed.add(source.sourceRow);
+      results.push({ status: 'review', sourceRows: [source.sourceRow], existingTradeIds: relatedIds, reason: 'Multiple RR positions satisfy the aggregated CSV-row match; manual review is required' });
+      continue;
+    }
+    const matched = aggregateMatches[0];
     if (matched) {
       available.delete(matched.trade.id);
       matched.group.forEach((row) => processed.add(row.sourceRow));
@@ -239,7 +246,7 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
       }
     };
     if (groupLimit >= 2 && existingGroupCandidates.length <= 12) visitExisting(0, []);
-    existingGroupMatch = existingSubsets.find((subset) => {
+    const validExistingGroups = existingSubsets.filter((subset) => {
       const qty = subset.reduce((sum, trade) => sum + Math.abs(trade.quantity), 0);
       const entry = subset.reduce((sum, trade) => sum + trade.enter_price * Math.abs(trade.quantity), 0) / qty;
       const exit = subset.reduce((sum, trade) => sum + trade.exit_price * Math.abs(trade.quantity), 0) / qty;
@@ -255,6 +262,7 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
         && near(finalExit, epoch(source.exitTime), 2)
         && (source.manualPL == null || net == null || near(net, source.manualPL, 0.03));
     });
+    existingGroupMatch = validExistingGroups.length === 1 ? validExistingGroups[0] : undefined;
 
     // TradeZella can merge a sequence of RR position episodes into one
     // journal row (including a reversal). Its Side reflects the initial
@@ -317,8 +325,16 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
       results.push({
         status: 'review',
         sourceRows: [source.sourceRow],
-        existingTradeIds: validEpisodes.flatMap((subset) => subset.map((trade) => trade.id)),
+        existingTradeIds: [...new Set(validEpisodes.flatMap((subset) => subset.map((trade) => trade.id)))],
         reason: 'Multiple merged trading episodes have matching totals; automatic linking would be ambiguous',
+      });
+    } else if (validExistingGroups.length > 1) {
+      processed.add(source.sourceRow);
+      results.push({
+        status: 'review',
+        sourceRows: [source.sourceRow],
+        existingTradeIds: [...new Set(validExistingGroups.flatMap((subset) => subset.map((trade) => trade.id)))],
+        reason: 'Multiple groups of RR partial positions satisfy the consolidated trade; manual review is required',
       });
     } else if (existingGroupMatch) {
       existingGroupMatch.forEach((trade) => available.delete(trade.id));
