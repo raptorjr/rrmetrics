@@ -458,8 +458,8 @@ const App = () => {
     setTimeout(() => setSyncNotification(null), 4000);
   };
 
-  const openForm = () => { setForceEditModal(false); setIsFormOpen(true); };
-  const openFormWithDate = (dateKey) => { setForceEditModal(false); setPrefillDate(dateKey); setIsFormOpen(true); };
+  const openForm = () => { setForceEditModal(true); setIsFormOpen(true); };
+  const openFormWithDate = (dateKey) => { setForceEditModal(true); setPrefillDate(dateKey); setIsFormOpen(true); };
   const openEditForm = (trade) => { setForceEditModal(currentPage === 'dashboard'); setEditingTrade(trade); setIsFormOpen(true); };
 
   const filteredTrades = selectedAccounts.length === 0
@@ -475,7 +475,7 @@ const App = () => {
           <TradeListPage
             trades={filteredTrades}
             triggerReload={triggerReload}
-            onEdit={(trade) => { setForceEditModal(false); setEditingTrade(trade); setIsFormOpen(true); }}
+            onEdit={(trade) => { setForceEditModal(true); setEditingTrade(trade); setIsFormOpen(true); }}
            
             onOpenForm={openForm}
             onOpenImport={() => setCsvImportOpen(true)}
