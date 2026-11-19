@@ -1188,7 +1188,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                     <div className="rounded-lg bg-bg-surface/70 border border-border p-4 space-y-2">
                                       <div className="text-sm font-medium text-text-primary">Topstep import is configured</div>
                                       <p className="text-xs text-text-secondary">Account selection, account types and currencies are locked after the initial import to protect existing journal data.</p>
-                                      <p className="text-xs text-text-muted">{(conn.selectedAccounts || []).length} accounts selected · Initial import completed</p>
+                                      <p className="text-xs text-text-muted">{(conn.selectedAccounts || []).length} accounts selected · Setup saved</p>
                                       <button onClick={async () => {
                                         if (!window.confirm('Reset Topstep setup? This deletes all imported Topstep trades and raw executions for this connection. You can then select accounts and configure them again.')) return;
                                         try {
@@ -1305,8 +1305,6 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                           className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-bg-surface rounded-lg transition-colors">Copy-trading options</button>}
                                       </>
                                     )}
-                                    <button onClick={() => handlePxClear(conn.connectionId)}
-                                      className="px-3 py-1.5 text-negative text-xs font-medium hover:bg-negative/10 rounded-lg transition-colors">Clear imported data</button>
                                     <button onClick={() => handlePxDisconnect(conn.connectionId)}
                                       className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-negative hover:bg-negative/10 rounded-lg transition-colors">Disconnect</button>
                                   </div>
