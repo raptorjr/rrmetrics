@@ -137,7 +137,7 @@ tradezella.post('/api/tradezella/preview', requiresLogin, async (c) => {
        FROM tradezella_accounts WHERE user_id = ?`,
     ).all(user.id) as any[]).map(row => [row.source_account_name, row]));
     const matches: ReturnType<typeof matchTradeZellaRows> = [];
-    for (const accountName of new Set(unrecorded.map(row => row.sourceAccount))) {
+    for (const accountName of new Set<string>(unrecorded.map(row => row.sourceAccount))) {
       const saved = savedAccounts.get(accountName);
       const inferred = accountName === '150k XFA' ? '$150k Express' : accountName === '50k XFA' ? '$50k Express' : accountName === 'Practice' ? 'Practice' : null;
       const matchAccount = saved?.match_account ?? inferred;
@@ -148,11 +148,6 @@ tradezella.post('/api/tradezella/preview', requiresLogin, async (c) => {
     }
     const resultsByRow = new Map<number, typeof matches[number]>();
     for (const match of matches) for (const sourceRow of match.sourceRows) resultsByRow.set(sourceRow, match);
-
-    const savedAccounts = new Map((db.prepare(
-      `SELECT source_account_name, display_name, currency_code, is_eval, match_account
-       FROM tradezella_accounts WHERE user_id = ?`,
-    ).all(user.id) as any[]).map(row => [row.source_account_name, row]));
 
     const accounts = summarizeTradeZellaAccounts(parsedRows).map(account => {
       const accountRows = parsedRows.filter(row => row.sourceAccount === account.accountName);
@@ -204,7 +199,7 @@ tradezella.post('/api/tradezella/import', requiresLogin, async (c) => {
   if (!parsedRows?.length || !settings || !selectedAccounts.length) {
     return c.json({ error: 'Select at least one account and provide its account settings.' }, 400);
   }
-  const settingsBySource = new Map(settings.map(item => [item.sourceAccountName, item]));
+  const settingsBySource = new Map<string, AccountSetting>(settings.map(item => [item.sourceAccountName, item]));
   if (selectedAccounts.some((name: string) => !settingsBySource.has(name))) {
     return c.json({ error: 'Every selected source account must have account settings.' }, 400);
   }
@@ -217,9 +212,9 @@ tradezella.post('/api/tradezella/import', requiresLogin, async (c) => {
     const unrecorded = selectedRows.filter(row => !mappings.has(row.sourceAccount + '|' + row.sourceFingerprint));
     const reserved = reservedTradeIds(db, user.id);
     const candidates = existingRows(db, user.id).filter(trade => !reserved.has(trade.id));
-    const selectedTargets = selectedAccounts.map(name => settingsBySource.get(name)!.matchAccount).filter(Boolean);
+    const selectedTargets = selectedAccounts.map((name: string) => settingsBySource.get(name)!.matchAccount).filter((name): name is string => Boolean(name));
     if (new Set(selectedTargets).size !== selectedTargets.length) return c.json({ error: 'Two selected TradeZella accounts cannot be matched against the same RR account.' }, 400);
-    const matches = selectedAccounts.flatMap(accountName => {
+    const matches = selectedAccounts.flatMap((accountName: string) => {
       const account = settingsBySource.get(accountName)!;
       const accountRows = unrecorded.filter(row => row.sourceAccount === accountName);
       return matchTradeZellaRows(accountRows, account.matchAccount
