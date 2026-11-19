@@ -5,7 +5,7 @@ import * as pxConnDb from '../db/projectx-connections';
 import * as tradesDb from '../db/trades';
 import { encrypt, decrypt } from '../utils/crypto';
 import { ProjectXAPI } from '../services/ProjectXAPI';
-import { findFullyFilledVoidedOrderOverrides, mergeVoidedOrderOverrides } from '../services/ProjectXReconstruction';
+import { findFullyFilledVoidedOrderOverrides, mergeVoidedOrderOverrides, reconstructProjectXPositions } from '../services/ProjectXReconstruction';
 import { clearProjectXImport, reconcileProjectXHistory } from '../services/ProjectXSync';
 import { requiresLogin } from '../middleware/auth';
 import { getDb } from '../db/connection';
@@ -570,6 +570,100 @@ projectx.post(
     }
   },
 );
+
+/**
+ * Read-only diagnostics for stored Topstep execution history.
+ * Does not call the broker API or modify imported data.
+ */
+projectx.get('/api/projectx/reconstruction-diagnostics/:connectionId', requiresLogin, async (c) => {
+  const user = c.get('user');
+  const connectionId = c.req.param('connectionId');
+  const db = getDb();
+  const connection = await brokerDb.findById(db, connectionId);
+  if (!connection || connection.owner !== user.id || connection.broker !== 'projectx') {
+    return c.json({ error: 'Topstep connection not found' }, 404);
+  }
+
+  try {
+    const pxConn = await pxConnDb.findByBrokerConnectionId(db, connectionId);
+    const rows = db.prepare(`
+      SELECT account_id, trade_id, contract_id, creation_timestamp, raw_json
+      FROM projectx_trade_legs
+      WHERE broker_connection_id = ?
+      ORDER BY account_id, contract_id, creation_timestamp, trade_id
+    `).all(connectionId) as Array<{ account_id: number; trade_id: number; contract_id: string; creation_timestamp: string; raw_json: string }>;
+    const legs = rows.map(row => JSON.parse(row.raw_json) as import('../services/ProjectXReconstruction').ProjectXTradeLeg);
+    const reconstruction = reconstructProjectXPositions(legs, new Set(pxConn?.reinstated_order_keys || []));
+    const byTradeId = new Map<string, typeof legs[number]>();
+    const byOrderId = new Map<string, typeof legs[number][]>();
+    for (const leg of legs) {
+      byTradeId.set(`${leg.accountId}:${leg.id}`, leg);
+      const key = `${leg.accountId}:${leg.orderId}`;
+      byOrderId.set(key, [...(byOrderId.get(key) || []), leg]);
+    }
+
+    const groups = new Map<string, { accountId: number; contractId: string; type: string; count: number; examples: Array<{ warning: string; relatedLegs: Array<{ id: number; orderId: number; fillId: number | null; side: number; size: number; price: number; profitAndLoss: number | null; voided: boolean; time: string }> }> }>();
+    for (const warning of reconstruction.warnings) {
+      const legId = Number(warning.match(/leg (\\d+)/i)?.[1]);
+      const executionOrderId = Number(warning.match(/execution (\\d+)/i)?.[1]);
+      let related = Number.isFinite(legId) ? legs.filter(leg => leg.id === legId) : [];
+      if (!related.length && Number.isFinite(executionOrderId)) related = legs.filter(leg => leg.orderId === executionOrderId);
+      const leg = related[0];
+      const accountId = leg?.accountId ?? 0;
+      const contractId = leg?.contractId ?? 'unknown';
+      const type = warning.startsWith('Unmatched closing') ? 'Unmatched closing leg'
+        : warning.startsWith('Closing leg exceeds') ? 'Closing quantity exceeds open quantity'
+        : warning.startsWith('Opening leg conflicts') ? 'Opening direction conflicts'
+        : warning.startsWith('Mixed sides') ? 'Mixed sides in execution' : 'Other';
+      const key = `${accountId}:${contractId}:${type}`;
+      const group = groups.get(key) || { accountId, contractId, type, count: 0, examples: [] };
+      group.count += 1;
+      if (group.examples.length < 5) {
+        const sample = related.length ? related : [];
+        group.examples.push({
+          warning,
+          relatedLegs: sample.slice(0, 8).map(item => ({
+            id: item.id, orderId: item.orderId, fillId: item.fillId, side: item.side,
+            size: item.size, price: item.price, profitAndLoss: item.profitAndLoss,
+            voided: item.voided, time: item.creationTimestamp,
+          })),
+        });
+      }
+      groups.set(key, group);
+    }
+
+    const accountSummary = new Map<number, { accountId: number; name: string; rawLegs: number; contracts: Set<string> }>();
+    for (const leg of legs) {
+      const entry = accountSummary.get(leg.accountId) || {
+        accountId: leg.accountId,
+        name: pxConn?.account_settings?.[String(leg.accountId)]?.displayName || `Topstep ${leg.accountId}`,
+        rawLegs: 0,
+        contracts: new Set<string>(),
+      };
+      entry.rawLegs += 1;
+      entry.contracts.add(leg.contractId);
+      accountSummary.set(leg.accountId, entry);
+    }
+
+    return c.json({
+      readOnly: true,
+      generatedAt: new Date().toISOString(),
+      totalRawLegs: legs.length,
+      uniqueAccounts: accountSummary.size,
+      uniqueContracts: new Set(legs.map(leg => `${leg.accountId}:${leg.contractId}`)).size,
+      reconstructedPositions: reconstruction.positions.length,
+      openPositions: reconstruction.openPositions.length,
+      warningCount: reconstruction.warnings.length,
+      unsafeInstrumentCount: reconstruction.unsafeInstrumentKeys.length,
+      accounts: [...accountSummary.values()].map(item => ({ ...item, contracts: item.contracts.size })),
+      warningGroups: [...groups.values()].sort((a, b) => b.count - a.count),
+      unsafeInstrumentKeys: reconstruction.unsafeInstrumentKeys,
+    });
+  } catch (error: any) {
+    console.error('Topstep reconstruction diagnostics failed:', error);
+    return c.json({ error: 'Could not analyse stored Topstep execution history' }, 500);
+  }
+});
 
 /**
  * POST /api/projectx/clear
