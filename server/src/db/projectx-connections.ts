@@ -22,6 +22,8 @@ function rowFromDb(row: any): ProjectXConnectionRow {
     reinstated_order_keys: parseJson<string[]>(row.reinstated_order_keys),
     copytrade_config: parseJson<{ leadAccountId: number; multiplier: number }>(row.copytrade_config),
     auto_sync_enabled: !!row.auto_sync_enabled,
+    full_sync_enabled: !!row.full_sync_enabled,
+    setup_completed: !!row.setup_completed,
     auto_sync_last_result: parseJson<Record<string, any>>(row.auto_sync_last_result),
   } as ProjectXConnectionRow;
 }
@@ -72,7 +74,7 @@ export async function create(
 export async function updateByBrokerConnectionId(
   db: Db,
   brokerConnectionId: string,
-  updates: Partial<Pick<ProjectXConnectionRow, 'username' | 'api_key' | 'access_token' | 'token_expires_at' | 'selected_accounts' | 'account_settings' | 'last_full_sync_time' | 'reinstated_order_keys' | 'copytrade_config' | 'auto_sync_enabled' | 'auto_sync_interval_minutes' | 'auto_sync_next_at' | 'auto_sync_started_at' | 'auto_sync_last_attempt_at' | 'auto_sync_last_error' | 'auto_sync_last_result'>>,
+  updates: Partial<Pick<ProjectXConnectionRow, 'username' | 'api_key' | 'access_token' | 'token_expires_at' | 'selected_accounts' | 'account_settings' | 'last_full_sync_time' | 'reinstated_order_keys' | 'copytrade_config' | 'auto_sync_enabled' | 'auto_sync_interval_minutes' | 'auto_sync_next_at' | 'auto_sync_started_at' | 'auto_sync_last_attempt_at' | 'auto_sync_last_error' | 'auto_sync_last_result' | 'full_sync_enabled' | 'setup_completed'>>,
 ): Promise<void> {
   const columns: string[] = [];
   const values: unknown[] = [];
@@ -115,6 +117,8 @@ export async function updateByBrokerConnectionId(
   if (updates.auto_sync_last_attempt_at !== undefined) { columns.push('auto_sync_last_attempt_at = ?'); values.push(updates.auto_sync_last_attempt_at); }
   if (updates.auto_sync_last_error !== undefined) { columns.push('auto_sync_last_error = ?'); values.push(updates.auto_sync_last_error); }
   if (updates.auto_sync_last_result !== undefined) { columns.push('auto_sync_last_result = ?'); values.push(updates.auto_sync_last_result == null ? null : JSON.stringify(updates.auto_sync_last_result)); }
+  if (updates.full_sync_enabled !== undefined) { columns.push('full_sync_enabled = ?'); values.push(updates.full_sync_enabled ? 1 : 0); }
+  if (updates.setup_completed !== undefined) { columns.push('setup_completed = ?'); values.push(updates.setup_completed ? 1 : 0); }
 
   if (columns.length === 0) return;
 
