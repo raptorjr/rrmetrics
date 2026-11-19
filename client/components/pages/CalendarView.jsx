@@ -360,6 +360,7 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
   // Compute month P&L for the header badge (daily view only)
   let monthPL = 0;
   let monthTrades = 0;
+  let monthTradingDays = 0;
   let prevMonthPL = 0;
   let prevMonthTrades = 0;
   if (viewMode === 'daily') {
@@ -369,6 +370,7 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
       if (dailyData[dk]) {
         monthPL += dailyData[dk].totalPL;
         monthTrades += dailyData[dk].tradeCount;
+        monthTradingDays++;
       }
     }
     // Previous month for % change
@@ -386,14 +388,14 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
 
   return (
     <div className="bg-bg-surface border border-border rounded-xl p-6">
-      {/* Header with view toggle */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
+      {/* Calendar navigation, quick month action, view selector and monthly stats */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex flex-wrap items-center gap-2">
           {viewMode !== 'heatmap' && (
             <button onClick={() => {
               if (viewMode === 'daily') setCurrentDate(new Date(year, month - 1, 1));
               else setCurrentDate(new Date(year - 1, 0, 1));
-            }} className="p-2 rounded-lg hover:bg-bg-input text-text-secondary transition-colors">
+            }} className="p-2 rounded-lg hover:bg-bg-input text-text-secondary transition-colors" aria-label="Previous month">
               <Icons.ChevronLeft />
             </button>
           )}
@@ -404,43 +406,34 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
             <button onClick={() => {
               if (viewMode === 'daily') setCurrentDate(new Date(year, month + 1, 1));
               else setCurrentDate(new Date(year + 1, 0, 1));
-            }} className="p-2 rounded-lg hover:bg-bg-input text-text-secondary transition-colors">
+            }} className="p-2 rounded-lg hover:bg-bg-input text-text-secondary transition-colors" aria-label="Next month">
               <Icons.ChevronRight />
             </button>
           )}
-
-          {/* Month P&L badge (daily view only) */}
           {viewMode === 'daily' && (
-            <span className={`ml-2 inline-flex items-center gap-1.5 font-mono text-sm font-bold px-2.5 py-1 rounded-md ${
-              monthTrades > 0
-                ? monthPL >= 0 ? 'text-positive bg-positive/10' : 'text-negative bg-negative/10'
-                : 'text-text-muted bg-bg-input'
-            }`}>
-              {monthTrades > 0 ? `$${monthPL.toFixed(2)}` : '--'}
-              {monthTrades > 0 && prevMonthTrades > 0 && (
-                <ChangeIndicator value={calcPercentChange(monthPL, prevMonthPL)} />
-              )}
-            </span>
-          )}
-        </div>
-
-        {/* View mode toggle */}
-        <div className="flex bg-bg-input rounded-lg p-0.5 gap-0.5">
-          {viewModes.map(mode => (
-            <button
-              key={mode.id}
-              onClick={() => setViewMode(mode.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                viewMode === mode.id
-                  ? 'bg-bg-surface text-accent shadow-sm'
-                  : 'text-text-tertiary hover:text-text-secondary'
-              }`}
-            >
-              <mode.icon className="w-3.5 h-3.5" />
-              {mode.label}
+            <button type="button" onClick={() => setCurrentDate(new Date())} className="px-3 py-1.5 rounded-lg border border-border text-xs font-semibold text-text-primary hover:bg-bg-input transition-colors">
+              This month
             </button>
-          ))}
+          )}
+          <div className="flex bg-bg-input rounded-lg p-0.5 gap-0.5">
+            {viewModes.map(mode => (
+              <button key={mode.id} onClick={() => setViewMode(mode.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === mode.id ? 'bg-bg-surface text-accent shadow-sm' : 'text-text-tertiary hover:text-text-secondary'}`}>
+                <mode.icon className="w-3.5 h-3.5" />
+                {mode.label}
+              </button>
+            ))}
+          </div>
         </div>
+        {viewMode === 'daily' && (
+          <div className="flex items-center gap-2 text-xs">
+            <span className="font-semibold text-text-primary">Monthly stats:</span>
+            <span className={`font-mono font-bold px-2 py-1 rounded-md ${monthTrades > 0 ? (monthPL >= 0 ? 'text-positive bg-positive/10' : 'text-negative bg-negative/10') : 'text-text-muted bg-bg-input'}`}>
+              {monthTrades > 0 ? `${monthPL.toFixed(2)}` : '$0.00'}
+            </span>
+            <span className="font-semibold text-text-primary px-2 py-1 rounded-md bg-bg-input">{monthTradingDays} days</span>
+          </div>
+        )}
       </div>
 
       {/* Heatmap has its own year nav */}
@@ -511,6 +504,17 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
   );
 };
 
+const getCalendarWeekNumber = (year, month, weekSlots) => {
+  const dates = weekSlots.filter(Boolean).map(slot => new Date(year, month, slot.day));
+  if (!dates.length) return 0;
+  const thursday = dates.find(date => date.getDay() === 4) || new Date(dates[0].getFullYear(), dates[0].getMonth(), dates[0].getDate() + 4);
+  const target = new Date(Date.UTC(thursday.getFullYear(), thursday.getMonth(), thursday.getDate()));
+  const day = target.getUTCDay() || 7;
+  target.setUTCDate(target.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
+  return Math.ceil((((target - yearStart) / 86400000) + 1) / 7);
+};
+
 // --- Daily Calendar (original view) ---
 const DailyCalendar = ({ year, month, dailyData, onSelectDay, dailyNotes, onOpenAddTrade }) => {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -564,45 +568,37 @@ const DailyCalendar = ({ year, month, dailyData, onSelectDay, dailyNotes, onOpen
               const dayWins = hasActivity ? data.trades.filter(t => getTradePL(t) > 0).length : 0;
               const dayWinRate = hasActivity && data.tradeCount > 0 ? Math.round((dayWins / data.tradeCount) * 100) : null;
 
+              const isToday = slot.dateKey === (() => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; })();
               let bgClass = 'bg-bg-input';
-              if (hasActivity) {
-                bgClass = pl >= 0 ? 'bg-positive/10 border-positive/30' : 'bg-negative/10 border-negative/30';
-              }
+              if (hasActivity) bgClass = pl >= 0 ? 'bg-positive/10 border-positive/30' : 'bg-negative/10 border-negative/30';
 
               return (
-                <div
-                  key={slot.day}
-                  className={`h-24 rounded-lg border border-border p-2 ${bgClass} cursor-pointer hover:brightness-110 transition-all group relative`}
-                  onClick={() => onSelectDay(slot.dateKey)}
-                >
+                <div key={slot.day}
+                  className={`h-24 rounded-lg border p-2 ${bgClass} cursor-pointer hover:brightness-110 transition-all group relative ${isToday ? 'ring-2 ring-accent ring-inset border-accent' : 'border-border'}`}
+                  onClick={() => onSelectDay(slot.dateKey)}>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-text-secondary">{slot.day}</span>
+                    <span className={`text-xs font-medium ${isToday ? 'text-accent' : 'text-text-primary'}`}>{slot.day}</span>
                     <div className="flex items-center gap-1">
-                      {hasNote && (
-                        <svg className="w-3 h-3 text-accent" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"></path></svg>
-                      )}
+                      <button type="button"
+                        className={`transition-opacity w-5 h-5 rounded flex items-center justify-center text-xs ${hasNote ? 'text-accent opacity-100' : 'text-text-secondary opacity-0 group-hover:opacity-100'} hover:bg-accent/15`}
+                        onClick={event => { event.stopPropagation(); onSelectDay(slot.dateKey); }}
+                        title={hasNote ? 'View or edit daily note' : 'Add daily note'} aria-label={hasNote ? 'Edit daily note' : 'Add daily note'}>
+                        {hasNote ? '▤' : '✎'}
+                      </button>
                       {onOpenAddTrade && (
-                        <button
-                          className="opacity-0 group-hover:opacity-100 transition-opacity w-4 h-4 rounded flex items-center justify-center bg-accent/20 hover:bg-accent/40 text-accent text-[10px] font-bold leading-none"
-                          onClick={(e) => { e.stopPropagation(); onOpenAddTrade(slot.dateKey); }}
-                          title="Add trade"
-                        >+</button>
+                        <button type="button"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 rounded flex items-center justify-center bg-accent/20 hover:bg-accent/40 text-accent text-xs font-bold"
+                          onClick={event => { event.stopPropagation(); onOpenAddTrade(slot.dateKey); }}
+                          title="Add trade" aria-label="Add trade">+</button>
                       )}
                     </div>
                   </div>
-                  <div className={`font-mono text-sm font-semibold mt-1 ${hasActivity ? (pl >= 0 ? 'text-positive' : 'text-negative') : 'text-text-muted'}`}>
-                    {hasActivity ? `$${pl.toFixed(0)}` : '—'}
-                  </div>
-                  <div className="text-text-tertiary text-[10px] mt-0.5">
-                    {hasActivity ? data.tradeCount : 0} trade{(!hasActivity || data.tradeCount !== 1) ? 's' : ''}
-                  </div>
-                  {hasActivity && dayWinRate !== null && (
-                    <div className={`text-[10px] mt-0.5 font-mono ${dayWinRate >= 50 ? 'text-positive/70' : 'text-negative/70'}`}>
-                      {dayWinRate}% WR
-                    </div>
-                  )}
-                  {!hasActivity && (
-                    <div className="text-text-muted text-[10px] mt-0.5 font-mono">N/A WR</div>
+                  {hasActivity && (
+                    <>
+                      <div className={`font-mono text-sm font-semibold mt-1 ${pl >= 0 ? 'text-positive' : 'text-negative'}`}>${pl.toFixed(0)}</div>
+                      <div className="text-text-primary text-[10px] mt-0.5">{data.tradeCount} trade{data.tradeCount !== 1 ? 's' : ''}</div>
+                      {dayWinRate !== null && <div className="text-text-secondary text-[10px] mt-0.5 font-mono">{dayWinRate}% WR</div>}
+                    </>
                   )}
                 </div>
               );
@@ -611,24 +607,17 @@ const DailyCalendar = ({ year, month, dailyData, onSelectDay, dailyNotes, onOpen
             {/* Vertical divider */}
             <div className="bg-border my-1 rounded-full"></div>
 
-            {/* Weekly P&L summary cell */}
+            {/* ISO week summary cell */}
             <div className={`h-24 rounded-lg border p-2 flex flex-col items-center justify-center ${
-              weekTrades > 0
-                ? weekPL >= 0 ? 'bg-positive/5 border-positive/20' : 'bg-negative/5 border-negative/20'
-                : 'bg-bg-input border-border'
+              weekTrades > 0 ? (weekPL >= 0 ? 'bg-positive/5 border-positive/20' : 'bg-negative/5 border-negative/20') : 'bg-bg-input border-border'
             }`}>
+              <div className="text-text-primary text-xs font-semibold">Week {getCalendarWeekNumber(year, month, week)}</div>
               {weekTrades > 0 ? (
                 <>
-                  <div className={`font-mono text-sm font-bold ${weekPL >= 0 ? 'text-positive' : 'text-negative'}`}>
-                    ${weekPL.toFixed(0)}
-                  </div>
-                  <div className="text-text-tertiary text-[10px] mt-0.5">
-                    {weekTrades} trade{weekTrades !== 1 ? 's' : ''}
-                  </div>
+                  <div className={`font-mono text-sm font-bold mt-1 ${weekPL >= 0 ? 'text-positive' : 'text-negative'}`}>${weekPL.toFixed(0)}</div>
+                  <div className="text-text-secondary text-[10px] mt-0.5">{week.filter(slot => slot && dailyData[slot.dateKey]).length} trading days</div>
                 </>
-              ) : (
-                <div className="text-text-muted text-xs">--</div>
-              )}
+              ) : <div className="text-text-muted text-[10px] mt-1">0 trading days</div>}
             </div>
           </div>
         );
