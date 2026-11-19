@@ -58,7 +58,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const [editing, setEditing] = useState(false);
   const [draggedId, setDraggedId] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
-  const [columns, setColumns] = useState(12);
+  const [columns, setColumns] = useState(2);
   const [templates, setTemplates] = useState(() => {
     try { return JSON.parse(localStorage.getItem(`${storageKey}_templates`) || '[]'); }
     catch { return []; }
@@ -77,11 +77,18 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   }, [previewItemId]);
 
   useEffect(() => {
+    const element = gridRef.current;
+    if (!element) return undefined;
     const updateColumns = () => {
-      const width = window.innerWidth;
-      setColumns(width < 768 ? 2 : width < 1280 ? 6 : 12);
+      const width = element.clientWidth;
+      setColumns(width < 640 ? 2 : width < 1024 ? 6 : 12);
     };
     updateColumns();
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(updateColumns);
+      observer.observe(element);
+      return () => observer.disconnect();
+    }
     window.addEventListener('resize', updateColumns);
     return () => window.removeEventListener('resize', updateColumns);
   }, []);
@@ -181,11 +188,16 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     if (!item) return;
     const minW = Number(item.minColumns) || 1;
     const minH = Number(item.minRows) || 1;
-    const widthStep = (start.gridWidth - GRID_GAP * (MAX_COLUMNS - 1)) / MAX_COLUMNS + GRID_GAP;
+    const availableWidth = start.gridWidth - GRID_GAP * (columns - 1);
+    const widthStep = columns === 2
+      ? availableWidth / 2 + GRID_GAP
+      : availableWidth / MAX_COLUMNS + GRID_GAP * (columns / MAX_COLUMNS);
     const widthDelta = Math.round((event.clientX - start.startX) / widthStep);
     const heightDelta = Math.round((event.clientY - start.startY) / ROW_UNIT);
     const nextSize = {
-      w: clamp(start.startW + widthDelta, minW, MAX_COLUMNS),
+      w: widthDelta === 0
+        ? start.startW
+        : clamp(Math.min(start.startW, columns === 2 ? 2 : MAX_COLUMNS) + widthDelta, minW, columns === 2 ? 2 : MAX_COLUMNS),
       h: Math.max(minH, start.startH + heightDelta),
     };
     setLayout(current => ({
@@ -223,7 +235,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-semibold text-text-primary">Dashboard tile catalogue</h3>
-              <p className="text-xs text-text-tertiary mt-1">Add or remove tiles, drag them to reorder, and resize them directly on the grid. A highlighted edge shows where a tile will be placed.</p>
+              <p className="text-xs text-text-tertiary mt-1">Add or remove tiles, drag them to reorder, and resize them directly on the grid. A highlighted edge shows where a tile will be placed. Use the arrow controls for precise reordering on touch devices.</p>
             </div>
             <button type="button" onClick={reset} className="text-xs text-text-secondary hover:text-text-primary underline">Reset layout</button>
           </div>
@@ -392,6 +404,28 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
               {editing && (
                 <div className="absolute z-20 top-2 right-2 flex items-center gap-1 rounded-md bg-bg-page/95 border border-border px-1.5 py-1 text-[10px] text-text-secondary">
                   <span className="select-none pointer-events-none">⠿ Move</span>
+                  <button
+                    type="button"
+                    disabled={itemIndex === 0}
+                    aria-label={`Move ${item.label} earlier`}
+                    title="Move earlier"
+                    onClick={() => {
+                      const previous = visibleItems[itemIndex - 1];
+                      if (previous) moveItem(item.id, previous.id, 'before');
+                    }}
+                    className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30"
+                  >↑</button>
+                  <button
+                    type="button"
+                    disabled={itemIndex === visibleItems.length - 1}
+                    aria-label={`Move ${item.label} later`}
+                    title="Move later"
+                    onClick={() => {
+                      const next = visibleItems[itemIndex + 1];
+                      if (next) moveItem(item.id, next.id, 'after');
+                    }}
+                    className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30"
+                  >↓</button>
                   <span className="select-none pointer-events-none">{size.w}×{size.h}</span>
                 </div>
               )}
