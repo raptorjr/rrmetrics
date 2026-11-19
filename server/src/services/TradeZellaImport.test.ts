@@ -26,6 +26,7 @@ test('parses TradeZella rows and preserves account, side, costs and net P&L', ()
   assert.equal(rows[0].grossPL, 10);
   assert.equal(rows[0].fees, 0.48);
   assert.equal(rows[0].commissions, 1);
+  assert.ok(rows[0].sourceFingerprint.includes('MES'));
 });
 
 test('matches two one-contract CSV rows to one two-contract RR position', () => {
