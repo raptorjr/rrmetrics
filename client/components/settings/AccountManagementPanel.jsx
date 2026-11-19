@@ -190,11 +190,11 @@ const AccountManagementPanel = ({ triggerReload }) => {
                 </div>
                 {groups[expandedProvider].map(account => (
                   <div key={account.id} className={`border rounded-lg p-4 space-y-3 transition-all ${selectedIds.includes(account.id) ? 'border-accent ring-1 ring-accent/20' : 'border-border'}`}>
-                    <div className="grid grid-cols-1 sm:grid-cols-[minmax(100px,0.7fr)_minmax(180px,1fr)_auto] items-center gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-[38%_minmax(0,1fr)_auto] items-center gap-3">
                       <label className="flex items-center gap-2 text-xs text-text-secondary"><input type="checkbox" checked={selectedIds.includes(account.id)} onChange={e => setSelectedIds(prev => e.target.checked ? [...prev, account.id] : prev.filter(id => id !== account.id))} className="w-4 h-4 rounded border-border text-accent focus:ring-accent" />Select</label>
                       <div className="min-w-0">
                         <div className="text-text-primary text-sm font-medium">{account.name}</div>
-                        <div className="text-text-tertiary text-xs mt-1">Topstep account: {account.sourceAccountName || account.name} · ID: {account.sourceName}</div>
+                        {providerLabel(expandedProvider) === 'Topstep' && <div className="text-text-tertiary text-xs mt-1">Topstep account: {account.sourceAccountName || account.name} · ID: {account.sourceName}</div>}
                         {(account.accountType || account.currencyCode) && (
                           <div className="text-text-tertiary text-xs mt-1">
                             {[account.accountType === 'evaluation' ? 'Evaluation' : account.accountType === 'xfa' ? 'XFA' : account.accountType === 'live_funded' ? 'Live funded' : null, account.currencyCode].filter(Boolean).join(' · ')}
