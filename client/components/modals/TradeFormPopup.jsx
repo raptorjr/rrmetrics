@@ -445,7 +445,7 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
                 </div>
                 <div className="relative">
                   <input id="enterClock" type="text" name="enterClock" aria-label="Enter time" defaultValue={enterDefaults.time} placeholder={timeFormat24 ? 'HH:mm:ss' : 'hh:mm:ss AM/PM'} className={inputClass + " pr-12"} />
-                  <button type="button" onClick={() => setEnterTimePickerOpen(value => !value)} className="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-text-primary hover:text-accent" aria-label="Open enter time selector"><Icons.Clock className="w-4 h-4" /></button>
+                  <button type="button" onClick={() => setEnterTimePickerOpen(value => !value)} className="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-text-primary hover:text-accent" aria-label="Open enter time selector"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg></button>
                   {enterTimePickerOpen && renderTimePicker('enterClock', enterDefaults.time)}
                 </div>
               </div>
@@ -458,7 +458,7 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
                 </div>
                 <div className="relative">
                   <input id="exitClock" type="text" name="exitClock" aria-label="Exit time" defaultValue={exitDefaults.time} placeholder={timeFormat24 ? 'HH:mm:ss' : 'hh:mm:ss AM/PM'} className={inputClass + " pr-12"} />
-                  <button type="button" onClick={() => setExitTimePickerOpen(value => !value)} className="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-text-primary hover:text-accent" aria-label="Open exit time selector"><Icons.Clock className="w-4 h-4" /></button>
+                  <button type="button" onClick={() => setExitTimePickerOpen(value => !value)} className="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-text-primary hover:text-accent" aria-label="Open exit time selector"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg></button>
                   {exitTimePickerOpen && renderTimePicker('exitClock', exitDefaults.time)}
                 </div>
               </div>
