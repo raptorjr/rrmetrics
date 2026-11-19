@@ -239,16 +239,33 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     if (!item) return;
     const minW = Number(item.minColumns) || 1;
     const minH = Number(item.minRows) || 1;
+    const maxW = columns === 2 ? 2 : MAX_COLUMNS;
+    const effectiveMinW = Math.min(minW, maxW);
+    const startW = clamp(start.startW, effectiveMinW, maxW);
     const availableWidth = start.gridWidth - GRID_GAP * (columns - 1);
-    const widthStep = columns === 2
-      ? availableWidth / 2 + GRID_GAP
-      : availableWidth / MAX_COLUMNS + GRID_GAP * (columns / MAX_COLUMNS);
-    const widthDelta = Math.round((event.clientX - start.startX) / widthStep);
+    const trackWidth = availableWidth / columns;
+    const widthFor = width => {
+      const span = columns === 12
+        ? width * 3
+        : columns === 6
+          ? Math.min(6, Math.max(2, Math.round(width * 1.5)))
+          : Math.min(2, width);
+      return span * trackWidth + (span - 1) * GRID_GAP;
+    };
+    const horizontalDelta = event.clientX - start.startX;
+    let nextWidth = startW;
+    let closestDistance = Math.abs(horizontalDelta);
+    for (let candidate = effectiveMinW; candidate <= maxW; candidate += 1) {
+      const expectedDelta = widthFor(candidate) - widthFor(startW);
+      const distance = Math.abs(horizontalDelta - expectedDelta);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        nextWidth = candidate;
+      }
+    }
     const heightDelta = Math.round((event.clientY - start.startY) / ROW_UNIT);
     const nextSize = {
-      w: widthDelta === 0
-        ? start.startW
-        : clamp(Math.min(start.startW, columns === 2 ? 2 : MAX_COLUMNS) + widthDelta, minW, columns === 2 ? 2 : MAX_COLUMNS),
+      w: nextWidth,
       h: clamp(start.startH + heightDelta, minH, MAX_ROWS),
     };
     setLayout(current => ({
