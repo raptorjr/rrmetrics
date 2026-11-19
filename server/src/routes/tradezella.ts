@@ -135,7 +135,7 @@ tradezella.post('/api/tradezella/accounts', requiresLogin, async (c) => {
 tradezella.delete('/api/tradezella/accounts/:sourceAccountName', requiresLogin, async (c) => {
   const user = c.get('user');
   const db = c.get('db');
-  const sourceAccountName = decodeURIComponent(c.req.param('sourceAccountName') || '').trim();
+  const sourceAccountName = (c.req.param('sourceAccountName') || '').trim();
   if (!sourceAccountName) return c.json({ error: 'Source account name is required.' }, 400);
 
   try {
