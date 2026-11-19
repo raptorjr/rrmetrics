@@ -115,8 +115,9 @@ const MonteCarloTile = ({ trades }) => {
   return (
     <Panel title="Monte Carlo Eval Simulation">
       <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-text-tertiary mb-2">
-        <span>{results.totalSimulations.toLocaleString()} simulations · $3,000 target · $2,000 trailing drawdown</span><span>100 sample paths</span>
+        <span>{results.totalSimulations.toLocaleString()} simulations · ${results.profitTarget.toLocaleString()} target · ${results.maxDrawdown.toLocaleString()} EOD trailing drawdown</span><span>{results.paths.length} sample paths</span>
       </div>
+      <p className="text-[10px] text-text-tertiary mb-2">Historical trade P/L is sampled with replacement at the rounded average trades-per-day rate. Drawdown is checked at the end of each simulated day; results are illustrative, not a prediction.</p>
       <div className="w-full overflow-x-auto">
         <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Monte Carlo simulated equity paths" className="w-full min-w-[520px] h-auto">
           {[0, 1, 2, 3, 4, 5].map(index => {
