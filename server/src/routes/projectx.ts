@@ -220,13 +220,6 @@ projectx.post(
 
       const existingPxConn = await pxConnDb.findByBrokerConnectionId(serviceClient, connectionId);
       if ((existingPxConn as any)?.setup_completed) return c.json({ error: 'Topstep setup is already completed. Reset the setup before changing imported accounts or their settings.' }, 409);
-      const previousAccounts = [...(existingPxConn?.selected_accounts || [])].sort((a, b) => a - b);
-      const nextAccounts = [...selectedAccounts].sort((a, b) => a - b);
-      const accountSelectionChanged = JSON.stringify(previousAccounts) !== JSON.stringify(nextAccounts);
-      const previousLead = existingPxConn?.copytrade_config?.leadAccountId ?? null;
-      const nextLead = copytradeConfig?.leadAccountId ?? null;
-      const copytradeSourceChanged = previousLead !== nextLead;
-
       // Preserve settings for historical accounts that are no longer returned
       // by ProjectX. The account settings are a durable local record, not a
       // mirror of the broker's current account list.
