@@ -128,3 +128,39 @@ test('does not use a differing average entry to match when net P&L also disagree
   }]);
   assert.equal(matches[0].status, 'review');
 });
+
+
+test('matches when entry, quantity and all financial totals agree despite different exit execution details', () => {
+  const source = parseTradeZellaRows([{
+    'Account Name': 'Practice', Instrument: 'MGC', Side: 'long', Quantity: '5',
+    'Open Date': '2026-11-02', 'Open Time': '14:41:12 CET',
+    'Close Date': '2026-11-02', 'Close Time': '14:43:35 CET',
+    'Entry Price': '3946.00', 'Exit Price': '3954.20',
+    'Net P&L': '266.40', 'Gross P&L': '276.00', Fee: '7.10', Commission: '2.50',
+  }]);
+  const matches = matchTradeZellaRows(source, [{
+    id: 'rr-exit-aggregation', ticker: 'MGC',
+    enter_time: '2026-11-02T13:41:12.973Z', exit_time: '2026-11-02T13:43:35.605Z',
+    enter_price: 3946, exit_price: 3951.52, quantity: 5, manual_pl: 266.4,
+    gross_pl: 276, fees: 7.1, commissions: 2.5,
+  }]);
+  assert.equal(matches[0].status, 'matched');
+  assert.deepEqual(matches[0].existingTradeIds, ['rr-exit-aggregation']);
+});
+
+test('does not strong-match when gross P&L or costs disagree', () => {
+  const source = parseTradeZellaRows([{
+    'Account Name': 'Practice', Instrument: 'MGC', Side: 'long', Quantity: '5',
+    'Open Date': '2026-11-02', 'Open Time': '14:41:12 CET',
+    'Close Date': '2026-11-02', 'Close Time': '14:43:35 CET',
+    'Entry Price': '3946.00', 'Exit Price': '3954.20',
+    'Net P&L': '266.40', 'Gross P&L': '276.00', Fee: '7.10', Commission: '2.50',
+  }]);
+  const matches = matchTradeZellaRows(source, [{
+    id: 'rr-financial-mismatch', ticker: 'MGC',
+    enter_time: '2026-11-02T13:41:12.973Z', exit_time: '2026-11-02T13:43:35.605Z',
+    enter_price: 3946, exit_price: 3951.52, quantity: 5, manual_pl: 266.4,
+    gross_pl: 276, fees: 7.1, commissions: 3.5,
+  }]);
+  assert.notEqual(matches[0].status, 'matched');
+});
