@@ -135,6 +135,18 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
     return () => document.removeEventListener('paste', handlePaste);
   }, [isOpen, editingTrade]);
 
+  useEffect(() => {
+    if (!enterDatePickerOpen && !exitDatePickerOpen && !enterTimePickerOpen && !exitTimePickerOpen) return;
+    const handleOutsidePointer = (event) => {
+      if (enterDatePickerRef.current && !enterDatePickerRef.current.contains(event.target)) setEnterDatePickerOpen(false);
+      if (exitDatePickerRef.current && !exitDatePickerRef.current.contains(event.target)) setExitDatePickerOpen(false);
+      if (enterTimePickerRef.current && !enterTimePickerRef.current.contains(event.target)) setEnterTimePickerOpen(false);
+      if (exitTimePickerRef.current && !exitTimePickerRef.current.contains(event.target)) setExitTimePickerOpen(false);
+    };
+    document.addEventListener('pointerdown', handleOutsidePointer);
+    return () => document.removeEventListener('pointerdown', handleOutsidePointer);
+  }, [enterDatePickerOpen, exitDatePickerOpen, enterTimePickerOpen, exitTimePickerOpen]);
+
   if (!isOpen) return null;
 
   const isEditing = editingTrade !== null;
@@ -449,17 +461,7 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
     const field = document.getElementById(textId);
     if (field) field.value = formatDateValue(year, month, day);
   };
-  useEffect(() => {
-    if (!enterDatePickerOpen && !exitDatePickerOpen && !enterTimePickerOpen && !exitTimePickerOpen) return;
-    const handleOutsidePointer = (event) => {
-      if (enterDatePickerRef.current && !enterDatePickerRef.current.contains(event.target)) setEnterDatePickerOpen(false);
-      if (exitDatePickerRef.current && !exitDatePickerRef.current.contains(event.target)) setExitDatePickerOpen(false);
-      if (enterTimePickerRef.current && !enterTimePickerRef.current.contains(event.target)) setEnterTimePickerOpen(false);
-      if (exitTimePickerRef.current && !exitTimePickerRef.current.contains(event.target)) setExitTimePickerOpen(false);
-    };
-    document.addEventListener('pointerdown', handleOutsidePointer);
-    return () => document.removeEventListener('pointerdown', handleOutsidePointer);
-  }, [enterDatePickerOpen, exitDatePickerOpen, enterTimePickerOpen, exitTimePickerOpen]);
+
 
   const inputClass = "w-full px-3 py-2.5 bg-bg-input border border-border rounded-lg text-text-primary text-sm placeholder-text-muted focus:outline-none focus:border-accent transition-colors";
   const labelClass = "block text-xs font-medium text-text-secondary mb-1.5";
