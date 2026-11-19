@@ -252,7 +252,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     if (!selectedTemplate) return;
     const next = templates.filter(template => template.name !== selectedTemplate);
     setTemplates(next);
-    localStorage.setItem(`${storageKey}_templates`, JSON.stringify(next));
+    persistValue(`${storageKey}_templates`, next);
     setSelectedTemplate('');
   };
 
