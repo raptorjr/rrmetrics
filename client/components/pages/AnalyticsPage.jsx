@@ -25,7 +25,7 @@ const readKellyDrawdown = () => {
 };
 const { useState, useEffect, useRef, useMemo } = React;
 
-const { getTradePL, calculateAnalytics, applyEvalFilter, calculateSharpeRatio, calculateSortinoRatio, calculateKellyCriterion, runMonteCarloSimulation } = require("../../utils/analytics");
+const { getTradePL, calculateAnalytics, calculateExpectancy, applyEvalFilter, calculateSharpeRatio, calculateSortinoRatio, calculateKellyCriterion, runMonteCarloSimulation } = require("../../utils/analytics");
 const { formatDuration, toEST } = require("../../utils/dateUtils");
 const { isBreakevenTrade } = require("../../utils/tickValues");
 const { getCSSVar, colorToRgba, drawTooltip } = require("../../utils/chartUtils");
@@ -395,7 +395,7 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
     return grossLosses === 0 ? grossWins : (grossWins / grossLosses);
   })();
 
-  const expectancy = stats.totalTrades > 0 ? stats.totalPL / stats.totalTrades : 0;
+  const expectancy = calculateExpectancy(stats);
 
   // Previous period profit factor & expectancy for % change
   const prevProfitFactor = (() => {
@@ -409,9 +409,7 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
     return grossLosses === 0 ? grossWins : (grossWins / grossLosses);
   })();
 
-  const prevExpectancy = prevStats && prevStats.totalTrades > 0
-    ? prevStats.totalPL / prevStats.totalTrades
-    : 0;
+  const prevExpectancy = calculateExpectancy(prevStats);
 
   // Max drawdown
   const maxDrawdown = (() => {

@@ -54,7 +54,7 @@ const CalendarView = require('./CalendarView');
 const Icons = require('../shared/Icons');
 
 const { getDateRange, getPreviousDateRange, filterTradesByDateRange, calcPercentChange } = require('../../utils/periodUtils');
-const { getTradePL, calculateAnalytics, applyEvalFilter, calculateSharpeRatio, calculateSortinoRatio, calculateKellyCriterion } = require('../../utils/analytics');
+const { getTradePL, calculateAnalytics, calculateExpectancy, applyEvalFilter, calculateSharpeRatio, calculateSortinoRatio, calculateKellyCriterion } = require('../../utils/analytics');
 const { formatDuration } = require('../../utils/dateUtils');
 
 
@@ -112,7 +112,7 @@ const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpe
     });
     return grossLosses === 0 ? grossWins : grossWins / grossLosses;
   })();
-  const expectancy = stats.totalTrades > 0 ? stats.totalPL / stats.totalTrades : 0;
+  const expectancy = calculateExpectancy(stats);
   const maxDrawdown = (() => {
     const sorted = [...filteredTrades].sort((a, b) => new Date(a.exitTime) - new Date(b.exitTime));
     let peak = 0, running = 0, drawdown = 0;

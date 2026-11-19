@@ -6,6 +6,10 @@ const getTradePL = (trade) => {
   return (trade.exitPrice - trade.enterPrice) * trade.quantity * getPointValue(trade.ticker);
 };
 
+const calculateExpectancy = (stats) => (
+  stats && stats.totalTrades > 0 ? stats.totalPL / stats.totalTrades : 0
+);
+
 const calculateAnalytics = (trades) => {
   const empty = {
     totalPL: 0, winRate: 0, avgWin: 0, avgLoss: 0,
@@ -236,5 +240,5 @@ const applyEvalFilter = (trades, evalFilter) => {
 
 module.exports = {
   getTradePL, calculateAnalytics, groupTradesByDate, applyEvalFilter,
-  calculateSharpeRatio, calculateSortinoRatio, calculateKellyCriterion, runMonteCarloSimulation,
+  calculateSharpeRatio, calculateSortinoRatio, calculateKellyCriterion, calculateExpectancy, runMonteCarloSimulation,
 };
