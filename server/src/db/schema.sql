@@ -87,6 +87,19 @@ CREATE TABLE IF NOT EXISTS tradezella_imported_trades (
 CREATE INDEX IF NOT EXISTS idx_tradezella_imported_trades_user_id
   ON tradezella_imported_trades(user_id);
 
+// Source-row tombstones keep cleared TradeZella imports from being recreated
+// when the same CSV is uploaded again. They are removed only when the account
+// itself is deleted.
+CREATE TABLE IF NOT EXISTS tradezella_cleared_trades (
+  user_id             TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  source_account_name TEXT NOT NULL,
+  source_fingerprint  TEXT NOT NULL,
+  cleared_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  PRIMARY KEY (user_id, source_account_name, source_fingerprint)
+);
+CREATE INDEX IF NOT EXISTS idx_tradezella_cleared_trades_user_id
+  ON tradezella_cleared_trades(user_id);
+
 -- ─── durable account registry for connected broker accounts ────────────────
 -- Keeps account identities available in Settings even after their trade history
 -- is cleared or the broker stops returning them in its live account list.
