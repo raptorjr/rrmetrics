@@ -125,9 +125,12 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
 
     for (const candidate of candidates) {
       const group = ordered.filter((row) => !processed.has(row.sourceRow)
+        && row.sourceAccount === source.sourceAccount
         && row.ticker === source.ticker
         && Math.sign(row.quantity) === Math.sign(source.quantity)
         && near(epoch(row.exitTime), epoch(source.exitTime), 2));
+      // Keep subset search bounded; unusually large clusters require manual review.
+      if (group.length > 12) continue;
       const limit = Math.min(group.length, 6);
       const subsets: TradeZellaRow[][] = [];
       const visit = (start: number, selected: TradeZellaRow[]) => {
@@ -174,7 +177,7 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
         visitExisting(i + 1, [...selected, existingGroupCandidates[i]]);
       }
     };
-    if (groupLimit >= 2) visitExisting(0, []);
+    if (groupLimit >= 2 && existingGroupCandidates.length <= 12) visitExisting(0, []);
     existingGroupMatch = existingSubsets.find((subset) => {
       const qty = subset.reduce((sum, trade) => sum + Math.abs(trade.quantity), 0);
       const entry = subset.reduce((sum, trade) => sum + trade.enter_price * Math.abs(trade.quantity), 0) / qty;
