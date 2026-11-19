@@ -74,7 +74,7 @@ export async function create(
 export async function updateByBrokerConnectionId(
   db: Db,
   brokerConnectionId: string,
-  updates: Partial<Pick<ProjectXConnectionRow, 'username' | 'api_key' | 'access_token' | 'token_expires_at' | 'selected_accounts' | 'account_settings' | 'last_full_sync_time' | 'reinstated_order_keys' | 'copytrade_config' | 'auto_sync_enabled' | 'auto_sync_interval_minutes' | 'auto_sync_next_at' | 'auto_sync_started_at' | 'auto_sync_last_attempt_at' | 'auto_sync_last_error' | 'auto_sync_last_result' | 'full_sync_enabled' | 'setup_completed'>>,
+  updates: Partial<Pick<ProjectXConnectionRow, 'username' | 'api_key' | 'access_token' | 'token_expires_at' | 'selected_accounts' | 'account_settings' | 'last_full_sync_time' | 'reinstated_order_keys' | 'copytrade_config' | 'auto_sync_enabled' | 'auto_sync_interval_minutes' | 'auto_sync_next_at' | 'auto_sync_started_at' | 'auto_sync_last_attempt_at' | 'auto_sync_last_error' | 'auto_sync_last_result'>> & { full_sync_enabled?: boolean; setup_completed?: boolean },
 ): Promise<void> {
   const columns: string[] = [];
   const values: unknown[] = [];
