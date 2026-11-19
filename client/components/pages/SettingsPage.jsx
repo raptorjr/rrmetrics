@@ -880,7 +880,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
   // UI helpers
   // =============================================
   const tabs = [
-    { id: 'brokers', label: 'Providers' },
+    { id: 'providers', label: 'Providers' },
     { id: 'accounts', label: 'Account Management' },
     { id: 'tags', label: 'Tags' },
     { id: 'preferences', label: 'Preferences' },
@@ -952,7 +952,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
       </div>
 
       {/* Providers tab */}
-      {activeTab === 'brokers' && (
+      {activeTab === 'providers' && (
         <div className="space-y-6">
           {/* Message */}
           {message && (
