@@ -13,8 +13,6 @@ const formatCurrency = (value, currency = 'USD') => {
   catch { return `${currency} ${Number(value || 0).toFixed(0)}`; }
 };
 const { calcPercentChange } = require("../../utils/periodUtils");
-const { SidePanelContext } = require("../../utils/contexts");
-const { useWindowWidth } = require("../../utils/hooks");
 
 const DayDetailPanel = ({ dateKey, dayData, onClose, dailyNotes, onSaveNote, onDeleteNote, tags, strategyRules, onEditTrade, sidebarCollapsed }) => {
   const [expandedTrade, setExpandedTrade] = useState(null);
@@ -25,14 +23,6 @@ const DayDetailPanel = ({ dateKey, dayData, onClose, dailyNotes, onSaveNote, onD
   const formatted = formatFullDateEST(date);
   const dayRules = strategyRules ? strategyRules.filter(r => r.type === 'day') : [];
   const tradeRules = strategyRules ? strategyRules.filter(r => r.type === 'trade') : [];
-  const windowWidth = useWindowWidth();
-  const isUltrawide = windowWidth >= 2000;
-  const isSidePanel = isUltrawide || (sidebarCollapsed && windowWidth >= 1280);
-  const setSidePanelOffset = React.useContext(SidePanelContext);
-  useEffect(() => {
-    if (isSidePanel) setSidePanelOffset(480);
-    return () => setSidePanelOffset(0);
-  }, [isSidePanel, setSidePanelOffset]);
 
   useEffect(() => {
     if (!strategyRules || strategyRules.length === 0) return;
@@ -143,8 +133,8 @@ const DayDetailPanel = ({ dateKey, dayData, onClose, dailyNotes, onSaveNote, onD
   };
 
   return (
-    <div className={isSidePanel ? "fixed right-0 top-0 h-screen z-40 flex" : "fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"} onClick={!isSidePanel ? onClose : undefined}>
-      <div className={isSidePanel ? "w-[480px] h-full flex flex-col bg-bg-surface border-l border-border shadow-2xl" : "bg-bg-surface border border-border rounded-xl w-full max-w-lg max-h-[85vh] flex flex-col"} onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
+      <div className="w-[480px] max-w-full h-full flex flex-col bg-bg-surface border-l border-border shadow-2xl" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div>
