@@ -26,6 +26,7 @@ export interface ExistingTrade {
   gross_pl?: number | null;
   fees?: number;
   commissions?: number;
+  account?: string | null;
 }
 
 export interface MatchResult {
@@ -361,3 +362,68 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
   }
   return results;
 }
+
+/**
+ * Match against the explicitly selected RR account first. If a source row
+ * appears new there, inspect other RR accounts separately and hold any
+ * cross-account duplicate candidate for manual review rather than importing
+ * another copy (important for umbrella exports such as Practice).
+ */
+export function matchTradeZellaRowsAcrossAccounts(
+  rows: TradeZellaRow[],
+  existing: ExistingTrade[],
+  targetAccount: string | null,
+): MatchResult[] {
+  const primary = matchTradeZellaRows(
+    rows,
+    targetAccount ? existing.filter(trade => trade.account === targetAccount) : [],
+  );
+  const newRows = rows.filter(row =>
+    primary.some(match => match.status === 'new' && match.sourceRows.includes(row.sourceRow))
+  );
+  if (!newRows.length) return primary;
+
+  const possibleByRow = new Map<number, { ids: Set<string>; accounts: Set<string> }>();
+  const otherAccounts = [...new Set(existing
+    .map(trade => trade.account)
+    .filter((account): account is string => !!account && account !== targetAccount))];
+
+  for (const account of otherAccounts) {
+    const crossMatches = matchTradeZellaRows(
+      newRows,
+      existing.filter(trade => trade.account === account),
+    );
+    for (const match of crossMatches) {
+      if (match.status === 'new') continue;
+      for (const sourceRow of match.sourceRows) {
+        const item = possibleByRow.get(sourceRow) || { ids: new Set<string>(), accounts: new Set<string>() };
+        match.existingTradeIds.forEach(id => item.ids.add(id));
+        item.accounts.add(account);
+        possibleByRow.set(sourceRow, item);
+      }
+    }
+  }
+
+  if (!possibleByRow.size) return primary;
+  const result: MatchResult[] = [];
+  for (const match of primary) {
+    if (match.status !== 'new') {
+      result.push(match);
+      continue;
+    }
+    const remaining = match.sourceRows.filter(sourceRow => !possibleByRow.has(sourceRow));
+    if (remaining.length) result.push({ ...match, sourceRows: remaining });
+    for (const sourceRow of match.sourceRows) {
+      const possible = possibleByRow.get(sourceRow);
+      if (!possible) continue;
+      result.push({
+        status: 'review',
+        sourceRows: [sourceRow],
+        existingTradeIds: [...possible.ids],
+        reason: `Possible duplicate in another RR account (${[...possible.accounts].join(', ')}); manual review is required`,
+      });
+    }
+  }
+  return result;
+}
+
