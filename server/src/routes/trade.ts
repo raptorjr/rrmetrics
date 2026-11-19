@@ -41,6 +41,13 @@ trade.get('/api/getTrades', requiresLogin, async (c) => {
         }
       }
 
+      // Directly associate imported trade accounts with their broker connection.
+      // This is more reliable than inferring the provider from connection labels.
+      const linkedBrokerAccounts = db.prepare(`SELECT DISTINCT t.account, bc.broker
+        FROM trades t JOIN broker_connections bc ON bc.id = t.broker_connection_id
+        WHERE t.user_id = ? AND t.account IS NOT NULL AND t.account != ''`).all(user.id) as any[];
+      for (const row of linkedBrokerAccounts) if (row.broker) accountBrokers[row.account] = row.broker;
+
       // TradeZella imports do not have a broker connection, so expose
       // their provider identity directly for the sidebar account selector.
       const tradeZellaAccounts = db.prepare(`SELECT DISTINCT account FROM trades
