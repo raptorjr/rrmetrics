@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Use the application font for all numeric/data values across the UI. */
+.font-mono {
+  font-family: inherit !important;
+}
+
 @layer base {
   :root {
     --accent: 191 255 0;
