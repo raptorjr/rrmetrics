@@ -469,10 +469,16 @@ projectx.post(
       // successfully queried. A full sync still covers only selected accounts;
       // deselected historical accounts must retain their previously verified
       // overrides because their raw executions remain part of reconstruction.
+      // An incremental Orders query covers only the recent window. Its
+      // missing historical orders must not revoke previously verified
+      // overrides. Only a full-history query can replace account-wide evidence.
+      const fullyRefreshedOrderAccountIds = isFullHistory
+        ? orderCheckSuccessfulAccountIds
+        : new Set<number>();
       const reinstatedOrderKeys = mergeVoidedOrderOverrides(
         pxConn.reinstated_order_keys || [],
         freshOrderOverrides,
-        orderCheckSuccessfulAccountIds,
+        fullyRefreshedOrderAccountIds,
       );
 
       const contractNames: Record<string, string> = {};
