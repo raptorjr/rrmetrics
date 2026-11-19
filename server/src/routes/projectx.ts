@@ -330,7 +330,11 @@ projectx.post(
     const user = c.get('user');
     const db = c.get('db');
     const body = await c.req.json();
-    const { connectionId, fullHistory: forceFullHistory } = body as { connectionId?: string; fullHistory?: boolean };
+    const { connectionId, fullHistory: forceFullHistory, forceIncremental } = body as {
+      connectionId?: string;
+      fullHistory?: boolean;
+      forceIncremental?: boolean;
+    };
 
     if (!connectionId) {
       return c.json({ error: 'Missing connectionId' }, 400);
@@ -392,7 +396,11 @@ projectx.post(
       const firstImport = !brokerConn.last_sync_time;
       const fullReconciliationDue = !!(pxConn as any).full_sync_enabled && (!pxConn.last_full_sync_time
         || Date.now() - Date.parse(pxConn.last_full_sync_time) >= 7 * 24 * 60 * 60 * 1000);
-      const isFullHistory = forceFullHistory === true || firstImport || fullReconciliationDue;
+      // Dashboard-triggered syncs are always incremental. Initial imports and
+      // scheduled weekly reconciliations retain their full-history behaviour.
+      const isFullHistory = forceIncremental === true
+        ? false
+        : forceFullHistory === true || firstImport || fullReconciliationDue;
       const historyStart = isFullHistory
         ? '2020-01-01T00:00:00Z'
         : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
