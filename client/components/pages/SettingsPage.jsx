@@ -1292,7 +1292,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
 
                                 {pxEditingConnId !== conn.connectionId && (
                                   <div className="flex items-center gap-2">
-                                    {conn.configured && !conn.expired && (
+                                    {conn.configured && !conn.expired && conn.setupCompleted && (
                                       <>
                                         <button onClick={() => handlePxSync(conn.connectionId)} disabled={pxSyncingId !== null}
                                           className="px-3 py-1.5 bg-accent text-accent-text text-xs font-medium rounded-lg hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-1.5">
