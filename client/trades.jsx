@@ -530,7 +530,7 @@ const App = () => {
 
       <TradeFormPopup
         isOpen={isFormOpen}
-        onClose={() => { setIsFormOpen(false); setEditingTrade(null); setPrefillDate(null); }}
+        onClose={() => { setIsFormOpen(false); setEditingTrade(null); setPrefillDate(null); }} onBack={() => { setIsFormOpen(false); setEditingTrade(null); }}
         triggerReload={triggerReload}
         editingTrade={editingTrade}
         prefillDate={prefillDate}

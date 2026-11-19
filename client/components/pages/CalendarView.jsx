@@ -9,7 +9,7 @@ const { getTradePL, groupTradesByDate } = require("../../utils/analytics");
 const { formatDuration, formatFullDateEST, formatTimeEST } = require("../../utils/dateUtils");
 const { isBreakevenTrade } = require("../../utils/tickValues");
 const formatCurrency = (value, currency = 'USD') => {
-  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 0, notation: 'compact' }).format(value); }
+  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency, minimumFractionDigits: Math.abs(Number(value)) >= 1000 ? 1 : 0, maximumFractionDigits: Math.abs(Number(value)) >= 1000 ? 1 : 0, notation: 'compact' }).format(value); }
   catch { return `${currency} ${Number(value || 0).toFixed(0)}`; }
 };
 const { calcPercentChange } = require("../../utils/periodUtils");
@@ -219,7 +219,7 @@ const DayDetailPanel = ({ dateKey, dayData, onClose, dailyNotes, onSaveNote, onD
                           <button
                             className="text-text-muted hover:text-accent transition-colors"
                             title="Edit trade"
-                            onClick={(e) => { e.stopPropagation(); onEditTrade(trade); onClose(); }}
+                            onClick={(e) => { e.stopPropagation(); onEditTrade(trade); }}
                           >
                             <Icons.Edit className="w-3.5 h-3.5" />
                           </button>
@@ -414,7 +414,7 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
             </button>
           )}
           {viewMode === 'daily' && (
-            <button type="button" onClick={() => setCurrentDate(new Date())} className="px-3 py-1.5 rounded-lg border border-border bg-bg-input text-xs font-semibold text-text-primary hover:bg-bg-surface transition-colors">
+            <button type="button" onClick={() => setCurrentDate(new Date())} className="px-3 py-1.5 rounded-lg border border-border bg-bg-input text-xs font-semibold text-text-secondary hover:bg-bg-surface transition-colors">
               This month
             </button>
           )}
@@ -593,6 +593,7 @@ const DailyCalendar = ({ year, month, dailyData, onSelectDay, onOpenNote, dailyN
               const hasActivity = data !== undefined;
               const pl = hasActivity ? data.totalPL : 0;
               const hasNote = dailyNotes && dailyNotes.some(n => n.date === slot.dateKey);
+              const isFuture = slot.dateKey > (() => { const now = new Date(); return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0'); })();
               const dayWins = hasActivity ? data.trades.filter(t => getTradePL(t) > 0).length : 0;
               const dayWinRate = hasActivity && data.tradeCount > 0 ? Math.round((dayWins / data.tradeCount) * 100) : null;
 
@@ -602,21 +603,21 @@ const DailyCalendar = ({ year, month, dailyData, onSelectDay, onOpenNote, dailyN
 
               return (
                 <div key={slot.day}
-                  className={`h-24 rounded-lg border p-2 ${bgClass} cursor-pointer hover:brightness-110 transition-all group relative ${isToday ? 'ring-2 ring-accent ring-inset border-accent' : 'border-border'}`}
-                  onClick={() => onSelectDay(slot.dateKey)}>
+                  className={`h-24 rounded-lg border p-2 ${bgClass} ${isFuture ? 'opacity-60' : 'cursor-pointer hover:brightness-110'} transition-all group relative ${isToday ? 'ring-2 ring-accent ring-inset border-accent' : 'border-border'}`}
+                  onClick={() => !isFuture && onSelectDay(slot.dateKey)}>
                   <div className="flex items-center justify-between">
                     <span className={`text-xs font-medium ${isToday ? 'text-accent' : 'text-text-primary'}`}>{slot.day}</span>
                     <div className="flex items-center gap-1">
                       <button type="button"
-                        className={`transition-opacity w-5 h-5 rounded flex items-center justify-center text-xs ${hasNote ? 'text-accent opacity-100' : 'text-text-secondary opacity-0 group-hover:opacity-100'} hover:bg-accent/15`}
-                        onClick={event => { event.stopPropagation(); onOpenNote(slot.dateKey); }}
+                        className={`absolute bottom-1.5 right-1.5 transition-opacity w-5 h-5 rounded flex items-center justify-center text-xs ${isFuture ? 'hidden' : hasNote ? 'text-accent opacity-100' : 'text-text-secondary opacity-0 group-hover:opacity-100'} hover:bg-accent/15`}
+                        onClick={event => { event.stopPropagation(); if (!isFuture) onOpenNote(slot.dateKey); }}
                         title={hasNote ? 'View or edit daily note' : 'Add daily note'} aria-label={hasNote ? 'Edit daily note' : 'Add daily note'}>
                         {hasNote ? '▤' : '✎'}
                       </button>
                       {onOpenAddTrade && (
                         <button type="button"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 rounded flex items-center justify-center bg-accent/20 hover:bg-accent/40 text-accent text-xs font-bold"
-                          onClick={event => { event.stopPropagation(); onOpenAddTrade(slot.dateKey); }}
+                          className={`absolute top-1.5 right-1.5 transition-opacity w-5 h-5 rounded flex items-center justify-center bg-accent/20 hover:bg-accent/40 text-accent text-xs font-bold ${isFuture ? 'hidden' : 'opacity-0 group-hover:opacity-100'}`}
+                          onClick={event => { event.stopPropagation(); if (!isFuture) onOpenAddTrade(slot.dateKey); }}
                           title="Add trade" aria-label="Add trade">+</button>
                       )}
                     </div>

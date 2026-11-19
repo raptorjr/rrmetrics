@@ -7,7 +7,7 @@ const TickerAutofill = require('../shared/TickerAutofill');
 const ScreenshotMarkupModal = require('../shared/ScreenshotMarkupModal');
 const RuleChecklist = require('../shared/RuleChecklist');
 const { resizeImage } = require('../../utils/imageUtils');
-const { toEST, getESTOffset } = require('../../utils/dateUtils');
+const { getDisplayTimeZone } = require('../../utils/dateUtils');
 const { SidePanelContext } = require('../../utils/contexts');
 const { useWindowWidth } = require('../../utils/hooks');
 const { TAG_COLOR_PRESETS } = require('../../utils/tagConstants');
@@ -16,7 +16,7 @@ const { TAG_COLOR_PRESETS } = require('../../utils/tagConstants');
 // TRADE FORM POPUP
 // =====================================================
 
-const TradeFormPopup = ({ isOpen, onClose, triggerReload, editingTrade, prefillDate, tags, strategyRules, trades, sidebarCollapsed }) => {
+const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, prefillDate, tags, strategyRules, trades, sidebarCollapsed }) => {
   const [screenshot, setScreenshot] = useState(null);
   const [pastedImage, setPastedImage] = useState(null);
   const [isMarkupOpen, setIsMarkupOpen] = useState(false);
@@ -242,8 +242,12 @@ const TradeFormPopup = ({ isOpen, onClose, triggerReload, editingTrade, prefillD
 
   const formatDateTimeForInput = (dateString) => {
     if (!dateString) return '';
-    const e = toEST(dateString);
-    return `${e.year}-${String(e.month).padStart(2, '0')}-${String(e.day).padStart(2, '0')}T${String(e.hours).padStart(2, '0')}:${String(e.minutes).padStart(2, '0')}:${String(e.seconds).padStart(2, '0')}`;
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: getDisplayTimeZone(), year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+    }).formatToParts(new Date(dateString));
+    const part = type => parts.find(item => item.type === type)?.value || '00';
+    return part('year') + '-' + part('month') + '-' + part('day') + 'T' + part('hour') + ':' + part('minute') + ':' + part('second');
   };
 
   const inputClass = "w-full px-3 py-2.5 bg-bg-input border border-border rounded-lg text-text-primary text-sm placeholder-text-muted focus:outline-none focus:border-accent transition-colors";
@@ -255,10 +259,11 @@ const TradeFormPopup = ({ isOpen, onClose, triggerReload, editingTrade, prefillD
         <div className={isSidePanel ? "w-[520px] h-full overflow-y-auto bg-bg-surface border-l border-border shadow-2xl" : "bg-bg-surface border border-border rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"} onClick={(e) => e.stopPropagation()}>
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-bg-surface z-10">
-            <h2 className="text-lg font-semibold text-text-primary">{isEditing ? 'Edit Trade' : 'New Trade'}</h2>
-            <button className="text-text-secondary hover:text-text-primary transition-colors" onClick={onClose}>
-              <Icons.X />
-            </button>
+            <div className="flex items-center gap-3">
+              {isEditing && onBack && <button type="button" className="text-text-secondary hover:text-text-primary transition-colors" onClick={onBack} aria-label="Back to trades"><Icons.ChevronLeft /></button>}
+              <h2 className="text-lg font-semibold text-text-primary">{isEditing ? 'Edit Trade' : 'New Trade'}</h2>
+            </div>
+            <button className="text-text-secondary hover:text-text-primary transition-colors" onClick={onClose} aria-label="Close"><Icons.X /></button>
           </div>
 
           <form
@@ -277,11 +282,11 @@ const TradeFormPopup = ({ isOpen, onClose, triggerReload, editingTrade, prefillD
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="enterTime" className={labelClass}>Enter Time</label>
-                <input id="enterTime" type="datetime-local" name="enterTime" step="1" defaultValue={isEditing ? formatDateTimeForInput(editingTrade.enterTime) : `${prefillDate || new Date().toISOString().split('T')[0]}T09:30:00`} className={inputClass} />
+                <input id="enterTime" type="datetime-local" lang="en-GB" name="enterTime" step="1" defaultValue={isEditing ? formatDateTimeForInput(editingTrade.enterTime) : `${prefillDate || new Date().toISOString().split('T')[0]}T09:30:00`} className={inputClass} />
               </div>
               <div>
                 <label htmlFor="exitTime" className={labelClass}>Exit Time</label>
-                <input id="exitTime" type="datetime-local" name="exitTime" step="1" defaultValue={isEditing ? formatDateTimeForInput(editingTrade.exitTime) : `${prefillDate || new Date().toISOString().split('T')[0]}T09:30:00`} className={inputClass} />
+                <input id="exitTime" type="datetime-local" lang="en-GB" name="exitTime" step="1" defaultValue={isEditing ? formatDateTimeForInput(editingTrade.exitTime) : `${prefillDate || new Date().toISOString().split('T')[0]}T09:30:00`} className={inputClass} />
               </div>
             </div>
 
