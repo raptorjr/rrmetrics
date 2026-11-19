@@ -141,6 +141,8 @@ projectx.get(
           selectedAccounts: pxConn?.selected_accounts || [],
           accountSettings: pxConn?.account_settings || {},
           lastFullSyncTime: pxConn?.last_full_sync_time || null,
+          fullSyncEnabled: !!(pxConn as any)?.full_sync_enabled,
+          setupCompleted: !!(pxConn as any)?.setup_completed,
           copytradeConfig: pxConn?.copytrade_config || null,
           lastSyncTime: bc.last_sync_time,
           autoSyncEnabled: pxConn?.auto_sync_enabled || false,
@@ -217,6 +219,7 @@ projectx.post(
       }
 
       const existingPxConn = await pxConnDb.findByBrokerConnectionId(serviceClient, connectionId);
+      if ((existingPxConn as any)?.setup_completed) return c.json({ error: 'Topstep setup is already completed. Reset the setup before changing imported accounts or their settings.' }, 409);
       const previousAccounts = [...(existingPxConn?.selected_accounts || [])].sort((a, b) => a - b);
       const nextAccounts = [...selectedAccounts].sort((a, b) => a - b);
       const accountSelectionChanged = JSON.stringify(previousAccounts) !== JSON.stringify(nextAccounts);
@@ -236,7 +239,8 @@ projectx.post(
         selected_accounts: selectedAccounts as any,
         ...(accountSettings ? { account_settings: mergedAccountSettings as any } : {}),
         copytrade_config: copytradeConfig as any,
-        ...(accountSelectionChanged || copytradeSourceChanged ? { last_full_sync_time: null } : {}),
+        setup_completed: true,
+        last_full_sync_time: null,
       });
 
       return c.json({ message: 'Account settings saved' });
@@ -277,6 +281,32 @@ projectx.post(
     return c.json({ message: `Eval ${isEval ? 'enabled' : 'disabled'}` });
   },
 );
+
+projectx.post('/api/projectx/full-sync-settings', requiresLogin, async (c) => {
+  const user = c.get('user'); const body = await c.req.json();
+  const { connectionId, enabled } = body as { connectionId?: string; enabled?: boolean };
+  if (!connectionId || typeof enabled !== 'boolean') return c.json({ error: 'Missing connectionId or enabled' }, 400);
+  const db = getDb(); const connection = await brokerDb.findById(db, connectionId);
+  if (!connection || connection.owner !== user.id || connection.broker !== 'projectx') return c.json({ error: 'Topstep connection not found' }, 404);
+  await pxConnDb.updateByBrokerConnectionId(db, connectionId, { full_sync_enabled: enabled } as any);
+  return c.json({ message: enabled ? 'Weekly complete-history refresh enabled' : 'Weekly complete-history refresh disabled' });
+});
+
+projectx.post('/api/projectx/reset-setup', requiresLogin, async (c) => {
+  const user = c.get('user'); const body = await c.req.json();
+  const { connectionId } = body as { connectionId?: string };
+  if (!connectionId) return c.json({ error: 'Missing connectionId' }, 400);
+  const db = getDb(); const connection = await brokerDb.findById(db, connectionId);
+  if (!connection || connection.owner !== user.id || connection.broker !== 'projectx') return c.json({ error: 'Topstep connection not found' }, 404);
+  if (activeSyncs.has(connectionId)) return c.json({ error: 'Wait for the current sync to finish before resetting setup' }, 409);
+  const cleared = clearProjectXImport(db, user.id, connectionId);
+  await pxConnDb.updateByBrokerConnectionId(db, connectionId, {
+    selected_accounts: [], account_settings: {}, copytrade_config: null,
+    last_full_sync_time: null, reinstated_order_keys: [],
+    setup_completed: false, full_sync_enabled: false,
+  } as any);
+  return c.json({ message: 'Topstep setup reset. Imported trade history was cleared.', ...cleared });
+});
 
 projectx.post('/api/projectx/auto-sync', requiresLogin, async (c) => {
   const user = c.get('user');
@@ -366,9 +396,10 @@ projectx.post(
       const accountsToSync = pxConn.copytrade_config
         ? [pxConn.copytrade_config.leadAccountId]
         : selectedAccounts;
-      const fullReconciliationDue = !pxConn.last_full_sync_time
-        || Date.now() - Date.parse(pxConn.last_full_sync_time) >= 7 * 24 * 60 * 60 * 1000;
-      const isFullHistory = forceFullHistory === true || fullReconciliationDue;
+      const firstImport = !brokerConn.last_sync_time;
+      const fullReconciliationDue = !!(pxConn as any).full_sync_enabled && (!pxConn.last_full_sync_time
+        || Date.now() - Date.parse(pxConn.last_full_sync_time) >= 7 * 24 * 60 * 60 * 1000);
+      const isFullHistory = forceFullHistory === true || firstImport || fullReconciliationDue;
       const historyStart = isFullHistory
         ? '2020-01-01T00:00:00Z'
         : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
