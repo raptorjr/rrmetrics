@@ -244,8 +244,10 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
     });
 
     // TradeZella can merge a sequence of RR position episodes into one
-    // journal row (including a reversal). Match only when the first entry,
-    // final exit, signed net size, and every financial total reconcile.
+    // journal row (including a reversal). Its Side reflects the initial
+    // direction, while Quantity can reflect the absolute final net exposure.
+    // Match only when the first entry, final exit, absolute net size, and
+    // every financial total reconcile.
     const episodeCandidates = existing.filter((trade) => available.has(trade.id)
       && trade.ticker.toUpperCase() === source.ticker
       && epoch(trade.enter_time) >= epoch(source.enterTime) - 2
@@ -278,7 +280,7 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
         && near(firstEntry, epoch(source.enterTime), 2)
         && near(lastExit, epoch(source.exitTime), 2)
         && Math.sign(firstTrade.quantity) === Math.sign(source.quantity)
-        && near(signedNetQuantity, source.quantity, 0.0001)
+        && near(Math.abs(signedNetQuantity), Math.abs(source.quantity), 0.0001)
         && near(firstTrade.enter_price, source.enterPrice, 0.01)
         && near(lastTrade.exit_price, source.exitPrice, 0.01)
         && source.manualPL != null && net != null && near(net, source.manualPL, 0.03)
@@ -295,7 +297,7 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
         status: 'matched',
         sourceRows: [source.sourceRow],
         existingTradeIds: episodeMatch.map((trade) => trade.id),
-        reason: 'Merged trading episode matches first entry, final exit, net size and all financial totals',
+        reason: 'Merged trading episode matches initial direction, first entry, final exit, absolute net size and all financial totals',
       });
     } else if (validEpisodes.length > 1) {
       processed.add(source.sourceRow);
