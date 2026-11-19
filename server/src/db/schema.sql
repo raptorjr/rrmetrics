@@ -87,9 +87,9 @@ CREATE TABLE IF NOT EXISTS tradezella_imported_trades (
 CREATE INDEX IF NOT EXISTS idx_tradezella_imported_trades_user_id
   ON tradezella_imported_trades(user_id);
 
-// Source-row tombstones keep cleared TradeZella imports from being recreated
-// when the same CSV is uploaded again. They are removed only when the account
-// itself is deleted.
+-- Source-row tombstones keep cleared TradeZella imports from being recreated
+-- when the same CSV is uploaded again. They are removed only when the account
+-- itself is deleted.
 CREATE TABLE IF NOT EXISTS tradezella_cleared_trades (
   user_id             TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   source_account_name TEXT NOT NULL,
