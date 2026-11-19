@@ -19,8 +19,14 @@ const { TAG_COLOR_PRESETS } = require('../../utils/tagConstants');
 const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, prefillDate, tags, strategyRules, trades, sidebarCollapsed, forceModal = false }) => {
   const [enterTimePickerOpen, setEnterTimePickerOpen] = useState(false);
   const [exitTimePickerOpen, setExitTimePickerOpen] = useState(false);
+  const [enterDatePickerOpen, setEnterDatePickerOpen] = useState(false);
+  const [exitDatePickerOpen, setExitDatePickerOpen] = useState(false);
+  const [enterCalendarMonth, setEnterCalendarMonth] = useState(() => new Date());
+  const [exitCalendarMonth, setExitCalendarMonth] = useState(() => new Date());
   const enterDatePickerRef = useRef(null);
   const exitDatePickerRef = useRef(null);
+  const enterTimePickerRef = useRef(null);
+  const exitTimePickerRef = useRef(null);
   const [screenshot, setScreenshot] = useState(null);
   const [pastedImage, setPastedImage] = useState(null);
   const [isMarkupOpen, setIsMarkupOpen] = useState(false);
@@ -399,12 +405,61 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
       </div>
     );
   };
+  const renderDatePicker = (inputId, isoDate, viewMonth, setViewMonth, closePicker) => {
+    const selected = isoDate ? new Date(isoDate + 'T12:00:00') : new Date();
+    const year = viewMonth.getFullYear(), month = viewMonth.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells = Array.from({ length: Math.ceil((firstDay + daysInMonth) / 7) * 7 }, (_, index) => {
+      const day = index - firstDay + 1;
+      return day > 0 && day <= daysInMonth ? day : null;
+    });
+    const monthLabel = viewMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    const selectDate = day => {
+      const mm = String(month + 1).padStart(2, '0'), dd = String(day).padStart(2, '0');
+      const field = document.getElementById(inputId);
+      if (field) field.value = formatDateValue(String(year), mm, dd);
+      closePicker();
+    };
+    const controlClass = "w-8 h-8 flex items-center justify-center rounded-md text-text-secondary hover:bg-bg-input hover:text-text-primary";
+    return (
+      <div className="absolute right-0 top-full mt-1 z-40 w-[280px] p-3 bg-bg-surface border border-border rounded-xl shadow-xl">
+        <div className="flex items-center justify-between mb-3">
+          <button type="button" className={controlClass} onClick={() => setViewMonth(new Date(year, month - 1, 1))} aria-label="Previous month">‹</button>
+          <span className="text-sm font-medium text-text-primary">{monthLabel}</span>
+          <button type="button" className={controlClass} onClick={() => setViewMonth(new Date(year, month + 1, 1))} aria-label="Next month">›</button>
+        </div>
+        <div className="grid grid-cols-7 gap-1 mb-1">
+          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => <span key={day} className="h-7 flex items-center justify-center text-[11px] text-text-tertiary">{day}</span>)}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {cells.map((day, index) => {
+            if (!day) return <span key={'empty-' + index} className="h-8" />;
+            const isSelected = selected.getFullYear() === year && selected.getMonth() === month && selected.getDate() === day;
+            const isToday = new Date().getFullYear() === year && new Date().getMonth() === month && new Date().getDate() === day;
+            return <button key={day} type="button" onClick={() => selectDate(day)} className={"h-8 rounded-md text-xs transition-colors " + (isSelected ? "bg-accent text-white font-semibold" : isToday ? "border border-accent text-text-primary" : "text-text-primary hover:bg-bg-input")}>{day}</button>;
+          })}
+        </div>
+      </div>
+    );
+  };
   const updateDateFromPicker = (textId, event) => {
     if (!event.target.value) return;
     const [year, month, day] = event.target.value.split('-');
     const field = document.getElementById(textId);
     if (field) field.value = formatDateValue(year, month, day);
   };
+  useEffect(() => {
+    if (!enterDatePickerOpen && !exitDatePickerOpen && !enterTimePickerOpen && !exitTimePickerOpen) return;
+    const handleOutsidePointer = (event) => {
+      if (enterDatePickerRef.current && !enterDatePickerRef.current.contains(event.target)) setEnterDatePickerOpen(false);
+      if (exitDatePickerRef.current && !exitDatePickerRef.current.contains(event.target)) setExitDatePickerOpen(false);
+      if (enterTimePickerRef.current && !enterTimePickerRef.current.contains(event.target)) setEnterTimePickerOpen(false);
+      if (exitTimePickerRef.current && !exitTimePickerRef.current.contains(event.target)) setExitTimePickerOpen(false);
+    };
+    document.addEventListener('pointerdown', handleOutsidePointer);
+    return () => document.removeEventListener('pointerdown', handleOutsidePointer);
+  }, [enterDatePickerOpen, exitDatePickerOpen, enterTimePickerOpen, exitTimePickerOpen]);
 
   const inputClass = "w-full px-3 py-2.5 bg-bg-input border border-border rounded-lg text-text-primary text-sm placeholder-text-muted focus:outline-none focus:border-accent transition-colors";
   const labelClass = "block text-xs font-medium text-text-secondary mb-1.5";
@@ -438,27 +493,27 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label htmlFor="enterDate" className={labelClass}>Enter Date &amp; Time</label>
-                <div className="relative">
+                <div ref={enterDatePickerRef} className="relative">
                   <input id="enterDate" type="text" name="enterDate" placeholder={getDateFormat() === 'auto' ? 'Date' : getDateFormat() === 'dmy-dot' ? 'DD.MM.YYYY' : getDateFormat() === 'dmy-slash' ? 'DD/MM/YYYY' : getDateFormat() === 'mdy-slash' ? 'MM/DD/YYYY' : 'YYYY-MM-DD'} aria-label="Enter date" defaultValue={enterDefaults.date} className={inputClass + " pr-12"} />
-                  <button type="button" onClick={() => enterDatePickerRef.current?.showPicker?.()} className="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-text-primary hover:text-accent" aria-label="Open enter date calendar"><Icons.Calendar className="w-4 h-4" /></button>
-                  <input ref={enterDatePickerRef} type="date" aria-label="Choose enter date" defaultValue={enterDefaults.isoDate} onChange={(e) => updateDateFromPicker('enterDate', e)} className="sr-only" tabIndex={-1} />
+                  <button type="button" onClick={() => { setEnterCalendarMonth(enterDefaults.isoDate ? new Date(enterDefaults.isoDate + 'T12:00:00') : new Date()); setEnterDatePickerOpen(value => !value); setEnterTimePickerOpen(false); }} className="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-text-primary hover:text-accent" aria-label="Open enter date calendar"><Icons.Calendar className="w-4 h-4" /></button>
+                  {enterDatePickerOpen && renderDatePicker('enterDate', enterDefaults.isoDate, enterCalendarMonth, setEnterCalendarMonth, () => setEnterDatePickerOpen(false))}
                 </div>
-                <div className="relative">
+                <div ref={enterTimePickerRef} className="relative">
                   <input id="enterClock" type="text" name="enterClock" aria-label="Enter time" defaultValue={enterDefaults.time} placeholder={timeFormat24 ? 'HH:mm:ss' : 'hh:mm:ss AM/PM'} className={inputClass + " pr-12"} />
-                  <button type="button" onClick={() => setEnterTimePickerOpen(value => !value)} className="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-text-primary hover:text-accent" aria-label="Open enter time selector"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg></button>
+                  <button type="button" onClick={() => { setEnterTimePickerOpen(value => !value); setEnterDatePickerOpen(false); }} className="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-text-primary hover:text-accent" aria-label="Open enter time selector"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg></button>
                   {enterTimePickerOpen && renderTimePicker('enterClock', enterDefaults.time)}
                 </div>
               </div>
               <div className="space-y-2">
                 <label htmlFor="exitDate" className={labelClass}>Exit Date &amp; Time</label>
-                <div className="relative">
+                <div ref={exitDatePickerRef} className="relative">
                   <input id="exitDate" type="text" name="exitDate" placeholder={getDateFormat() === 'auto' ? 'Date' : getDateFormat() === 'dmy-dot' ? 'DD.MM.YYYY' : getDateFormat() === 'dmy-slash' ? 'DD/MM/YYYY' : getDateFormat() === 'mdy-slash' ? 'MM/DD/YYYY' : 'YYYY-MM-DD'} aria-label="Exit date" defaultValue={exitDefaults.date} className={inputClass + " pr-12"} />
-                  <button type="button" onClick={() => exitDatePickerRef.current?.showPicker?.()} className="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-text-primary hover:text-accent" aria-label="Open exit date calendar"><Icons.Calendar className="w-4 h-4" /></button>
-                  <input ref={exitDatePickerRef} type="date" aria-label="Choose exit date" defaultValue={exitDefaults.isoDate} onChange={(e) => updateDateFromPicker('exitDate', e)} className="sr-only" tabIndex={-1} />
+                  <button type="button" onClick={() => { setExitCalendarMonth(exitDefaults.isoDate ? new Date(exitDefaults.isoDate + 'T12:00:00') : new Date()); setExitDatePickerOpen(value => !value); setExitTimePickerOpen(false); }} className="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-text-primary hover:text-accent" aria-label="Open exit date calendar"><Icons.Calendar className="w-4 h-4" /></button>
+                  {exitDatePickerOpen && renderDatePicker('exitDate', exitDefaults.isoDate, exitCalendarMonth, setExitCalendarMonth, () => setExitDatePickerOpen(false))}
                 </div>
-                <div className="relative">
+                <div ref={exitTimePickerRef} className="relative">
                   <input id="exitClock" type="text" name="exitClock" aria-label="Exit time" defaultValue={exitDefaults.time} placeholder={timeFormat24 ? 'HH:mm:ss' : 'hh:mm:ss AM/PM'} className={inputClass + " pr-12"} />
-                  <button type="button" onClick={() => setExitTimePickerOpen(value => !value)} className="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-text-primary hover:text-accent" aria-label="Open exit time selector"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg></button>
+                  <button type="button" onClick={() => { setExitTimePickerOpen(value => !value); setExitDatePickerOpen(false); }} className="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-text-primary hover:text-accent" aria-label="Open exit time selector"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg></button>
                   {exitTimePickerOpen && renderTimePicker('exitClock', exitDefaults.time)}
                 </div>
               </div>
