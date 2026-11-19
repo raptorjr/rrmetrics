@@ -372,7 +372,7 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
 
   let filtered = deletingIds.size > 0 ? trades.filter(t => !deletingIds.has(t._id)) : trades;
 
-  if (searchTicker) {
+  if (searchTicker && trackingView === 'all') {
     const terms = searchTicker.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
     if (terms.length > 0) {
       filtered = filtered.filter(t => terms.some(term => t.ticker.toLowerCase().includes(term)));
