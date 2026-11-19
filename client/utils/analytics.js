@@ -19,7 +19,8 @@ const calculateProfitFactor = (trades) => {
     if (pl > 0) grossWins += pl;
     else grossLosses += Math.abs(pl);
   });
-  return grossLosses === 0 ? grossWins : grossWins / grossLosses;
+  if (grossLosses === 0) return grossWins > 0 ? Infinity : 0;
+  return grossWins / grossLosses;
 };
 
 const calculateMaxDrawdown = (trades) => {

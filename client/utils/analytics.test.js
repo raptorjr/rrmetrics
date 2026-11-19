@@ -167,7 +167,8 @@ test('expectancy is average net P/L per trade, including breakevens', () => {
 
 test('profit factor uses gross wins and losses and preserves no-loss behaviour', () => {
   assert.equal(calculateProfitFactor([makeTrade(100, 1), makeTrade(-50, -0.5), makeTrade(0, 0.1)]), 2);
-  assert.equal(calculateProfitFactor([makeTrade(100, 1), makeTrade(0, 0.1)]), 100);
+  assert.equal(calculateProfitFactor([makeTrade(100, 1), makeTrade(0, 0.1)]), Infinity);
+  assert.equal(calculateProfitFactor([makeTrade(0, 0.1)]), 0);
   assert.equal(calculateProfitFactor([makeTrade(-50, -0.5)]), 0);
   assert.equal(calculateProfitFactor([]), 0);
 });
