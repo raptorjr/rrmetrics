@@ -5,6 +5,15 @@ const KELLY_DRAWDOWN_STORAGE_KEY = 'rrmetrics_kelly_drawdown';
 const DEFAULT_KELLY_DRAWDOWN = 2000;
 const MONTE_CARLO_STORAGE_KEY = 'rrmetrics_monte_carlo_settings';
 const DEFAULT_MONTE_CARLO_SETTINGS = { profitTarget: 3000, maxDrawdown: 2000 };
+const ENTRY_TIME_MODE_STORAGE_KEY = 'rrmetrics_entry_time_mode';
+
+const readEntryTimeMode = () => {
+  try {
+    return localStorage.getItem(ENTRY_TIME_MODE_STORAGE_KEY) === 'total' ? 'total' : 'avg';
+  } catch {
+    return 'avg';
+  }
+};
 
 const readMonteCarloSettings = () => {
   try {
@@ -54,6 +63,7 @@ const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpe
   const [syncing, setSyncing] = useState(false);
   const [kellyDrawdown, setKellyDrawdown] = useState(readKellyDrawdown);
   const [monteCarloSettings, setMonteCarloSettings] = useState(readMonteCarloSettings);
+  const [entryTimeMode, setEntryTimeMode] = useState(readEntryTimeMode);
 
   const handleKellyDrawdownChange = value => {
     const nextValue = Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
@@ -141,6 +151,8 @@ const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpe
   }]).concat(createAnalyticsTiles(filteredTrades), createAnalyticsChartTiles(filteredTrades, {
     monteCarloSettings,
     onMonteCarloSettingsChange: handleMonteCarloSettingsChange,
+    entryTimeMode,
+    onEntryTimeModeChange: handleEntryTimeModeChange,
   }));
 
   return (

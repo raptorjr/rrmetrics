@@ -14,8 +14,7 @@ const DEFINITIONS = [
 const Panel = ({ title, children }) => <div className="h-full min-h-[260px] bg-bg-surface border border-border rounded-xl p-5"><h3 className="text-text-primary font-semibold mb-4">{title}</h3>{children}</div>;
 const Preview = ({ item }) => <div className="h-[82px] rounded-md border border-border bg-bg-page p-2 flex flex-col justify-between"><span className="text-[10px] font-semibold text-text-secondary">{item.label}</span><div className="flex items-end gap-1 h-10"><i className="h-3 flex-1 rounded-sm bg-positive/40" /><i className="h-6 flex-1 rounded-sm bg-positive/50" /><i className="h-4 flex-1 rounded-sm bg-negative/50" /><i className="h-8 flex-1 rounded-sm bg-positive/70" /><i className="h-10 flex-1 rounded-sm bg-positive" /></div></div>;
 
-const EntryTimeTile = ({ trades }) => {
-  const [mode, setMode] = useState('avg');
+const EntryTimeTile = ({ trades, mode, onModeChange }) => {
   const [showTable, setShowTable] = useState(false);
   const timeStats = useMemo(() => {
     const buckets = {};
@@ -56,8 +55,8 @@ const EntryTimeTile = ({ trades }) => {
     <Panel title="Performance by Entry Time">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="flex bg-bg-input rounded-lg p-0.5 text-xs">
-          <button onClick={() => setMode('avg')} className={'px-2.5 py-1 rounded-md ' + (mode === 'avg' ? 'bg-accent text-accent-text' : 'text-text-secondary')}>Avg P/L</button>
-          <button onClick={() => setMode('total')} className={'px-2.5 py-1 rounded-md ' + (mode === 'total' ? 'bg-accent text-accent-text' : 'text-text-secondary')}>Total P/L</button>
+          <button onClick={() => onModeChange('avg')} className={'px-2.5 py-1 rounded-md ' + (mode === 'avg' ? 'bg-accent text-accent-text' : 'text-text-secondary')}>Avg P/L</button>
+          <button onClick={() => onModeChange('total')} className={'px-2.5 py-1 rounded-md ' + (mode === 'total' ? 'bg-accent text-accent-text' : 'text-text-secondary')}>Total P/L</button>
         </div>
         <span className="text-[10px] text-text-tertiary">30-minute buckets · US Eastern time</span>
       </div>
@@ -148,6 +147,8 @@ const MonteCarloTile = ({ trades, settings }) => {
 const createAnalyticsChartTiles = (trades = [], options = {}) => {
   const monteCarloSettings = options.monteCarloSettings || { profitTarget: 3000, maxDrawdown: 2000 };
   const onMonteCarloSettingsChange = options.onMonteCarloSettingsChange || (() => {});
+  const entryTimeMode = options.entryTimeMode === 'total' ? 'total' : 'avg';
+  const onEntryTimeModeChange = options.onEntryTimeModeChange || (() => {});
   const defs = Object.fromEntries(DEFINITIONS.map(item => [item.id, item]));
   const tile = (id, render) => ({ ...defs[id], preview: <Preview item={defs[id]} />, render });
   const sorted = [...trades].sort((a, b) => new Date(a.exitTime) - new Date(b.exitTime));
@@ -183,7 +184,7 @@ const createAnalyticsChartTiles = (trades = [], options = {}) => {
       </svg>
       <p className="text-[11px] text-text-tertiary text-right">Total P/L by exit weekday</p>
     </Panel>),
-    tile('performanceByEntryTime', () => <EntryTimeTile trades={trades} />),
+    tile('performanceByEntryTime', () => <EntryTimeTile trades={trades} mode={entryTimeMode} onModeChange={onEntryTimeModeChange} />),
     {
       ...tile('monteCarloSimulation', () => <MonteCarloTile trades={trades} settings={monteCarloSettings} />),
       settings: [
