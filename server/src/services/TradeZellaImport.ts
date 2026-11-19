@@ -23,6 +23,9 @@ export interface ExistingTrade {
   exit_price: number;
   quantity: number;
   manual_pl: number | null;
+  gross_pl?: number | null;
+  fees?: number;
+  commissions?: number;
 }
 
 export interface MatchResult {
@@ -108,6 +111,21 @@ export function summarizeTradeZellaAccounts(rows: TradeZellaRow[]) {
   return [...accounts.values()].sort((a, b) => a.accountName.localeCompare(b.accountName));
 }
 
+function strongPositionMatch(source: TradeZellaRow, existing: ExistingTrade): boolean {
+  return source.ticker === existing.ticker.toUpperCase()
+    && Math.sign(source.quantity) === Math.sign(existing.quantity)
+    && near(Math.abs(source.quantity), Math.abs(existing.quantity), 0.0001)
+    && near(epoch(source.enterTime), epoch(existing.enter_time), 2)
+    // ProjectX execution reconstruction can produce a different average exit
+    // price/time from TradeZella. Require all financial totals to agree instead.
+    && source.manualPL != null && existing.manual_pl != null
+    && near(source.manualPL, existing.manual_pl, 0.03)
+    && source.grossPL != null && existing.gross_pl != null
+    && near(source.grossPL, existing.gross_pl, 0.03)
+    && near(source.fees, existing.fees ?? 0, 0.03)
+    && near(source.commissions, existing.commissions ?? 0, 0.03);
+}
+
 function exactMatch(source: TradeZellaRow, existing: ExistingTrade): boolean {
   return source.ticker === existing.ticker.toUpperCase()
     && Math.sign(source.quantity) === Math.sign(existing.quantity)
@@ -131,6 +149,13 @@ export function matchTradeZellaRows(rows: TradeZellaRow[], existing: ExistingTra
 
   for (const source of ordered) {
     if (processed.has(source.sourceRow)) continue;
+    const strongCandidates = existing.filter(trade => available.has(trade.id) && strongPositionMatch(source, trade));
+    if (strongCandidates.length === 1) {
+      available.delete(strongCandidates[0].id);
+      processed.add(source.sourceRow);
+      results.push({ status: 'matched', sourceRows: [source.sourceRow], existingTradeIds: [strongCandidates[0].id], reason: 'Entry time, quantity, gross/net P&L and trading costs match; exit execution details differ' });
+      continue;
+    }
     const direct = existing.find((trade) => available.has(trade.id) && exactMatch(source, trade));
     if (direct) {
       available.delete(direct.id);
