@@ -123,6 +123,48 @@ test('holds overlapping rows from two TradeZella accounts in the same export', (
   assert.match(xfaMatches[0].reason, /TradeZella account Practice/);
 });
 
+test('does not flag another account trade merely because instrument, side and exit time overlap', () => {
+  const source = parseTradeZellaRows([{
+    'Account Name': 'Combines', Instrument: 'MGC', Side: 'long', Quantity: '1',
+    'Open Date': '2025-08-25', 'Open Time': '10:55:01 CEST',
+    'Close Date': '2025-08-25', 'Close Time': '11:10:25 CEST',
+    'Entry Price': '3409.70', 'Exit Price': '3407.90',
+    'Net P&L': '-19.24', 'Gross P&L': '-16.00', Fee: '2.24', Commission: '1.00',
+  }]);
+  const matches = matchTradeZellaRowsAcrossAccounts(source, [{
+    id: 'xfa-nearby-mgc', ticker: 'MGC',
+    enter_time: '2025-08-25T09:03:36.000Z', exit_time: '2025-08-25T09:10:25.000Z',
+    enter_price: 3409.40, exit_price: 3407.90, quantity: 1, manual_pl: -12.24,
+    account: 'XFA',
+  }], null);
+
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].status, 'new');
+});
+
+test('does not flag same-export trades with nearby same-instrument exits but different entries', () => {
+  const parsed = parseTradeZellaRows([
+    {
+      'Account Name': 'VIP', Instrument: 'MNQ', Side: 'short', Quantity: '2',
+      'Open Date': '2025-02-07', 'Open Time': '20:22:28 CET',
+      'Close Date': '2025-02-07', 'Close Time': '20:30:31 CET',
+      'Entry Price': '21591.50', 'Exit Price': '21571.50', 'Net P&L': '78.52',
+    },
+    {
+      'Account Name': 'XFA', Instrument: 'MNQ', Side: 'short', Quantity: '1',
+      'Open Date': '2025-02-07', 'Open Time': '20:25:00 CET',
+      'Close Date': '2025-02-07', 'Close Time': '20:30:31 CET',
+      'Entry Price': '21588.00', 'Exit Price': '21571.50', 'Net P&L': '30.00',
+    },
+  ]);
+  const vip = parsed.filter(row => row.sourceAccount === 'VIP');
+  const xfa = parsed.filter(row => row.sourceAccount === 'XFA');
+  const matches = matchTradeZellaRowsAcrossAccounts(vip, [], null, [], xfa);
+
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].status, 'new');
+});
+
 test('holds a possible duplicate found in another RR account for review', () => {
   const source = parseTradeZellaRows([{
     'Account Name': 'Practice', Instrument: 'MGC', Side: 'long', Quantity: '1',
