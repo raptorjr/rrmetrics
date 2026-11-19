@@ -670,6 +670,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                             />
                           </label>
                         ))}
+                        <p className="text-[10px] text-text-tertiary">Press Enter or leave a field to apply its value.</p>
                       </div>
                     </details>
                   )}
