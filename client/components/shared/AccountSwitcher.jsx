@@ -4,7 +4,7 @@ const { Popover, PopoverTrigger, PopoverContent } = require('../ui/popover');
 const { Avatar, AvatarFallback } = require('../ui/avatar');
 const { Check, ChevronsUpDown } = require('lucide-react');
 const { cn } = require('../../lib/utils');
-const { NO_ACCOUNTS, getTradeAccountKey, getTradeAccountEntries } = require('../../utils/accountIdentity');
+const { NO_ACCOUNTS, getTradeAccountEntries } = require('../../utils/accountIdentity');
 
 const BROKER_ICONS = {
   tradovate: { icon: '/assets/img/tradovate.png', label: 'Tradovate' },
