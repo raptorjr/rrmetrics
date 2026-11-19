@@ -13,8 +13,7 @@ const getTradeAccountKey = (trade, accountBrokers = {}) => {
   if (trade.tradovateSource === 'tradezella') return `tradezella::${name}`;
 
   if (trade.brokerConnectionId) {
-    const provider = accountBrokers[name] || 'broker';
-    return `${provider}::${trade.brokerConnectionId}::${name}`;
+    return `broker::${trade.brokerConnectionId}::${name}`;
   }
 
   return `manual::${name}`;
