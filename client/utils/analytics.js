@@ -127,10 +127,21 @@ const runMonteCarloSimulation = (trades, config = {}) => {
     samplePaths = 100,
   } = config;
 
-  if (!trades || trades.length === 0) return { passRate: 0, avgDaysToPass: 0, medianDaysToPass: 0 };
+  const emptyResult = {
+    passRate: 0,
+    avgDaysToPass: 0,
+    medianDaysToPass: 0,
+    totalSimulations: simulations,
+    paths: [],
+    profitTarget,
+    maxDrawdown,
+    insufficientTrades: true,
+  };
+  if (!trades || trades.length === 0) return emptyResult;
 
-  // Get per-trade P/L values (excluding breakevens for simulation realism)
-  const pls = trades.map(t => getTradePL(t));
+  // Exclude breakeven trades using the same tick-based rule as the analytics.
+  const pls = trades.filter(trade => !isBreakevenTrade(trade)).map(trade => getTradePL(trade));
+  if (pls.length < 5) return emptyResult;
 
   // Compute average trades per day from actual data
   const grouped = groupTradesByDate(trades);
