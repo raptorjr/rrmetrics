@@ -162,8 +162,8 @@ const AccountManagementPanel = ({ triggerReload }) => {
                     {providerIcon(provider) ? (
                       <img src={providerIcon(provider)} alt={providerLabel(provider)} className="w-10 h-10 rounded-lg object-contain" />
                     ) : (
-                      <div className="w-10 h-10 rounded-lg bg-bg-page border border-border flex items-center justify-center text-text-primary font-semibold text-sm">
-                        {providerLabel(provider).slice(0, 2).toUpperCase()}
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm tracking-tight ${providerLabel(provider) === 'TradeZella' ? 'bg-[#6d4aff]/15 border border-[#8b72ff]/30 text-[#a895ff]' : 'bg-bg-page border border-border text-text-primary font-semibold'}`}>
+                        {providerLabel(provider) === 'TradeZella' ? 'TZ' : providerLabel(provider).slice(0, 2).toUpperCase()}
                       </div>
                     )}
                     <span className="text-text-primary font-semibold text-sm leading-tight">{providerLabel(provider)}</span>
@@ -190,7 +190,7 @@ const AccountManagementPanel = ({ triggerReload }) => {
                 </div>
                 {groups[expandedProvider].map(account => (
                   <div key={account.id} className={`border rounded-lg p-4 space-y-3 transition-all ${selectedIds.includes(account.id) ? 'border-accent ring-1 ring-accent/20' : 'border-border'}`}>
-                    <div className="grid grid-cols-1 sm:grid-cols-[minmax(100px,0.7fr)_minmax(180px,1fr)_auto] items-center gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-[160px_minmax(0,1fr)_auto] items-center gap-3">
                       <label className="flex items-center gap-2 text-xs text-text-secondary"><input type="checkbox" checked={selectedIds.includes(account.id)} onChange={e => setSelectedIds(prev => e.target.checked ? [...prev, account.id] : prev.filter(id => id !== account.id))} className="w-4 h-4 rounded border-border text-accent focus:ring-accent" />Select</label>
                       <div className="min-w-0">
                         <div className="text-text-primary text-sm font-medium">{account.name}</div>
@@ -221,7 +221,7 @@ const AccountManagementPanel = ({ triggerReload }) => {
             )}
           </>
         )}
-      <div className="bg-bg-surface border border-border rounded-xl p-5">
+      {expandedProvider && <div className="bg-bg-surface border border-border rounded-xl p-5">
         <h3 className="text-text-primary font-semibold mb-2">What these actions do</h3>
         <ul className="list-disc pl-5 space-y-1 text-sm text-text-secondary">
           <li><strong>Clear trades</strong> removes the account's imported trades and stored source history while retaining the account and its settings.</li>
@@ -229,7 +229,7 @@ const AccountManagementPanel = ({ triggerReload }) => {
           <li>Trades linked to an existing journal trade are unlinked, not deleted.</li>
           <li>Other accounts and broker connections are left untouched.</li>
         </ul>
-      </div>
+      </div>}
     </div>
   );
 };
