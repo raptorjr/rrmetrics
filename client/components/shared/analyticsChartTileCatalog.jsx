@@ -4,10 +4,10 @@ const { getTradePL, runMonteCarloSimulation } = require('../../utils/analytics')
 const { toEST } = require('../../utils/dateUtils');
 
 const DEFINITIONS = [
-  { id: 'equityCurve', label: 'Equity Curve', category: 'Charts', minColumns: 2, minRows: 2, defaultColumns: 2, defaultRows: 2 },
-  { id: 'performanceByDay', label: 'Performance by Day', category: 'Charts', minColumns: 2, minRows: 2, defaultColumns: 2, defaultRows: 2 },
-  { id: 'performanceByEntryTime', label: 'Performance by Entry Time', category: 'Charts', minColumns: 2, minRows: 2, defaultColumns: 3, defaultRows: 2 },
-  { id: 'monteCarloSimulation', label: 'Monte Carlo Simulation', category: 'Risk', minColumns: 2, minRows: 2, defaultColumns: 3, defaultRows: 2 },
+  { id: 'equityCurve', label: 'Equity Curve', category: 'Charts', minColumns: 2, minRows: 2, defaultColumns: 2, defaultRows: 2, description: "Tracks cumulative profit and loss in exit-time order across the selected trades." },
+  { id: 'performanceByDay', label: 'Performance by Day', category: 'Charts', minColumns: 2, minRows: 2, defaultColumns: 2, defaultRows: 2, description: "Shows total profit and loss grouped by weekday of trade exit." },
+  { id: 'performanceByEntryTime', label: 'Performance by Entry Time', category: 'Charts', minColumns: 2, minRows: 2, defaultColumns: 3, defaultRows: 2, description: "Groups trades into 30-minute entry-time buckets and compares average or total P/L." },
+  { id: 'monteCarloSimulation', label: 'Monte Carlo Simulation', category: 'Risk', minColumns: 2, minRows: 2, defaultColumns: 3, defaultRows: 2, description: "Runs repeated simulations of the observed trade outcomes to estimate evaluation pass probability and time to pass." },
 ];
 
 const Panel = ({ title, children }) => <div className="h-full min-h-[260px] bg-bg-surface border border-border rounded-xl p-5"><h3 className="text-text-primary font-semibold mb-4">{title}</h3>{children}</div>;
