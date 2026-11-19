@@ -197,7 +197,7 @@ const Sidebar = ({ currentPage, onNavigate, onCollapsedChange, onWidthChange, tr
             <div className="space-y-1">
               {[
                 { id: 'syncer', label: 'Trade Syncer', icon: Icons.RefreshCw },
-                { id: 'tradezella', label: 'TradeZella Import', icon: Icons.FileSpreadsheet },
+                { id: 'tradezella', label: 'TradeZella Import', icon: Icons.FileText },
                 { id: 'backtesting', label: 'Backtesting', icon: Icons.FlaskConical },
               ].map(item => {
                 const Icon = item.icon;
