@@ -193,8 +193,26 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
       helper.handleError('Either enter/exit prices or a manual P/L is required');
       return;
     }
-    const enterTime = enterTimeRaw + getESTOffset(new Date(enterTimeRaw));
-    const exitTime = exitTimeRaw + getESTOffset(new Date(exitTimeRaw));
+    const localInputToISO = (value) => {
+      const [datePart, timePart] = value.split('T');
+      const [year, month, day] = datePart.split('-').map(Number);
+      const [hour, minute, second = 0] = timePart.split(':').map(Number);
+      const target = Date.UTC(year, month - 1, day, hour, minute, second);
+      let timestamp = target;
+      const zone = getDisplayTimeZone();
+      for (let i = 0; i < 3; i++) {
+        const parts = new Intl.DateTimeFormat('en-GB', {
+          timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+        }).formatToParts(new Date(timestamp));
+        const part = type => Number(parts.find(item => item.type === type).value);
+        const represented = Date.UTC(part('year'), part('month') - 1, part('day'), part('hour'), part('minute'), part('second'));
+        timestamp += target - represented;
+      }
+      return new Date(timestamp).toISOString();
+    };
+    const enterTime = localInputToISO(enterTimeRaw);
+    const exitTime = localInputToISO(exitTimeRaw);
     const tradeData = {
       ticker, enterTime, exitTime,
       enterPrice: enterPrice ? parseFloat(enterPrice) : 0,
