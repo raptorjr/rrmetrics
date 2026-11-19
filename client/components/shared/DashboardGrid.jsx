@@ -86,6 +86,8 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const [templateName, setTemplateName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [previewItemId, setPreviewItemId] = useState(null);
+  const [catalogueQuery, setCatalogueQuery] = useState('');
+  const [catalogueCategory, setCatalogueCategory] = useState('all');
   const gridRef = useRef(null);
   const resizeRef = useRef(null);
   const previewDialogRef = useRef(null);
@@ -326,6 +328,17 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     return Math.min(2, size.w);
   };
 
+  const catalogueCategories = [...new Set(items.map(item => item.category || 'Metrics'))].sort((a, b) => a.localeCompare(b));
+  const normalizedQuery = catalogueQuery.trim().toLowerCase();
+  const catalogueItems = orderedItems.filter(item => {
+    const category = item.category || 'Metrics';
+    const matchesCategory = catalogueCategory === 'all' || category === catalogueCategory;
+    const matchesQuery = !normalizedQuery || [item.label, item.description, category]
+      .some(value => String(value || '').toLowerCase().includes(normalizedQuery));
+    return matchesCategory && matchesQuery;
+  });
+  const addedCount = items.filter(item => !layout.hidden.includes(item.id)).length;
+
   return (
     <div className="space-y-3">
       <div className="flex justify-end">
@@ -344,6 +357,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
             <div>
               <h3 className="text-sm font-semibold text-text-primary">Dashboard tile catalogue</h3>
               <p className="text-xs text-text-tertiary mt-1">Add or remove tiles, drag them to reorder, and resize them directly on the grid. Use the arrow and size controls for precise keyboard- and touch-friendly adjustments.</p>
+              <p className="text-xs text-text-secondary mt-2" aria-live="polite">{addedCount} of {items.length} tiles on dashboard · {catalogueItems.length} shown</p>
             </div>
             <button type="button" onClick={reset} className="text-xs text-text-secondary hover:text-text-primary underline">Reset layout</button>
           </div>
@@ -377,8 +391,27 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                 : <>The current dashboard matches “{selectedTemplate}”.</>}
             </p>
           )}
+          <div className="flex flex-wrap gap-2">
+            <input
+              type="search"
+              value={catalogueQuery}
+              onChange={event => setCatalogueQuery(event.target.value)}
+              placeholder="Search tiles…"
+              aria-label="Search dashboard tiles"
+              className="min-w-[180px] flex-1 rounded-md border border-border bg-bg-page px-3 py-2 text-xs text-text-primary"
+            />
+            <select
+              value={catalogueCategory}
+              onChange={event => setCatalogueCategory(event.target.value)}
+              aria-label="Filter tiles by category"
+              className="min-w-[150px] rounded-md border border-border bg-bg-page px-3 py-2 text-xs text-text-primary"
+            >
+              <option value="all">All categories</option>
+              {catalogueCategories.map(category => <option key={category} value={category}>{category}</option>)}
+            </select>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {orderedItems.map(item => {
+            {catalogueItems.map(item => {
               const added = !layout.hidden.includes(item.id);
               const size = layout.sizes[item.id] || getDefaultSize(item);
               return (
@@ -407,6 +440,11 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                 </div>
               );
             })}
+            {catalogueItems.length === 0 && (
+              <div className="sm:col-span-2 xl:col-span-3 rounded-lg border border-dashed border-border p-6 text-center text-sm text-text-secondary">
+                No tiles match this search. Try another name or choose a different category.
+              </div>
+            )}
           </div>
         </div>
       )}
