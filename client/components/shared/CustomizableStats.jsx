@@ -101,7 +101,7 @@ const CustomizableStats = ({ storageKey, items, defaultOrder, defaultVisible = d
                 <div className="text-[10px] text-text-tertiary ml-6 mt-0.5">{item.category || 'Metrics'}</div>
               </div>
             ))}
-          </div>>
+          </div>
         </div>
       )}
 
