@@ -41,6 +41,12 @@ trade.get('/api/getTrades', requiresLogin, async (c) => {
         }
       }
 
+      // TradeZella imports do not have a broker connection, so expose
+      // their provider identity directly for the sidebar account selector.
+      const tradeZellaAccounts = db.prepare(`SELECT DISTINCT account FROM trades
+        WHERE user_id = ? AND tradovate_source = 'tradezella' AND account IS NOT NULL AND account != ''`).all(user.id) as any[];
+      for (const row of tradeZellaAccounts) accountBrokers[row.account] = 'tradezella';
+
       // Step 2: For unmatched trade accounts, match by shared prefix with
       // a label-matched account (e.g. AFZEROEV... shares prefix with AFZEROQA...)
       const allAccounts = [...new Set(trades.map((t: any) => t.account).filter(Boolean))];
