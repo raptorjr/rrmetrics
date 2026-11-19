@@ -112,9 +112,7 @@ const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpe
     });
     return grossLosses === 0 ? grossWins : grossWins / grossLosses;
   })();
-  const expectancy = stats.totalTrades > 0
-    ? (stats.winRate / 100) * stats.avgWin + (1 - stats.winRate / 100) * stats.avgLoss
-    : 0;
+  const expectancy = stats.totalTrades > 0 ? stats.totalPL / stats.totalTrades : 0;
   const maxDrawdown = (() => {
     const sorted = [...filteredTrades].sort((a, b) => new Date(a.exitTime) - new Date(b.exitTime));
     let peak = 0, running = 0, drawdown = 0;

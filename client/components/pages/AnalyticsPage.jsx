@@ -351,9 +351,7 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
     return grossLosses === 0 ? grossWins : (grossWins / grossLosses);
   })();
 
-  const expectancy = stats.totalTrades > 0
-    ? (stats.winRate / 100) * stats.avgWin + (1 - stats.winRate / 100) * stats.avgLoss
-    : 0;
+  const expectancy = stats.totalTrades > 0 ? stats.totalPL / stats.totalTrades : 0;
 
   // Previous period profit factor & expectancy for % change
   const prevProfitFactor = (() => {
@@ -368,7 +366,7 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
   })();
 
   const prevExpectancy = prevStats && prevStats.totalTrades > 0
-    ? (prevStats.winRate / 100) * prevStats.avgWin + (1 - prevStats.winRate / 100) * prevStats.avgLoss
+    ? prevStats.totalPL / prevStats.totalTrades
     : 0;
 
   // Max drawdown

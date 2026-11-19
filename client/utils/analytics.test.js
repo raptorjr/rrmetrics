@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { runMonteCarloSimulation, calculateKellyCriterion } = require('./analytics');
+const { runMonteCarloSimulation, calculateKellyCriterion, calculateAnalytics } = require('./analytics');
 const { isBreakevenTrade } = require('./tickValues');
 
 const makeTrade = (pl, priceMove = pl === 0 ? 0.1 : 1, day = '2026-01-05') => ({
@@ -139,4 +139,21 @@ test('Kelly calculation excludes price-based breakeven trades', () => {
 
   assert.equal(result.kellyPct, 25);
   assert.equal(result.optimalRisk, 500);
+});
+
+test('expectancy includes breakeven trades in the per-trade average', () => {
+  const trades = [
+    makeTrade(100, 1),
+    makeTrade(50, 0.5),
+    makeTrade(-50, -0.5),
+    makeTrade(0, 0.1),
+    makeTrade(0, 0.1),
+  ];
+
+  const stats = calculateAnalytics(trades);
+  const expectancy = stats.totalTrades > 0 ? stats.totalPL / stats.totalTrades : 0;
+
+  assert.equal(stats.winRate, 2 / 3 * 100);
+  assert.equal(stats.breakevens, 2);
+  assert.equal(expectancy, 20);
 });
