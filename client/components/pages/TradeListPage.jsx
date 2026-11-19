@@ -584,7 +584,8 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
       )}
 
       {trackingView !== 'all' && (
-        <div className="flex items-center justify-end text-xs text-text-tertiary">
+        <div className="flex items-center justify-between text-xs text-text-tertiary">
+          <span>{groupedTrades.length} {trackingView === 'day' ? 'trading days' : 'trading weeks'} · {filtered.length} trades</span>
           <button type="button" className="hover:text-text-primary" onClick={() => setExpandedGroups({})}>Expand all</button>
         </div>
       )}
@@ -707,7 +708,7 @@ const TradeListPage = ({ trades, triggerReload, onEdit, onOpenForm, onOpenImport
           )}
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-text-tertiary text-sm">{filtered.length} trade{filtered.length !== 1 ? 's' : ''}</span>
+          {trackingView === 'all' && <span className="text-text-tertiary text-sm">{filtered.length} trade{filtered.length !== 1 ? 's' : ''}</span>}
           <div className="relative">
             <button
               onClick={() => setShowColumnMenu(v => !v)}
