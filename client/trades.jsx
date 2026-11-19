@@ -444,24 +444,42 @@ const App = () => {
 
       setSyncNotification(`Syncing trades from ${broker.name}...`);
       let totalSynced = 0;
+      let totalNewTrades = 0;
+      let syncFailed = false;
 
       for (const conn of conns) {
         try {
+          const isTopstep = broker.name === 'Topstep';
           const res = await authFetch(`${broker.apiBase}/sync`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(broker.name === 'Topstep' ? { connectionId: conn.connectionId, fullHistory: false } : { connectionId: conn.connectionId }),
+            body: JSON.stringify(isTopstep
+              ? { connectionId: conn.connectionId, forceIncremental: true }
+              : { connectionId: conn.connectionId }),
           });
           const data = await res.json();
-          totalSynced += data.synced || 0;
-        } catch {
-          setSyncNotification(`Failed to sync ${broker.name}`);
+          if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+          if (isTopstep) {
+            totalNewTrades += Number(data.newTradesImported || 0);
+          } else {
+            totalSynced += Number(data.synced || 0);
+          }
+        } catch (err) {
+          console.error(`Manual sync failed for ${broker.name} connection ${conn.connectionId}:`, err);
+          syncFailed = true;
         }
       }
 
-      if (totalSynced > 0) {
+      if (broker.name === 'Topstep') {
+        setSyncNotification(syncFailed
+          ? 'Topstep sync failed'
+          : `Topstep incremental sync complete — ${totalNewTrades} new trade${totalNewTrades === 1 ? '' : 's'} imported`);
+        if (totalNewTrades > 0) anyNewTrades = true;
+      } else if (totalSynced > 0) {
         setSyncNotification(`Synced ${totalSynced} new trade${totalSynced !== 1 ? 's' : ''} from ${broker.name}`);
         anyNewTrades = true;
+      } else if (syncFailed) {
+        setSyncNotification(`Failed to sync ${broker.name}`);
       } else {
         setSyncNotification(`${broker.name} is up to date`);
       }
