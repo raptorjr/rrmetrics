@@ -545,7 +545,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
               key={item.id}
               draggable={editing}
               onDragStart={editing ? event => {
-                if (event.target.closest && event.target.closest('button')) {
+                if (event.target.closest && event.target.closest('button, details, input, select, textarea')) {
                   event.preventDefault();
                   return;
                 }
