@@ -831,6 +831,7 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
               ['Total Trades', stats.totalTrades, 'text-text-primary'],
               ['Winning Trades', stats.wins, 'text-positive'],
               ['Losing Trades', stats.losses, 'text-negative'],
+              ['Breakeven Trades', stats.breakevens, 'text-text-secondary'],
               ['Avg Win', `$${stats.avgWin.toFixed(2)}`, 'text-positive'],
               ['Avg Loss', `$${stats.avgLoss.toFixed(2)}`, 'text-negative'],
               ['Best Trade', `$${stats.bestTrade.toFixed(2)}`, 'text-positive'],
