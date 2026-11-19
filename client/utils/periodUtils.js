@@ -1,4 +1,10 @@
 const getDateRange = (period) => {
+  if (period && typeof period === 'object' && period.type === 'custom') {
+    const start = period.startDate ? new Date(period.startDate + 'T00:00:00') : null;
+    const end = period.endDate ? new Date(period.endDate + 'T23:59:59.999') : null;
+    if (!start && !end) return null;
+    return { start: start || new Date(0), end: end || new Date(8640000000000000) };
+  }
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -62,6 +68,13 @@ const getDateRange = (period) => {
 };
 
 const getPreviousDateRange = (period) => {
+  if (period && typeof period === 'object' && period.type === 'custom') {
+    const range = getDateRange(period);
+    if (!range) return null;
+    const duration = range.end - range.start;
+    const prevEnd = new Date(range.start.getTime() - 1);
+    return { start: new Date(prevEnd.getTime() - duration), end: prevEnd };
+  }
   // For specific months, previous period is the prior month
   const monthMatch = typeof period === 'string' && period.match(/^month-(\d{4})-(\d{2})$/);
   if (monthMatch) {
