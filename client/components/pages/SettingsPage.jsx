@@ -733,7 +733,9 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
         text: data.message || 'Sync completed, but the server did not provide a summary.',
       };
       setPxSyncResults(prev => ({ ...prev, [connectionId]: result }));
-      setMessage({ type: result.type === 'warning' ? 'error' : 'success', text: result.text });
+      // Detailed sync diagnostics belong in the connection panel. Do not
+      // duplicate a partial-import warning as a page-wide red error banner.
+      setMessage(result.type === 'success' ? { type: 'success', text: result.text } : null);
       await fetchPxStatus();
       if (onSyncComplete) onSyncComplete();
     } catch (err) {
@@ -1165,12 +1167,12 @@ const SettingsPage = ({ onSyncComplete, onNavigate, theme, onThemeChange, custom
                                       </div>
                                     )}
                                     {pxSyncResults[conn.connectionId].warnings?.length > 0 && (
-                                      <div className="mt-2">
-                                        <div className="font-semibold">Reconstruction warnings</div>
-                                        <ul className="list-disc pl-4 mt-1 space-y-1">
+                                      <details className="mt-2 rounded-md border border-current/20 p-2">
+                                        <summary className="cursor-pointer font-semibold">View {pxSyncResults[conn.connectionId].warnings.length} reconstruction warnings</summary>
+                                        <ul className="list-disc pl-4 mt-2 space-y-1 max-h-72 overflow-y-auto">
                                           {pxSyncResults[conn.connectionId].warnings.map((warning, index) => <li key={index}>{warning}</li>)}
                                         </ul>
-                                      </div>
+                                      </details>
                                     )}
                                     {pxSyncResults[conn.connectionId].positionCheckErrors?.length > 0 && (
                                       <div className="mt-2">
