@@ -54,7 +54,7 @@ const CalendarView = require('./CalendarView');
 const Icons = require('../shared/Icons');
 
 const { getDateRange, getPreviousDateRange, filterTradesByDateRange, calcPercentChange } = require('../../utils/periodUtils');
-const { getTradePL, calculateAnalytics, calculateExpectancy, calculateProfitFactor, applyEvalFilter, calculateSharpeRatio, calculateSortinoRatio, calculateKellyCriterion } = require('../../utils/analytics');
+const { getTradePL, calculateAnalytics, calculateExpectancy, calculateProfitFactor, calculateMaxDrawdown, applyEvalFilter, calculateSharpeRatio, calculateSortinoRatio, calculateKellyCriterion } = require('../../utils/analytics');
 const { formatDuration } = require('../../utils/dateUtils');
 
 
@@ -105,16 +105,7 @@ const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpe
 
   const profitFactor = calculateProfitFactor(filteredTrades);
   const expectancy = calculateExpectancy(stats);
-  const maxDrawdown = (() => {
-    const sorted = [...filteredTrades].sort((a, b) => new Date(a.exitTime) - new Date(b.exitTime));
-    let peak = 0, running = 0, drawdown = 0;
-    sorted.forEach(trade => {
-      running += getTradePL(trade);
-      peak = Math.max(peak, running);
-      drawdown = Math.max(drawdown, peak - running);
-    });
-    return drawdown;
-  })();
+  const maxDrawdown = calculateMaxDrawdown(filteredTrades);
   const sharpeRatio = calculateSharpeRatio(filteredTrades);
   const sortinoRatio = calculateSortinoRatio(filteredTrades);
   const kelly = calculateKellyCriterion(filteredTrades, kellyDrawdown);

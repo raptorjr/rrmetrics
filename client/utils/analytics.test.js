@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { runMonteCarloSimulation, calculateKellyCriterion, calculateAnalytics, calculateExpectancy, calculateProfitFactor } = require('./analytics');
+const { runMonteCarloSimulation, calculateKellyCriterion, calculateAnalytics, calculateExpectancy, calculateProfitFactor, calculateMaxDrawdown } = require('./analytics');
 const { isBreakevenTrade } = require('./tickValues');
 
 const makeTrade = (pl, priceMove = pl === 0 ? 0.1 : 1, day = '2026-01-05') => ({
@@ -170,4 +170,14 @@ test('profit factor uses gross wins and losses and preserves no-loss behaviour',
   assert.equal(calculateProfitFactor([makeTrade(100, 1), makeTrade(0, 0.1)]), 100);
   assert.equal(calculateProfitFactor([makeTrade(-50, -0.5)]), 0);
   assert.equal(calculateProfitFactor([]), 0);
+});
+
+test('maximum drawdown uses chronological cumulative P/L from a zero baseline', () => {
+  const trades = [
+    { ...makeTrade(-50, -0.5), exitTime: '2026-01-05T10:02:00Z' },
+    { ...makeTrade(100, 1), exitTime: '2026-01-05T10:01:00Z' },
+    { ...makeTrade(-80, -0.8), exitTime: '2026-01-05T10:03:00Z' },
+  ];
+  assert.equal(calculateMaxDrawdown(trades), 80);
+  assert.equal(calculateMaxDrawdown([]), 0);
 });

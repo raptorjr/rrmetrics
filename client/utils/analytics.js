@@ -22,6 +22,21 @@ const calculateProfitFactor = (trades) => {
   return grossLosses === 0 ? grossWins : grossWins / grossLosses;
 };
 
+const calculateMaxDrawdown = (trades) => {
+  if (!trades || trades.length === 0) return 0;
+  const sorted = [...trades].sort((a, b) => new Date(a.exitTime) - new Date(b.exitTime));
+  let peak = 0;
+  let running = 0;
+  let maxDrawdown = 0;
+  sorted.forEach(trade => {
+    running += getTradePL(trade);
+    peak = Math.max(peak, running);
+    maxDrawdown = Math.max(maxDrawdown, peak - running);
+  });
+  return maxDrawdown;
+};
+
+
 const calculateAnalytics = (trades) => {
   const empty = {
     totalPL: 0, winRate: 0, avgWin: 0, avgLoss: 0,
@@ -252,5 +267,5 @@ const applyEvalFilter = (trades, evalFilter) => {
 
 module.exports = {
   getTradePL, calculateAnalytics, groupTradesByDate, applyEvalFilter,
-  calculateSharpeRatio, calculateSortinoRatio, calculateKellyCriterion, calculateExpectancy, calculateProfitFactor, runMonteCarloSimulation,
+  calculateSharpeRatio, calculateSortinoRatio, calculateKellyCriterion, calculateExpectancy, calculateProfitFactor, calculateMaxDrawdown, runMonteCarloSimulation,
 };

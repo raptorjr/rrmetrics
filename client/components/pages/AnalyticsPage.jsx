@@ -25,7 +25,7 @@ const readKellyDrawdown = () => {
 };
 const { useState, useEffect, useRef, useMemo } = React;
 
-const { getTradePL, calculateAnalytics, calculateExpectancy, calculateProfitFactor, applyEvalFilter, calculateSharpeRatio, calculateSortinoRatio, calculateKellyCriterion, runMonteCarloSimulation } = require("../../utils/analytics");
+const { getTradePL, calculateAnalytics, calculateExpectancy, calculateProfitFactor, calculateMaxDrawdown, applyEvalFilter, calculateSharpeRatio, calculateSortinoRatio, calculateKellyCriterion, runMonteCarloSimulation } = require("../../utils/analytics");
 const { formatDuration, toEST } = require("../../utils/dateUtils");
 const { isBreakevenTrade } = require("../../utils/tickValues");
 const { getCSSVar, colorToRgba, drawTooltip } = require("../../utils/chartUtils");
@@ -395,18 +395,7 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
   const prevExpectancy = calculateExpectancy(prevStats);
 
   // Max drawdown
-  const maxDrawdown = (() => {
-    if (trades.length === 0) return 0;
-    const sorted = [...trades].sort((a, b) => new Date(a.exitTime) - new Date(b.exitTime));
-    let peak = 0, running = 0, dd = 0;
-    sorted.forEach(t => {
-      running += getTradePL(t);
-      if (running > peak) peak = running;
-      const drawdown = peak - running;
-      if (drawdown > dd) dd = drawdown;
-    });
-    return dd;
-  })();
+  const maxDrawdown = calculateMaxDrawdown(trades);
 
   // Sharpe & Sortino ratios
   const sharpeRatio = calculateSharpeRatio(trades);
