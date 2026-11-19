@@ -10,6 +10,7 @@ const AccountManagementPanel = ({ triggerReload }) => {
   const [drafts, setDrafts] = useState({});
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [selectedIds, setSelectedIds] = useState([]);
 
   const load = async () => {
     setLoading(true); setError('');
@@ -45,6 +46,30 @@ const AccountManagementPanel = ({ triggerReload }) => {
       await load(); triggerReload();
     } catch (err) { setError(err.message || 'Account action failed.'); }
     setBusy('');
+  };
+
+  const bulkAct = async (action) => {
+    const selected = accounts.filter(account => selectedIds.includes(account.id));
+    if (!selected.length) return;
+    const verb = action === 'clear' ? 'clear trades for' : 'delete';
+    if (!window.confirm(`${action === 'clear' ? 'Clear trades for' : 'Delete'} ${selected.length} selected account(s)? ${action === 'clear' ? 'Account settings will remain.' : 'Their local account settings and imported trade history will be removed.'}`)) return;
+    setBusy('bulk'); setError(''); setNotice('');
+    let completed = 0; const failures = [];
+    for (const account of selected) {
+      try {
+        const response = await authFetch('/api/account/managed-accounts/action', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: account.id, action }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Action failed');
+        completed += 1;
+      } catch (error) { failures.push(`${account.name}: ${error.message}`); }
+    }
+    setNotice(`${action === 'clear' ? 'Cleared trades for' : 'Deleted'} ${completed} of ${selected.length} selected accounts.`);
+    if (failures.length) setError(failures.join(' · '));
+    setSelectedIds([]);
+    await load(); triggerReload(); setBusy('');
   };
 
   const rename = async (account) => {
@@ -100,6 +125,25 @@ const AccountManagementPanel = ({ triggerReload }) => {
       </p>
       {error && <div className="p-3 rounded-lg text-sm bg-negative/10 border border-negative/30 text-negative">{error}</div>}
       {notice && <div className="p-3 rounded-lg text-sm bg-positive/10 border border-positive/30 text-positive">{notice}</div>}
+      {accounts.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-bg-surface border border-border rounded-lg p-3">
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-text-primary">
+              <input type="checkbox" checked={accounts.length > 0 && selectedIds.length === accounts.length}
+                onChange={e => setSelectedIds(e.target.checked ? accounts.map(account => account.id) : [])}
+                className="w-4 h-4 rounded border-border text-accent focus:ring-accent" />
+              Select all accounts
+            </label>
+            <span className="text-xs text-text-muted">{selectedIds.length} selected</span>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => bulkAct('clear')} disabled={!selectedIds.length || !!busy}
+              className="px-3 py-2 rounded-lg border border-warning/40 text-warning text-xs font-medium disabled:opacity-40">Clear selected trades</button>
+            <button onClick={() => bulkAct('delete')} disabled={!selectedIds.length || !!busy}
+              className="px-3 py-2 rounded-lg border border-negative/40 text-negative text-xs font-medium disabled:opacity-40">Delete selected accounts</button>
+          </div>
+        </div>
+      )}
       <div className="flex justify-end">
         <button onClick={load} disabled={loading || !!busy} className="px-3 py-2 rounded-lg border border-border text-text-primary text-sm disabled:opacity-50">{loading ? 'Loading…' : 'Refresh accounts'}</button>
       </div>
@@ -146,6 +190,7 @@ const AccountManagementPanel = ({ triggerReload }) => {
                 {groups[expandedProvider].map(account => (
                   <div key={account.id} className="border border-border rounded-lg p-4 space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="flex items-center gap-2 text-xs text-text-secondary"><input type="checkbox" checked={selectedIds.includes(account.id)} onChange={e => setSelectedIds(prev => e.target.checked ? [...prev, account.id] : prev.filter(id => id !== account.id))} className="w-4 h-4 rounded border-border text-accent focus:ring-accent" />Select</label>
                       <div>
                         <div className="text-text-primary text-sm font-medium">{account.name}</div>
                         <div className="text-text-tertiary text-xs mt-1">Source account: {account.sourceName}</div>
