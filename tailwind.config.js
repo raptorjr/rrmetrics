@@ -24,8 +24,8 @@ module.exports = {
         warning: 'rgb(var(--warning) / <alpha-value>)',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace'],
+        sans: ['Roboto', 'Arial', 'sans-serif'],
+        mono: ['Roboto Mono', 'monospace'],
       },
     },
   },
