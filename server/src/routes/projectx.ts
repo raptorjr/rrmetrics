@@ -5,7 +5,7 @@ import * as pxConnDb from '../db/projectx-connections';
 import * as tradesDb from '../db/trades';
 import { encrypt, decrypt } from '../utils/crypto';
 import { ProjectXAPI } from '../services/ProjectXAPI';
-import { findFullyFilledVoidedOrderOverrides } from '../services/ProjectXReconstruction';
+import { findFullyFilledVoidedOrderOverrides, mergeVoidedOrderOverrides } from '../services/ProjectXReconstruction';
 import { clearProjectXImport, reconcileProjectXHistory } from '../services/ProjectXSync';
 import { requiresLogin } from '../middleware/auth';
 import { getDb } from '../db/connection';
@@ -382,6 +382,7 @@ projectx.post(
       const allTrades: import('../services/ProjectXAPI').Trade[] = [];
       const allOrders: import('../services/ProjectXAPI').ProjectXOrder[] = [];
       const orderCheckErrors: string[] = [];
+      const orderCheckSuccessfulAccountIds = new Set<number>();
       const brokerOpenPositions: Array<{
         accountId: number;
         accountName: string;
@@ -409,6 +410,7 @@ projectx.post(
         try {
           const orderHistory = await api.searchOrders(token, accountId, historyStart);
           allOrders.push(...orderHistory);
+          orderCheckSuccessfulAccountIds.add(accountId);
         } catch (error: any) {
           // The normal trade import can still proceed safely without this
           // optional cross-check; anomalous voided legs remain quarantined.
@@ -439,16 +441,15 @@ projectx.post(
       for (const trade of allTrades) mergedTrades.set(`${trade.accountId}:${trade.id}`, trade);
 
       const freshOrderOverrides = findFullyFilledVoidedOrderOverrides([...mergedTrades.values()], allOrders);
-      // If the Orders API is unavailable for any account during a full pass,
-      // retain previously corroborated overrides rather than dropping valid old fills.
-      const reinstatedOrderKeys = new Set<string>(
-        isFullHistory && orderCheckErrors.length === 0 ? [] : (pxConn.reinstated_order_keys || []),
+      // Refresh override evidence only for accounts whose Orders history was
+      // successfully queried. A full sync still covers only selected accounts;
+      // deselected historical accounts must retain their previously verified
+      // overrides because their raw executions remain part of reconstruction.
+      const reinstatedOrderKeys = mergeVoidedOrderOverrides(
+        pxConn.reinstated_order_keys || [],
+        freshOrderOverrides,
+        orderCheckSuccessfulAccountIds,
       );
-      if (!isFullHistory || orderCheckErrors.length > 0) {
-        const refreshedOrderKeys = new Set(allOrders.map(order => `${order.accountId}:${order.id}`));
-        for (const key of refreshedOrderKeys) reinstatedOrderKeys.delete(key);
-      }
-      for (const key of freshOrderOverrides) reinstatedOrderKeys.add(key);
 
       const contractNames: Record<string, string> = {};
       const recentContractIds = new Set(allTrades.map(trade => trade.contractId));
