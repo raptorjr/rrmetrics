@@ -78,7 +78,7 @@ const CustomizableStats = ({ storageKey, items, defaultOrder, defaultVisible = d
             </div>
             <button type="button" onClick={reset} className="text-xs text-text-secondary hover:text-text-primary underline">Reset to default</button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {orderedItems.map(item => (
               <div
                 key={item.id}
@@ -87,16 +87,21 @@ const CustomizableStats = ({ storageKey, items, defaultOrder, defaultVisible = d
                 onDragOver={event => event.preventDefault()}
                 onDrop={event => { event.preventDefault(); moveItem(draggedId, item.id); setDraggedId(null); }}
                 onDragEnd={() => setDraggedId(null)}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${draggedId === item.id ? 'border-accent opacity-50' : 'border-border'}`}
+                className={`rounded-lg border p-2.5 transition-colors ${draggedId === item.id ? 'border-accent opacity-50' : 'border-border hover:border-accent/60'}`}
               >
-                <span className="text-text-tertiary cursor-grab select-none" title="Drag to reorder">⠿</span>
-                <label className="flex-1 flex items-center gap-2 min-w-0 cursor-pointer">
-                  <input type="checkbox" checked={!layout.hidden.includes(item.id)} onChange={() => toggleItem(item.id)} className="accent-[rgb(var(--accent))]" />
-                  <span className="text-xs text-text-primary truncate">{item.label}</span>
-                </label>
+                {item.preview || <div className="h-[82px] rounded-md bg-bg-page border border-border flex items-center justify-center text-xs text-text-tertiary">{item.label}</div>}
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-text-tertiary cursor-grab select-none" title="Drag to reorder">⠿</span>
+                  <label className="flex-1 flex items-center gap-2 min-w-0 cursor-pointer">
+                    <input type="checkbox" checked={!layout.hidden.includes(item.id)} onChange={() => toggleItem(item.id)} className="accent-[rgb(var(--accent))]" />
+                    <span className="text-xs text-text-primary truncate">{item.label}</span>
+                  </label>
+                  <span className="text-[10px] text-text-tertiary">{item.defaultColumns || 1}×{item.defaultRows || 1}</span>
+                </div>
+                <div className="text-[10px] text-text-tertiary ml-6 mt-0.5">{item.category || 'Metrics'}</div>
               </div>
             ))}
-          </div>
+          </div>>
         </div>
       )}
 
