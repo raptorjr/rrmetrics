@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { runMonteCarloSimulation } = require('./analytics');
+const { runMonteCarloSimulation, calculateKellyCriterion } = require('./analytics');
+const { isBreakevenTrade } = require('./tickValues');
 
 const makeTrade = (pl, priceMove = pl === 0 ? 0.1 : 1, day = '2026-01-05') => ({
   ticker: 'MGC',
@@ -110,4 +111,32 @@ test('Monte Carlo median averages the middle successful pass times', () => {
   assert.equal(result.passRate, 100);
   assert.equal(result.avgDaysToPass, 3);
   assert.equal(result.medianDaysToPass, 2.5);
+});
+
+
+test('manual P/L takes precedence over price movement for breakeven classification', () => {
+  assert.equal(isBreakevenTrade(makeTrade(100, 0.1)), false);
+  assert.equal(isBreakevenTrade(makeTrade(-25, 0)), false);
+  assert.equal(isBreakevenTrade(makeTrade(0, 1)), true);
+});
+
+test('price-based breakeven classification uses the tick threshold when manual P/L is absent', () => {
+  const nearFlat = { ...makeTrade(0, 0.1), manualPL: undefined };
+  const decisive = { ...makeTrade(0, 1), manualPL: undefined };
+
+  assert.equal(isBreakevenTrade(nearFlat), true);
+  assert.equal(isBreakevenTrade(decisive), false);
+});
+
+test('Kelly calculation excludes price-based breakeven trades', () => {
+  const trades = [
+    makeTrade(100, 1),
+    makeTrade(-50, -1),
+    { ...makeTrade(0, 0.1), manualPL: undefined },
+  ];
+
+  const result = calculateKellyCriterion(trades, 2000);
+
+  assert.equal(result.kellyPct, 25);
+  assert.equal(result.optimalRisk, 500);
 });

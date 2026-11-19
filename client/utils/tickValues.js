@@ -46,6 +46,13 @@ const getTickSize = (ticker) => TICK_SIZES[(ticker || '').toUpperCase()] ?? 0.01
 const BREAKEVEN_TICK_THRESHOLD = 4;
 
 const isBreakevenTrade = (trade) => {
+  // Imported/manual P/L is authoritative; price movement is only a fallback
+  // for trades whose P/L is calculated from entry and exit prices.
+  if (trade.manualPL !== null && trade.manualPL !== undefined) {
+    const manualPL = Number(trade.manualPL);
+    if (Number.isFinite(manualPL)) return Math.abs(manualPL) < 1e-8;
+  }
+
   const priceDiff = Math.abs(trade.exitPrice - trade.enterPrice);
   const threshold = getTickSize(trade.ticker) * BREAKEVEN_TICK_THRESHOLD;
   return priceDiff <= threshold;

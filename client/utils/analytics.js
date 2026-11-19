@@ -88,8 +88,10 @@ const calculateSortinoRatio = (trades) => {
 const calculateKellyCriterion = (trades, maxDrawdownBankroll = 2000) => {
   if (!trades || trades.length === 0) return { kellyPct: 0, optimalRisk: 0 };
 
-  const pls = trades.map(t => getTradePL(t));
-  const decisive = pls.filter(pl => pl !== 0);
+  const decisive = trades
+    .filter(trade => !isBreakevenTrade(trade))
+    .map(trade => getTradePL(trade))
+    .filter(pl => pl !== 0);
   if (decisive.length < 2) return { kellyPct: 0, optimalRisk: 0 };
 
   const wins = decisive.filter(pl => pl > 0);
