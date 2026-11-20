@@ -62,6 +62,7 @@ const getResizedTileGeometry = ({
   rowUnit = 128,
   minW = 1,
   minH = 1,
+  minArea = 1,
   maxW = MAX_COLUMNS,
   maxH = MAX_ROWS,
 }) => {
