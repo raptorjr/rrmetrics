@@ -105,7 +105,7 @@ const STARTER_LAYOUTS = [
     visible: ['totalPL', 'winRate', 'totalTrades', 'avgWinLoss', 'tradingCalendar', 'equityCurve', 'performanceByDay'],
     sizes: {
       avgWinLoss: { w: 1, h: 1 },
-      tradingCalendar: { w: 4, h: 4 },
+      tradingCalendar: { w: 4, h: 5 },
       equityCurve: { w: 4, h: 3 },
       performanceByDay: { w: 4, h: 2 },
     },
