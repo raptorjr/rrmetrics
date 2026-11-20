@@ -12,7 +12,7 @@ const DEFINITIONS = [
   { id: 'performanceByDay', label: 'Performance by Day', category: 'Charts', minColumns: 1, minRows: 2, defaultColumns: 4, defaultRows: 2, description: "Shows total profit and loss grouped by weekday of trade exit." },
   { id: 'performanceByEntryTime', label: 'Performance by Entry Time', category: 'Charts', minColumns: 1, minRows: 2, defaultColumns: 6, defaultRows: 2, description: "Groups trades into 30-minute entry-time buckets and compares average or total P/L." },
   { id: 'monteCarloSimulation', label: 'Monte Carlo Simulation', category: 'Risk', minColumns: 2, minRows: 2, defaultColumns: 6, defaultRows: 2, description: "Runs repeated simulations of the observed trade outcomes to estimate evaluation pass probability and time to pass." },
-  { id: 'tradingScore', label: 'RR Trading Score', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 6, defaultRows: 3, description: "A development-focused score across profitability, risk management, recovery and consistency, with insights into the biggest improvement opportunity." },
+  { id: 'tradingScore', label: 'RR Trading Score', category: 'Performance', minColumns: 1, minRows: 2, defaultColumns: 6, defaultRows: 3, description: "A development-focused score across profitability, risk management, recovery and consistency, with insights into the biggest improvement opportunity." },
 ];
 
 
@@ -412,26 +412,28 @@ const TradingScoreTile = ({ trades }) => {
             </div>
           )}
           {view === 'details' && (
-            <div className="flex-1 min-h-0 overflow-y-auto rounded-lg bg-bg-page px-3 py-2">
-              <div className="flex justify-end gap-3 pb-2 text-[10px] text-text-tertiary tabular-nums">
+            <div className="flex-1 min-h-0 flex flex-col rounded-lg bg-bg-page px-3 py-2 overflow-hidden">
+              <div className="shrink-0 grid grid-cols-[minmax(0,1.5fr)_minmax(76px,0.8fr)_minmax(64px,0.6fr)_minmax(54px,0.5fr)] gap-x-3 border-b border-border/70 py-2 text-[10px] uppercase tracking-wide text-text-tertiary">
+                <span>Dimension</span><span className="text-right">Actual</span><span className="text-right">Score</span><span className="text-right">Weight</span>
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                {result.metrics.map(metric => (
+                  <div key={metric.id} className="grid grid-cols-[minmax(0,1.5fr)_minmax(76px,0.8fr)_minmax(64px,0.6fr)_minmax(54px,0.5fr)] gap-x-3 border-b border-border/40 py-2 last:border-0">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-text-primary">{metric.label}</div>
+                      <div className="text-[10px] leading-snug text-text-tertiary mt-0.5">{metric.explanation}</div>
+                    </div>
+                    <span className="text-right text-xs font-semibold text-text-primary tabular-nums">{metric.displayValue}</span>
+                    <span className="text-right text-xs text-text-secondary tabular-nums">{Math.round(metric.score)}/100</span>
+                    <span className="text-right text-xs text-text-secondary tabular-nums">{metric.weight}%</span>
+                  </div>
+                ))}
+                <div className="pt-2 text-[10px] text-text-tertiary">Scores are weighted to form your overall RR Trading Score.</div>
+              </div>
+              <div className="shrink-0 flex justify-end gap-3 border-t border-border/70 pt-2 mt-1 text-[10px] text-text-tertiary tabular-nums">
                 <span>{result.totalTrades.toLocaleString()} trades</span>
                 <span>{result.tradingDays.toLocaleString()} trading days</span>
               </div>
-              <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1.5fr)_minmax(76px,0.8fr)_minmax(64px,0.6fr)_minmax(54px,0.5fr)] gap-x-3 border-b border-border/70 bg-bg-page py-2 text-[10px] uppercase tracking-wide text-text-tertiary">
-                <span>Dimension</span><span className="text-right">Actual</span><span className="text-right">Score</span><span className="text-right">Weight</span>
-              </div>
-              {result.metrics.map(metric => (
-                <div key={metric.id} className="grid grid-cols-[minmax(0,1.5fr)_minmax(76px,0.8fr)_minmax(64px,0.6fr)_minmax(54px,0.5fr)] gap-x-3 border-b border-border/40 py-2 last:border-0">
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold text-text-primary">{metric.label}</div>
-                    <div className="text-[10px] leading-snug text-text-tertiary mt-0.5">{metric.explanation}</div>
-                  </div>
-                  <span className="text-right text-xs font-semibold text-text-primary tabular-nums">{metric.displayValue}</span>
-                  <span className="text-right text-xs text-text-secondary tabular-nums">{Math.round(metric.score)}/100</span>
-                  <span className="text-right text-xs text-text-secondary tabular-nums">{metric.weight}%</span>
-                </div>
-              ))}
-              <div className="pt-2 text-[10px] text-text-tertiary">Scores are weighted to form your overall RR Trading Score.</div>
             </div>
           )}
 
