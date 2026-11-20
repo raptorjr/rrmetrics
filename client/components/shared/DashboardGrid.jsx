@@ -51,6 +51,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const [draggedId, setDraggedId] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
   const [columns, setColumns] = useState(2);
+  const [resizeDebug, setResizeDebug] = useState(null);
   const [templates, setTemplates] = useState(() => readTemplates(storageKey));
   const [templateName, setTemplateName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('');
@@ -270,6 +271,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       tileElement,
       doc,
     };
+    setResizeDebug({ id: item.id, corner, deltaX: 0, deltaY: 0, widthStep: 0, heightStep: 0, startW: currentSize.w, startH: currentSize.h, minW: Number(item.minColumns) || 1, minH: Number(item.minRows) || 1, maxW: columns === 2 ? 2 : MAX_COLUMNS });
     // Capture at document level so the drag cannot be swallowed by the
     // draggable tile or by another tile crossed during the resize.
     doc.addEventListener('pointermove', moveResize, true);
@@ -284,6 +286,23 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     const item = items.find(candidate => candidate.id === start.id);
     if (!item) return;
     const minW = Number(item.minColumns) || 1;
+    const debugAvailableWidth = Math.max(1, start.gridWidth - GRID_GAP * (columns - 1));
+    const debugTrackWidth = debugAvailableWidth / columns;
+    const debugLogicalColumnWidth = (debugTrackWidth + GRID_GAP) * columns / MAX_COLUMNS;
+    setResizeDebug({
+      id: start.id,
+      corner: start.corner,
+      deltaX: Math.round(event.clientX - start.startX),
+      deltaY: Math.round(event.clientY - start.startY),
+      widthStep: Math.round((event.clientX - start.startX) / debugLogicalColumnWidth) * (start.corner.endsWith('w') ? -1 : 1),
+      heightStep: Math.round((event.clientY - start.startY) / ROW_UNIT) * (start.corner.startsWith('n') ? -1 : 1),
+      startW: start.startW,
+      startH: start.startH,
+      minW,
+      minH: Number(item.minRows) || 1,
+      maxW: columns === 2 ? 2 : MAX_COLUMNS,
+      columnPixels: Math.round(debugLogicalColumnWidth),
+    });
     const minH = Number(item.minRows) || 1;
     const maxW = columns === 2 ? 2 : MAX_COLUMNS;
     const geometry = getResizedTileGeometry({
@@ -326,6 +345,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     active.doc.removeEventListener('pointercancel', stopResize, true);
     if (active.tileElement) active.tileElement.draggable = true;
     resizeRef.current = null;
+    setResizeDebug(null);
   };
 
   const getColumnSpan = size => Math.min(columns, Math.max(1, Math.round(size.w * columns / MAX_COLUMNS)));
@@ -582,6 +602,11 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
         );
       })()}
 
+      {editing && resizeDebug && (
+        <div role="status" aria-live="polite" className="rounded-md border border-amber-500 bg-bg-surface px-3 py-2 text-xs font-mono text-text-primary">
+          Resize debug · {resizeDebug.id} · corner {resizeDebug.corner.toUpperCase()} · ΔX {resizeDebug.deltaX}px ({resizeDebug.widthStep} cols, {resizeDebug.columnPixels || '—'}px/col) · ΔY {resizeDebug.deltaY}px ({resizeDebug.heightStep} rows) · size {resizeDebug.startW}×{resizeDebug.startH} · min {resizeDebug.minW}×{resizeDebug.minH} · max width {resizeDebug.maxW}
+        </div>
+      )}
       <div
         ref={gridRef}
         onDragOver={editing ? event => {
