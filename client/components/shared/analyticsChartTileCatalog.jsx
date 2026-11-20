@@ -348,7 +348,7 @@ const TradingScoreTile = ({ trades }) => {
   const formatMoney = value => (value < 0 ? '-$' : '$') + Math.abs(value).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   const methodology = 'RR Trading Score is an educational self-review, not a prediction or a ranking. Weights: Profit factor 25%, Avg win/loss 20%, Drawdown control 20%, Win rate 15%, Recovery factor 10%, Consistency 10%. Scoring thresholds: Win rate 30–60%; Profit factor and avg win/loss 0.5–2.5; drawdown 5–30% of highest cumulative P/L peak; recovery factor 0.5–3.0; best positive day share 20–80%. At least 20 closed trades across 5 trading days are required.';
   return <Panel title={<span className="flex items-center gap-1">RR Trading Score <InfoTooltip text={methodology}/></span>}>
-    <div className="flex flex-col h-full min-h-0 gap-2 overflow-y-auto pr-1">
+    <div className="flex flex-col h-full min-h-0 gap-2 overflow-hidden">
       <div className="flex items-center justify-between gap-3 shrink-0">
         <div>
           <div className="text-[10px] uppercase tracking-wider text-text-tertiary">Your score</div>
@@ -388,9 +388,9 @@ const TradingScoreTile = ({ trades }) => {
               <div className="pt-2 text-[10px] text-text-tertiary">Scores are weighted to form your overall RR Trading Score. The weakest dimension is highlighted below.</div>
             </div>
           ) : (
-          <div className="flex flex-row items-center gap-3 min-h-0 flex-1">
+          <div className="flex flex-row items-center gap-3 min-h-0 flex-1 overflow-hidden">
             <div className="flex-[1_1_70%] min-w-0 flex items-center justify-center">
-              <svg viewBox="0 0 380 250" role="img" aria-label="Radar chart of six RR Trading Score dimensions. Metric values appear below each label; hover for more details." className="w-full h-auto">
+              <svg viewBox="0 0 380 250" role="img" aria-label="Radar chart of six RR Trading Score dimensions. Metric values appear below each label; hover for more details." className="w-full h-full max-h-full">
                 {[20,40,60,80,100].map(level=>{
                   const pts=result.metrics.map((metric,index)=>polar(level,index));
                   return <polygon key={level} points={pts.map(p=>p.x+','+p.y).join(' ')} fill="none" stroke="rgb(var(--border))" strokeWidth="1"/>;
