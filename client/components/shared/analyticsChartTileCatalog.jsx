@@ -11,7 +11,7 @@ const DEFINITIONS = [
   { id: 'monteCarloSimulation', label: 'Monte Carlo Simulation', category: 'Risk', minColumns: 1, minRows: 1, defaultColumns: 6, defaultRows: 2, description: "Runs repeated simulations of the observed trade outcomes to estimate evaluation pass probability and time to pass." },
 ];
 
-const Panel = ({ title, children }) => <div className="h-full min-h-0 min-w-0 overflow-hidden flex flex-col bg-bg-surface border border-border rounded-xl p-3 md:p-4"><h3 className="shrink-0 text-text-primary font-semibold text-sm mb-2">{title}</h3><div className="flex-1 min-h-0 min-w-0 flex flex-col">{children}</div></div>;
+const Panel = ({ title, children }) => <div className="dashboard-tile-panel h-full min-h-0 min-w-0 overflow-hidden flex flex-col bg-bg-surface border border-border rounded-xl p-3 md:p-4"><h3 className="shrink-0 text-text-primary font-semibold text-sm mb-2">{title}</h3><div className="flex-1 min-h-0 min-w-0 flex flex-col">{children}</div></div>;
 const Preview = ({ item }) => (
   <div className="h-[82px] rounded-md border border-border bg-bg-page p-2 flex flex-col justify-between overflow-hidden">
     <span className="text-[10px] font-semibold text-text-secondary">{item.label}</span>
