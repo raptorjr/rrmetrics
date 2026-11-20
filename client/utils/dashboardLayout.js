@@ -60,7 +60,7 @@ const STARTER_LAYOUTS = [
     sizes: {
       avgWinLoss: { w: 1, h: 1 },
       tradingCalendar: { w: 4, h: 4 },
-      equityCurve: { w: 8, h: 3 },
+      equityCurve: { w: 4, h: 3 },
       performanceByDay: { w: 4, h: 2 },
     },
   },
@@ -93,7 +93,7 @@ const STARTER_LAYOUTS = [
     description: 'Just the essentials: a few key statistics and the equity curve.',
     visible: ['totalPL', 'winRate', 'totalTrades', 'equityCurve'],
     sizes: {
-      equityCurve: { w: 4, h: 3 },
+      equityCurve: { w: 8, h: 3 },
     },
   },
 ];
