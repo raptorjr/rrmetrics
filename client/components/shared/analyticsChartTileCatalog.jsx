@@ -12,7 +12,7 @@ const DEFINITIONS = [
   { id: 'performanceByDay', label: 'Performance by Day', category: 'Charts', minColumns: 1, minRows: 2, defaultColumns: 4, defaultRows: 2, description: "Shows total profit and loss grouped by weekday of trade exit." },
   { id: 'performanceByEntryTime', label: 'Performance by Entry Time', category: 'Charts', minColumns: 1, minRows: 2, defaultColumns: 6, defaultRows: 2, description: "Groups trades into 30-minute entry-time buckets and compares average or total P/L." },
   { id: 'monteCarloSimulation', label: 'Monte Carlo Simulation', category: 'Risk', minColumns: 2, minRows: 2, defaultColumns: 6, defaultRows: 2, description: "Runs repeated simulations of the observed trade outcomes to estimate evaluation pass probability and time to pass." },
-  { id: 'tradingScore', label: 'RR Trading Score', category: 'Performance', minColumns: 3, minRows: 3, defaultColumns: 6, defaultRows: 3, description: "A development-focused score across profitability, risk management, recovery and consistency, with insights into the biggest improvement opportunity." },
+  { id: 'tradingScore', label: 'RR Trading Score', category: 'Performance', minColumns: 1, minRows: 1, defaultColumns: 6, defaultRows: 3, description: "A development-focused score across profitability, risk management, recovery and consistency, with insights into the biggest improvement opportunity." },
 ];
 
 
@@ -388,9 +388,9 @@ const TradingScoreTile = ({ trades }) => {
               <div className="pt-2 text-[10px] text-text-tertiary">Scores are weighted to form your overall RR Trading Score. The weakest dimension is highlighted below.</div>
             </div>
           ) : (
-          <div className="flex flex-row items-center gap-3 min-h-0 flex-1 overflow-hidden">
-            <div className="flex-[1_1_70%] min-w-0 flex items-center justify-center">
-              <svg viewBox="0 0 380 250" role="img" aria-label="Radar chart of six RR Trading Score dimensions. Metric values appear below each label; hover for more details." className="w-full h-full max-h-full">
+          <div className="flex flex-row items-stretch gap-3 min-h-0 flex-1 overflow-hidden">
+            <div className="flex-[1_1_70%] min-w-0 min-h-0 flex items-center justify-center self-stretch">
+              <svg viewBox="0 0 380 250" role="img" aria-label="Radar chart of six RR Trading Score dimensions. Metric values appear below each label; hover for more details." className="w-full h-full max-h-full" preserveAspectRatio="xMidYMid meet">
                 {[20,40,60,80,100].map(level=>{
                   const pts=result.metrics.map((metric,index)=>polar(level,index));
                   return <polygon key={level} points={pts.map(p=>p.x+','+p.y).join(' ')} fill="none" stroke="rgb(var(--border))" strokeWidth="1"/>;
