@@ -189,6 +189,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const selectedTemplateHasChanges = Boolean(selectedTemplateLayout && (
     JSON.stringify(selectedTemplateLayout.order) !== JSON.stringify(layout.order)
     || JSON.stringify(selectedTemplateLayout.hidden) !== JSON.stringify(layout.hidden)
+    || JSON.stringify(selectedTemplateLayout.positions) !== JSON.stringify(layout.positions)
     || items.some(item => {
       const savedSize = selectedTemplateLayout.sizes[item.id];
       const currentSize = layout.sizes[item.id];
