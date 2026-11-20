@@ -67,7 +67,8 @@ const getResizedTileGeometry = ({
   const heightDelta = Math.round(deltaY / rowUnit) * (north ? -1 : 1);
 
   const widthLimit = west ? position.col + size.w - 1 : MAX_COLUMNS - position.col + 1;
-  const heightLimit = north ? position.row + size.h - 1 : MAX_ROWS - position.row + 1;
+  // Rows are unbounded in the dashboard; only tile height has a maximum.
+  const heightLimit = north ? position.row + size.h - 1 : maxH;
   const nextW = clamp(size.w + widthDelta, minW, Math.min(maxW, widthLimit));
   const nextH = clamp(size.h + heightDelta, minH, Math.min(maxH, heightLimit));
 
