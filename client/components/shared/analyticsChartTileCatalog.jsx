@@ -146,8 +146,11 @@ const PerformanceByDayTile = ({ trades }) => {
   const stats = useMemo(() => {
     const days = dayNames.map((day, index) => ({ day, index, count: 0, wins: 0, losses: 0, breakevens: 0, totalPL: 0 }));
     trades.forEach(trade => {
-      const est = toEST(trade.exitTime);
-      const day = days[new Date(est.year, est.month - 1, est.day).getDay()];
+      const weekday = new Intl.DateTimeFormat('en-US', {
+        timeZone: getDisplayTimeZone(),
+        weekday: 'short',
+      }).format(new Date(trade.exitTime));
+      const day = days[dayNames.indexOf(weekday)];
       const pl = getTradePL(trade);
       day.count++; day.totalPL += pl;
       if (isBreakevenTrade(trade)) day.breakevens++;
