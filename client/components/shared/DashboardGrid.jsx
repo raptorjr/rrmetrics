@@ -572,13 +572,17 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       <div
         ref={gridRef}
         onDragOver={editing ? event => {
-          if (!event.target.closest('[data-dashboard-tile]')) {
+          const targetTile = event.target.closest('[data-dashboard-tile]');
+          if (!targetTile || targetTile.dataset.dashboardTile === draggedId) {
             event.preventDefault();
             event.dataTransfer.dropEffect = 'move';
           }
         } : undefined}
         onDrop={editing ? event => {
-          if (!event.target.closest('[data-dashboard-tile]')) dropOnEmptySpace(event);
+          const targetTile = event.target.closest('[data-dashboard-tile]');
+          if (!targetTile || targetTile.dataset.dashboardTile === draggedId) {
+            dropOnEmptySpace(event);
+          }
         } : undefined}
         className="grid items-stretch gap-4"
         style={{
@@ -595,7 +599,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
           return (
             <div
               key={item.id}
-              data-dashboard-tile="true"
+              data-dashboard-tile={item.id}
               draggable={editing}
               onDragStart={editing ? event => {
                 if (event.target.closest && event.target.closest('button, details, input, select, textarea')) {
