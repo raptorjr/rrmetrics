@@ -105,7 +105,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     if (!element) return undefined;
     const updateColumns = () => {
       const width = element.clientWidth;
-      setColumns(width < 640 ? 2 : width < 1024 ? 6 : 12);
+      setColumns(width < 640 ? 2 : width < 1024 ? 4 : 8);
     };
     updateColumns();
     if (typeof ResizeObserver !== 'undefined') {
@@ -166,7 +166,9 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       const target = order.indexOf(toId);
       if (target < 0) return current;
       order.splice(target + (position === 'after' ? 1 : 0), 0, fromId);
-      return { ...current, order };
+      const positions = { ...(current.positions || {}) };
+      delete positions[fromId];
+      return { ...current, order, positions };
     });
   };
 
@@ -265,11 +267,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     const availableWidth = start.gridWidth - GRID_GAP * (columns - 1);
     const trackWidth = availableWidth / columns;
     const widthFor = width => {
-      const span = columns === 12
-        ? width * 3
-        : columns === 6
-          ? Math.min(6, Math.max(2, Math.round(width * 1.5)))
-          : Math.min(2, width);
+      const span = Math.max(1, Math.round(width * columns / MAX_COLUMNS));
       return span * trackWidth + (span - 1) * GRID_GAP;
     };
     const horizontalDelta = event.clientX - start.startX;
@@ -315,10 +313,28 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     });
   };
 
-  const getColumnSpan = (size) => {
-    if (columns === 12) return size.w * 3;
-    if (columns === 6) return Math.min(6, Math.max(2, Math.round(size.w * 1.5)));
-    return Math.min(2, size.w);
+  const getColumnSpan = size => Math.min(columns, Math.max(1, Math.round(size.w * columns / MAX_COLUMNS)));
+
+  const getEmptyDropPosition = event => {
+    const bounds = gridRef.current.getBoundingClientRect();
+    const trackWidth = (bounds.width - GRID_GAP * (columns - 1)) / columns;
+    const actualColumn = clamp(Math.floor((event.clientX - bounds.left) / (trackWidth + GRID_GAP)), 0, columns - 1);
+    const logicalColumn = clamp(Math.floor(actualColumn * MAX_COLUMNS / columns) + 1, 1, MAX_COLUMNS);
+    const row = Math.max(1, Math.floor((event.clientY - bounds.top) / ROW_UNIT) + 1);
+    return { col: logicalColumn, row };
+  };
+
+  const dropOnEmptySpace = event => {
+    event.preventDefault();
+    const fromId = event.dataTransfer.getData('text/plain') || draggedId;
+    const item = items.find(candidate => candidate.id === fromId);
+    if (!item) return;
+    const size = layout.sizes[fromId] || getDefaultSize(item);
+    const target = getEmptyDropPosition(event);
+    const col = clamp(target.col, 1, Math.max(1, MAX_COLUMNS - size.w + 1));
+    setLayout(current => ({ ...current, positions: { [fromId]: { col, row: target.row } } }));
+    setDraggedId(null);
+    setDropTarget(null);
   };
 
   const catalogueCategories = [...new Set(items.map(item => item.category || 'Metrics'))].sort((a, b) => a.localeCompare(b));
@@ -537,11 +553,23 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
 
       <div
         ref={gridRef}
+        onDragOver={editing ? event => {
+          if (!event.target.closest('[data-dashboard-tile]')) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+          }
+        } : undefined}
+        onDrop={editing ? event => {
+          if (!event.target.closest('[data-dashboard-tile]')) dropOnEmptySpace(event);
+        } : undefined}
         className="grid items-stretch gap-4"
         style={{
           gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
           gridAutoRows: `minmax(${ROW_UNIT - GRID_GAP}px, auto)`,
           gridAutoFlow: 'row',
+          backgroundImage: editing ? 'linear-gradient(to right, rgba(148,163,184,0.11) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.11) 1px, transparent 1px)' : 'none',
+          backgroundSize: editing ? `calc((100% + ${GRID_GAP}px) / ${columns}) ${ROW_UNIT}px` : undefined,
+          backgroundPosition: '0 0',
         }}
       >
         {visibleItems.map((item, itemIndex) => {
@@ -549,6 +577,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
           return (
             <div
               key={item.id}
+              data-dashboard-tile="true"
               draggable={editing}
               onDragStart={editing ? event => {
                 if (event.target.closest && event.target.closest('button, details, input, select, textarea')) {
@@ -589,8 +618,12 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
               onDragEnd={editing ? () => { setDraggedId(null); setDropTarget(null); } : undefined}
               className={`relative min-w-0 h-full [&>*]:h-full ${editing ? `rounded-xl outline outline-1 outline-dashed outline-accent cursor-grab ${draggedId === item.id ? 'opacity-35' : ''} ${dropTarget && dropTarget.id === item.id ? 'bg-accent/10' : ''}` : ''}`}
               style={{
-                gridColumn: `span ${getColumnSpan(size)} / span ${getColumnSpan(size)}`,
-                gridRow: `span ${size.h} / span ${size.h}`,
+                gridColumn: layout.positions && layout.positions[item.id]
+                  ? `${clamp(Math.floor((clamp(layout.positions[item.id].col, 1, Math.max(1, MAX_COLUMNS - size.w + 1)) - 1) * columns / MAX_COLUMNS) + 1, 1, Math.max(1, columns - getColumnSpan(size) + 1))} / span ${getColumnSpan(size)}`
+                  : `span ${getColumnSpan(size)} / span ${getColumnSpan(size)}`,
+                gridRow: layout.positions && layout.positions[item.id]
+                  ? `${layout.positions[item.id].row} / span ${size.h}`
+                  : `span ${size.h} / span ${size.h}`,
               }}
             >
               {editing && dropTarget && dropTarget.id === item.id && (
