@@ -11,9 +11,9 @@ const {
 const items = [
   { id: 'totalPL', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1 },
   { id: 'winRate', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1 },
-  { id: 'tradingCalendar', minColumns: 2, minRows: 2, defaultColumns: 4, defaultRows: 2 },
-  { id: 'equityCurve', minColumns: 2, minRows: 2, defaultColumns: 2, defaultRows: 2 },
-  { id: 'performanceByDay', minColumns: 2, minRows: 2, defaultColumns: 2, defaultRows: 2 },
+  { id: 'tradingCalendar', minColumns: 4, minRows: 4, defaultColumns: 4, defaultRows: 4 },
+  { id: 'equityCurve', minColumns: 2, minRows: 2, defaultColumns: 4, defaultRows: 2 },
+  { id: 'performanceByDay', minColumns: 2, minRows: 2, defaultColumns: 4, defaultRows: 2 },
 ];
 
 test('new dashboard layouts include all valid tiles and respect default visibility', () => {
@@ -21,7 +21,7 @@ test('new dashboard layouts include all valid tiles and respect default visibili
 
   assert.deepEqual(layout.order, ['totalPL', 'winRate', 'tradingCalendar', 'equityCurve', 'performanceByDay']);
   assert.deepEqual(layout.hidden, ['winRate', 'tradingCalendar', 'equityCurve', 'performanceByDay']);
-  assert.deepEqual(layout.sizes.tradingCalendar, { w: 4, h: 2 });
+  assert.deepEqual(layout.sizes.tradingCalendar, { w: 4, h: 4 });
 });
 
 test('saved layouts discard removed tiles, deduplicate order and append newly introduced tiles', () => {
@@ -33,7 +33,7 @@ test('saved layouts discard removed tiles, deduplicate order and append newly in
 
   assert.deepEqual(layout.order, ['winRate', 'totalPL', 'tradingCalendar', 'equityCurve', 'performanceByDay']);
   assert.deepEqual(layout.hidden, ['totalPL', 'tradingCalendar', 'equityCurve', 'performanceByDay']);
-  assert.deepEqual(layout.sizes.winRate, { w: 4, h: 8 });
+  assert.deepEqual(layout.sizes.winRate, { w: 8, h: 8 });
 });
 
 test('malformed saved layouts safely fall back to defaults', () => {
@@ -50,7 +50,7 @@ test('tile default sizes respect each component minimum and the grid limits', ()
     minRows: 3,
     defaultColumns: 99,
     defaultRows: 1,
-  }), { w: 4, h: 3 });
+  }), { w: 8, h: 3 });
 });
 
 test('starter layouts only expose valid tiles and apply independent sizes', () => {
@@ -78,6 +78,36 @@ test('applying a starter layout preserves the other tiles without overwriting sa
 
   assert.deepEqual(layout.order, ['totalPL', 'winRate', 'tradingCalendar', 'equityCurve', 'performanceByDay', 'extra']);
   assert.deepEqual(layout.hidden, ['extra']);
-  assert.deepEqual(layout.sizes.tradingCalendar, { w: 2, h: 3 });
-  assert.deepEqual(layout.sizes.equityCurve, { w: 2, h: 3 });
+  assert.deepEqual(layout.sizes.tradingCalendar, { w: 4, h: 4 });
+  assert.deepEqual(layout.sizes.equityCurve, { w: 4, h: 3 });
+});
+
+
+test('legacy four-column layouts migrate to eight-column widths without enlarging compact metric tiles', () => {
+  const layout = normalizeLayout({
+    order: ['totalPL', 'equityCurve', 'tradingCalendar'],
+    hidden: [],
+    sizes: {
+      totalPL: { w: 1, h: 1 },
+      equityCurve: { w: 2, h: 2 },
+      tradingCalendar: { w: 2, h: 3 },
+    },
+  }, ['totalPL', 'equityCurve', 'tradingCalendar'], ['totalPL', 'equityCurve', 'tradingCalendar'], items);
+
+  assert.equal(layout.gridVersion, 2);
+  assert.deepEqual(layout.sizes.totalPL, { w: 1, h: 1 });
+  assert.deepEqual(layout.sizes.equityCurve, { w: 4, h: 2 });
+  assert.deepEqual(layout.sizes.tradingCalendar, { w: 4, h: 4 });
+});
+
+test('saved manual positions are normalized and retained', () => {
+  const layout = normalizeLayout({
+    gridVersion: 2,
+    order: ['totalPL'],
+    hidden: [],
+    sizes: {},
+    positions: { totalPL: { col: 99, row: 3 }, removed: { col: 2, row: 2 } },
+  }, ['totalPL'], ['totalPL'], items);
+
+  assert.deepEqual(layout.positions, { totalPL: { col: 8, row: 3 } });
 });
