@@ -57,11 +57,14 @@ const createPerformanceTiles = ({
     card('maxDrawdown', () => <StatCard label="Max Drawdown" tooltip="Largest peak-to-trough decline in cumulative P&L during the selected period." value={`$${maxDrawdown.toFixed(2)}`} color="text-negative" />),
     card('sharpeRatio', () => <StatCard label="Sharpe Ratio" tooltip="Risk-adjusted return measuring reward per unit of total volatility. Higher is generally better." value={sharpeRatio === Infinity ? '∞' : sharpeRatio.toFixed(2)} color={sharpeRatio > 0 ? 'text-positive' : 'text-negative'} />),
     card('sortinoRatio', () => <StatCard label="Sortino Ratio" tooltip="Risk-adjusted return that focuses on downside variability rather than penalizing upside fluctuations. Higher is generally better." value={sortinoRatio === Infinity ? '∞' : sortinoRatio.toFixed(2)} color={sortinoRatio > 0 ? 'text-positive' : 'text-negative'} />),
-    card('kellyRisk', () => (
+    card('kellyRisk', ({ settingsControl } = {}) => (
       <div className="h-full min-h-0 rounded-xl bg-bg-surface border border-border p-3 flex flex-col justify-center">
         <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="text-text-secondary text-xs font-medium uppercase tracking-wider">Kelly Optimal Risk</div>
-          <div className="mr-9 shrink-0"><InfoTooltip text="Estimates the optimal fraction of the selected drawdown bankroll using the historical win rate and average win/loss ratio. A zero result means the observed sample does not show a positive Kelly edge." /></div>
+          <div className="flex min-w-0 items-center gap-1.5 text-text-secondary text-xs font-medium uppercase tracking-wider">
+            <span>Kelly Optimal Risk</span>
+            <InfoTooltip text="Estimates the optimal fraction of the selected drawdown bankroll using the historical win rate and average win/loss ratio. A zero result means the observed sample does not show a positive Kelly edge." />
+          </div>
+          {settingsControl}
         </div>
         <div className="font-mono text-2xl font-bold text-text-primary">${kelly.optimalRisk.toFixed(0)}</div>
         <div className="text-text-tertiary text-xs mt-1">{kelly.kellyPct.toFixed(1)}% of drawdown</div>
