@@ -105,7 +105,7 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
         <span className="text-[10px] text-text-tertiary">30-minute buckets · local time</span>
       </div>
       <div className="w-full flex-1 min-h-0 min-w-0 overflow-hidden">
-        <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Profit and loss by entry time" className="w-full h-full min-h-0">
+        <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Profit and loss by entry time" preserveAspectRatio="none" className="dashboard-responsive-chart w-full h-full min-h-0">
           <line x1={padding} x2={width - padding} y1={zeroY} y2={zeroY} stroke="rgb(var(--border))" strokeDasharray="4 4" />
           {timeStats.map((stat, index) => {
             const value = values[index];
@@ -166,7 +166,7 @@ const PerformanceByDayTile = ({ trades }) => {
       </div>
       <span className="text-[10px] text-text-tertiary">By exit weekday</span>
     </div>
-    <svg viewBox="0 0 640 230" role="img" aria-label={mode === 'avg' ? 'Average profit and loss by weekday' : 'Total profit and loss by weekday'} className="w-full flex-1 min-h-0">
+    <svg viewBox="0 0 640 230" role="img" aria-label={mode === 'avg' ? 'Average profit and loss by weekday' : 'Total profit and loss by weekday'} preserveAspectRatio="none" className="dashboard-responsive-chart w-full flex-1 min-h-0">
       <line x1={left} x2={right} y1={zeroY} y2={zeroY} stroke="rgb(var(--text-muted))" strokeDasharray="4 4" />
       {stats.map((day, index) => {
         const value = values[index], height = Math.abs(value) / maxValue * halfHeight;
@@ -202,7 +202,7 @@ const DailyNetPLTile = ({ trades }) => {
   const dateLabel = value => { const [year,month,day] = value.split('-'); return month + '/' + day + '/' + year.slice(2); };
   return <Panel title="Net Daily P/L">
     <div className="flex shrink-0 justify-between text-[10px] text-text-tertiary"><span>Loss</span><span>Profit</span></div>
-    <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Daily net profit and loss over time" className="w-full flex-1 min-h-0">
+    <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Daily net profit and loss over time" preserveAspectRatio="none" className="dashboard-responsive-chart w-full flex-1 min-h-0">
       {[0,1,2,3,4].map(index => { const y=pad.top+index*(height-pad.top-pad.bottom)/4; const value=maxValue-(index*maxValue*2/4); return <g key={index}><line x1={pad.left} x2={width-pad.right} y1={y} y2={y} stroke="rgb(var(--border))" strokeDasharray="3 4"/><text x={pad.left-8} y={y+4} textAnchor="end" fill="rgb(var(--text-tertiary))" fontSize="10">{'$' + Math.round(value).toLocaleString()}</text></g>; })}
       <line x1={pad.left} x2={width-pad.right} y1={zeroY} y2={zeroY} stroke="rgb(var(--text-secondary))" strokeDasharray="4 3"/>
       {daily.map(([date,day],index)=>{const value=day.totalPL; const barHeight=Math.abs(value)/maxValue*((height-pad.top-pad.bottom)/2-4); const x=pad.left+index*gap+(gap-barWidth)/2; return <rect key={date} x={x} y={value>=0?zeroY-barHeight:zeroY} width={barWidth} height={Math.max(1,barHeight)} fill={value>=0?'rgb(var(--positive))':'rgb(var(--negative))'}><title>{date}: {day.tradeCount} trades · {'$' + value.toFixed(2)}</title></rect>;})}
@@ -248,7 +248,7 @@ const MonteCarloTile = ({ trades, settings }) => {
           <div className="bg-bg-page rounded-lg px-2 py-2 text-center"><div className="text-text-secondary text-[9px] uppercase">Median Days</div><div className="text-base font-bold text-text-primary">{results.medianDaysToPass > 0 ? results.medianDaysToPass.toFixed(1) : '—'}</div></div>
         </div>
         <div className="dashboard-monte-chart flex-1 min-h-0 min-w-0 overflow-hidden">
-          <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Monte Carlo simulated equity paths" className="w-full h-full min-h-0">
+          <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Monte Carlo simulated equity paths" preserveAspectRatio="none" className="dashboard-responsive-chart w-full h-full min-h-0">
             {[0, 1, 2, 3, 4, 5].map(index => {
               const y = padding.top + (chartHeight / 5) * index;
               const value = maxValue - (range / 5) * index;
@@ -299,7 +299,7 @@ const createAnalyticsChartTiles = (trades = [], options = {}) => {
           {[['Total P/L', '$'+running.toFixed(2), running>=0],['Highest equity', '$'+highEquity.toFixed(2), true],['Max drawdown', '$'+maxEquityDrawdown.toFixed(2), false],['Trades', String(trades.length), true]].map(([label,value,positive])=><div key={label} className="min-w-0 rounded bg-bg-page px-2 py-2"><div className="text-[9px] uppercase text-text-tertiary">{label}</div><div className={'text-xs font-semibold truncate '+(label==='Trades'?'text-text-primary':positive?'text-positive':'text-negative')}>{value}</div></div>)}
         </div>
         <div className="dashboard-equity-chart flex-1 min-h-0 min-w-0 overflow-hidden">
-          <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Cumulative profit and loss with dates and zero reference" className="w-full h-full min-h-0">
+          <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Cumulative profit and loss with dates and zero reference" preserveAspectRatio="none" className="dashboard-responsive-chart w-full h-full min-h-0">
             <defs><linearGradient id="equity-area-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="rgb(var(--positive))" stopOpacity="0.24"/><stop offset={((zeroY / height) * 100) + '%'} stopColor="rgb(var(--positive))" stopOpacity="0.03"/><stop offset={((zeroY / height) * 100) + '%'} stopColor="rgb(var(--negative))" stopOpacity="0.03"/><stop offset="100%" stopColor="rgb(var(--negative))" stopOpacity="0.24"/></linearGradient></defs>
             {[0,1,2,3,4].map(index => { const y=pad.top+index*chartHeight/4, value=max-index*range/4; return <g key={index}><line x1={pad.left} x2={width-pad.right} y1={y} y2={y} stroke="rgb(var(--border))"/><text x={pad.left-8} y={y+4} textAnchor="end" fill="rgb(var(--text-tertiary))" fontSize="11">{'$'+Math.round(value).toLocaleString()}</text></g>; })}
             <line x1={pad.left} x2={width-pad.right} y1={zeroY} y2={zeroY} stroke="rgb(var(--text-secondary))" strokeDasharray="4 4"/>
