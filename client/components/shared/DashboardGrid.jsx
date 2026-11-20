@@ -705,21 +705,22 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
               )}
               {item.render()}
               {editing && [
-                { corner: 'nw', position: 'left-1 top-1', cursor: 'cursor-nwse-resize' },
-                { corner: 'ne', position: 'right-1 top-1', cursor: 'cursor-nesw-resize' },
-                { corner: 'sw', position: 'left-1 bottom-1', cursor: 'cursor-nesw-resize' },
-                { corner: 'se', position: 'right-1 bottom-1', cursor: 'cursor-nwse-resize' },
+                { corner: 'nw', style: { top: 4, left: 4 }, cursor: 'cursor-nwse-resize' },
+                { corner: 'ne', style: { top: 4, right: 4 }, cursor: 'cursor-nesw-resize' },
+                { corner: 'sw', style: { bottom: 4, left: 4 }, cursor: 'cursor-nesw-resize' },
+                { corner: 'se', style: { bottom: 4, right: 4 }, cursor: 'cursor-nwse-resize' },
               ].map(handle => (
-                <div
+                <button
                   key={handle.corner}
-                  role="separator"
+                  type="button"
                   aria-label={`Resize ${item.label} from ${handle.corner.toUpperCase()} corner`}
                   title={`Drag to resize from ${handle.corner.toUpperCase()} corner`}
                   onPointerDown={event => startResize(event, item, handle.corner)}
                   onPointerMove={moveResize}
                   onPointerUp={stopResize}
                   onPointerCancel={stopResize}
-                  className={`absolute z-30 ${handle.position} w-4 h-4 rounded-sm border-[3px] border-accent bg-bg-page shadow-md ${handle.cursor} touch-none select-none`}
+                  className={`absolute z-30 appearance-none box-border rounded-sm border-[3px] border-accent bg-bg-page shadow-md p-0 ${handle.cursor} touch-none select-none`}
+                  style={{ ...handle.style, width: 18, height: 18, minWidth: 18, minHeight: 18, flex: 'none' }}
                 />
               ))}
             </div>
