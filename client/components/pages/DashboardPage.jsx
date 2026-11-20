@@ -184,7 +184,7 @@ const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpe
 
       <DashboardGrid
         storageKey="rrmetrics_dashboard_tiles"
-        defaultOrder={['totalPL', 'winRate', 'totalTrades', 'avgDuration', 'avgWinLoss', 'bestTrade', 'worstTrade', 'breakevenRate', 'profitFactor', 'expectancy', 'maxDrawdown', 'sharpeRatio', 'sortinoRatio', 'kellyRisk', 'tradingCalendar', 'longShortBreakdown', 'detailedStatistics', 'tickerPerformance', 'dailyNetPL', 'equityCurve', 'performanceByDay', 'performanceByEntryTime', 'monteCarloSimulation']}
+        defaultOrder={['totalPL', 'winRate', 'totalTrades', 'avgDuration', 'avgWinLoss', 'bestTrade', 'worstTrade', 'breakevenRate', 'profitFactor', 'expectancy', 'maxDrawdown', 'sharpeRatio', 'sortinoRatio', 'kellyRisk', 'tradingCalendar', 'longShortBreakdown', 'detailedStatistics', 'tickerPerformance', 'dailyNetPL', 'equityCurve', 'performanceByDay', 'performanceByEntryTime', 'monteCarloSimulation', 'tradingScore']}
         defaultVisible={['totalPL', 'winRate', 'totalTrades', 'avgDuration', 'avgWinLoss', 'bestTrade', 'worstTrade', 'breakevenRate', 'tradingCalendar']}
         items={performanceTiles}
       />
