@@ -219,7 +219,7 @@ const MonteCarloTile = ({ trades, settings, settingsControl }) => {
   const [runVersion, setRunVersion] = useState(0);
   const results = useMemo(() => runMonteCarloSimulation(trades, settings), [trades, settings.profitTarget, settings.maxDrawdown, runVersion]);
   if (results.insufficientTrades || !results.paths || results.paths.length === 0) {
-    return <Panel title={<span className="flex items-center gap-2">Monte Carlo Eval Simulation <InfoTooltip text="Historical trade P/L is sampled with replacement at the rounded average trades-per-day rate. Drawdown is checked at the end of each simulated day. Results are illustrative, not a prediction." /></span>}><p className="text-sm text-text-tertiary">At least five trades are needed to run the simulation.</p></Panel>;
+    return <Panel title={<span className="flex items-center gap-1">Monte Carlo Eval Simulation <InfoTooltip text="Historical trade P/L is sampled with replacement at the rounded average trades-per-day rate. Drawdown is checked at the end of each simulated day. Results are illustrative, not a prediction." /></span>}><p className="text-sm text-text-tertiary">At least five trades are needed to run the simulation.</p></Panel>;
   }
   let maxDay = 1, minValue = 0, maxValue = 0;
   results.paths.forEach(path => {
