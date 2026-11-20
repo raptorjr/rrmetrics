@@ -1,11 +1,12 @@
 const React = require('react');
 const { useMemo, useState } = React;
-const { getTradePL, runMonteCarloSimulation } = require('../../utils/analytics');
+const { getTradePL, runMonteCarloSimulation, groupTradesByDate } = require('../../utils/analytics');
 const { isBreakevenTrade } = require('../../utils/tickValues');
 const { toEST, formatDuration } = require('../../utils/dateUtils');
 const InfoTooltip = require('./InfoTooltip');
 
 const DEFINITIONS = [
+  { id: 'dailyNetPL', label: 'Net Daily P/L', category: 'Charts', minColumns: 1, minRows: 1, defaultColumns: 6, defaultRows: 2, description: "Shows net profit and loss for each trading day over time." },
   { id: 'equityCurve', label: 'Equity Curve', category: 'Charts', minColumns: 1, minRows: 1, defaultColumns: 4, defaultRows: 2, description: "Tracks cumulative profit and loss in exit-time order across the selected trades." },
   { id: 'performanceByDay', label: 'Performance by Day', category: 'Charts', minColumns: 1, minRows: 1, defaultColumns: 4, defaultRows: 2, description: "Shows total profit and loss grouped by weekday of trade exit." },
   { id: 'performanceByEntryTime', label: 'Performance by Entry Time', category: 'Charts', minColumns: 1, minRows: 1, defaultColumns: 6, defaultRows: 2, description: "Groups trades into 30-minute entry-time buckets and compares average or total P/L." },
@@ -16,6 +17,12 @@ const Panel = ({ title, children }) => <div className="dashboard-tile-panel h-fu
 const Preview = ({ item }) => (
   <div className="h-[82px] rounded-md border border-border bg-bg-page p-2 flex flex-col justify-between overflow-hidden">
     <span className="text-[10px] font-semibold text-text-secondary">{item.label}</span>
+    {item.id === 'dailyNetPL' && (
+      <svg viewBox="0 0 240 52" className="w-full h-12" role="img" aria-label="Illustrative daily net profit and loss">
+        <line x1="2" x2="238" y1="27" y2="27" stroke="rgb(var(--border))" />
+        {[12,-8,18,-16,8,-22,14,6,-12,20,-5].map((value,index)=><rect key={index} x={5+index*21} y={value>=0?27-value:27} width="12" height={Math.abs(value)} rx="1" fill={value>=0?'rgb(var(--positive))':'rgb(var(--negative))'}/>)}
+      </svg>
+    )}
     {item.id === 'equityCurve' && (
       <svg viewBox="0 0 240 52" className="w-full h-12" role="img" aria-label="Illustrative rising equity curve">
         <line x1="2" x2="238" y1="44" y2="44" stroke="rgb(var(--border))" strokeDasharray="3 3" />
@@ -181,6 +188,256 @@ const PerformanceByDayTile = ({ trades }) => {
         <tbody>{stats.filter(day => day.count > 0).map(day => <tr key={day.day} className="border-b border-border/50"><td className="py-1.5">{day.day}</td><td className="text-right">{day.count}</td><td className="text-right">{day.wins}</td><td className="text-right">{day.losses}</td><td className="text-right">{day.winRate.toFixed(1)}%</td><td className={'text-right ' + (day.totalPL >= 0 ? 'text-positive' : 'text-negative')}>${day.totalPL.toFixed(2)}</td><td className={'text-right ' + (day.avgPL >= 0 ? 'text-positive' : 'text-negative')}>${day.avgPL.toFixed(2)}</td></tr>)}</tbody>
       </table>
     </div>}
+  </Panel>;
+};
+
+const DailyNetPLTile = ({ trades }) => {
+  const daily = useMemo(() => Object.entries(groupTradesByDate(trades)).sort(([a],[b]) => a.localeCompare(b)), [trades]);
+  const values = daily.map(([, day]) => day.totalPL);
+  const maxValue = Math.max(1, ...values.map(Math.abs));
+  const width = 900, height = 300, pad = { left: 58, right: 18, top: 18, bottom: 36 };
+  const chartWidth = width - pad.left - pad.right, zeroY = height / 2;
+  const gap = daily.length ? chartWidth / daily.length : chartWidth;
+  const barWidth = Math.max(1, Math.min(8, gap * 0.72));
+  const dateLabel = value => { const [year,month,day] = value.split('-'); return month + '/' + day + '/' + year.slice(2); };
+  return <Panel title="Net Daily P/L">
+    <div className="flex shrink-0 justify-between text-[10px] text-text-tertiary"><span>Loss</span><span>Profit</span></div>
+    <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Daily net profit and loss over time" className="w-full flex-1 min-h-0">
+      {[0,1,2,3,4].map(index => { const y=pad.top+index*(height-pad.top-pad.bottom)/4; const value=maxValue-(index*maxValue*2/4); return <g key={index}><line x1={pad.left} x2={width-pad.right} y1={y} y2={y} stroke="rgb(var(--border))" strokeDasharray="3 4"/><text x={pad.left-8} y={y+4} textAnchor="end" fill="rgb(var(--text-tertiary))" fontSize="10">{'
+  const [runVersion, setRunVersion] = useState(0);
+  const results = useMemo(() => runMonteCarloSimulation(trades, settings), [trades, settings.profitTarget, settings.maxDrawdown, runVersion]);
+  if (results.insufficientTrades || !results.paths || results.paths.length === 0) {
+    return <Panel title={<span className="flex items-center gap-2">Monte Carlo Eval Simulation <InfoTooltip text="Historical trade P/L is sampled with replacement at the rounded average trades-per-day rate. Drawdown is checked at the end of each simulated day. Results are illustrative, not a prediction." /></span>}><p className="text-sm text-text-tertiary">At least five trades are needed to run the simulation.</p></Panel>;
+  }
+  let maxDay = 1, minValue = 0, maxValue = 0;
+  results.paths.forEach(path => {
+    maxDay = Math.max(maxDay, path.points.length);
+    path.points.forEach(value => { minValue = Math.min(minValue, value); maxValue = Math.max(maxValue, value); });
+  });
+  maxValue = maxValue > 0 ? maxValue * 1.05 : maxValue * 0.95;
+  minValue = minValue < 0 ? minValue * 1.05 : minValue * 0.95;
+  const range = maxValue - minValue || 1;
+  const width = 900, height = 300;
+  const padding = { top: 18, right: 18, bottom: 28, left: 58 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const toX = day => padding.left + (day / Math.max(1, maxDay - 1)) * chartWidth;
+  const toY = value => padding.top + ((maxValue - value) / range) * chartHeight;
+
+  return (
+    <Panel title="Monte Carlo Eval Simulation">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 text-[10px] text-text-tertiary mb-1">
+        <span>{results.totalSimulations.toLocaleString()} simulations · ${results.profitTarget.toLocaleString()} target · ${results.maxDrawdown.toLocaleString()} EOD drawdown</span><button type="button" onClick={() => setRunVersion(value => value + 1)} className="shrink-0 rounded border border-border px-2 py-1 text-text-secondary hover:text-text-primary">↻ Recalculate</button>
+      </div>
+      
+      <div className="w-full flex-1 min-h-0 min-w-0 overflow-hidden">
+        <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Monte Carlo simulated equity paths" className="w-full h-full min-h-0">
+          {[0, 1, 2, 3, 4, 5].map(index => {
+            const y = padding.top + (chartHeight / 5) * index;
+            const value = maxValue - (range / 5) * index;
+            return <g key={index}><line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="rgb(var(--border))" /><text x={padding.left - 8} y={y + 4} textAnchor="end" fill="rgb(var(--text-tertiary))" fontSize="10">{'$' + value.toFixed(0)}</text></g>;
+          })}
+          <line x1={padding.left} x2={width - padding.right} y1={toY(0)} y2={toY(0)} stroke="rgb(var(--text-tertiary))" strokeDasharray="3 3" />
+          {results.paths.map((path, pathIndex) => {
+            const points = path.points.map((value, index) => toX(index).toFixed(1) + ',' + toY(value).toFixed(1)).join(' ');
+            return <polyline key={pathIndex} points={points} fill="none" stroke={path.passed ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} strokeOpacity={path.passed ? 0.25 : 0.2} strokeWidth="1" />;
+          })}
+        </svg>
+      </div>
+      <div className="grid grid-cols-3 gap-2 mt-2 shrink-0">
+        <div className="bg-bg-page rounded-lg p-2 text-center"><div className="text-text-secondary text-[10px] uppercase">Pass Rate</div><div className={'text-lg font-bold ' + (results.passRate >= 50 ? 'text-positive' : 'text-negative')}>{results.passRate.toFixed(1)}%</div></div>
+        <div className="bg-bg-page rounded-lg p-3 text-center"><div className="text-text-secondary text-[10px] uppercase">Avg Days to Pass</div><div className="text-xl font-bold text-text-primary">{results.avgDaysToPass > 0 ? results.avgDaysToPass.toFixed(1) : '—'}</div></div>
+        <div className="bg-bg-page rounded-lg p-3 text-center"><div className="text-text-secondary text-[10px] uppercase">Median Days to Pass</div><div className="text-xl font-bold text-text-primary">{results.medianDaysToPass > 0 ? results.medianDaysToPass.toFixed(1) : '—'}</div></div>
+      </div>
+    </Panel>
+  );
+};
+
+const createAnalyticsChartTiles = (trades = [], options = {}) => {
+  const monteCarloSettings = options.monteCarloSettings || { profitTarget: 3000, maxDrawdown: 2000 };
+  const onMonteCarloSettingsChange = options.onMonteCarloSettingsChange || (() => {});
+  const entryTimeMode = options.entryTimeMode === 'total' ? 'total' : 'avg';
+  const onEntryTimeModeChange = options.onEntryTimeModeChange || (() => {});
+  const defs = Object.fromEntries(DEFINITIONS.map(item => [item.id, item]));
+  const tile = (id, render) => ({ ...defs[id], preview: <Preview item={defs[id]} />, render });
+  const sorted = [...trades].sort((a, b) => new Date(a.exitTime) - new Date(b.exitTime));
+  const cumulative = [];
+  let running = 0;
+  sorted.forEach(trade => { running += getTradePL(trade); cumulative.push(running); });
+  const width = 900, height = 300, pad = { left: 62, right: 22, top: 24, bottom: 38 };
+  const chartWidth = width - pad.left - pad.right, chartHeight = height - pad.top - pad.bottom;
+  const min = Math.min(0, ...cumulative), max = Math.max(0, ...cumulative), range = max - min || 1;
+  const points = cumulative.map((value, index) => ({
+    x: pad.left + (cumulative.length <= 1 ? chartWidth / 2 : index * chartWidth / (cumulative.length - 1)),
+    y: pad.top + ((max - value) / range) * chartHeight,
+  }));
+  const path = points.map((point, index) => (index ? 'L' : 'M') + ' ' + point.x.toFixed(1) + ' ' + point.y.toFixed(1)).join(' ');
+  const zeroY = pad.top + (max / range) * chartHeight;
+  const areaPath = points.length ? path + ' L ' + points[points.length - 1].x.toFixed(1) + ' ' + zeroY.toFixed(1) + ' L ' + points[0].x.toFixed(1) + ' ' + zeroY.toFixed(1) + ' Z' : '';
+  let equityPeak = 0, maxEquityDrawdown = 0;
+  cumulative.forEach(value => { equityPeak = Math.max(equityPeak, value); maxEquityDrawdown = Math.max(maxEquityDrawdown, equityPeak - value); });
+  const highEquity = cumulative.length ? Math.max(...cumulative) : 0;
+  const dateLabel = value => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, { month: '2-digit', day: '2-digit', year: '2-digit' }); };
+  return [
+    tile('dailyNetPL', () => <DailyNetPLTile trades={trades} />),
+    tile('equityCurve', () => <Panel title={<span className="flex items-center gap-2">Equity Curve <InfoTooltip text="Cumulative net trade P/L in exit-time order. The area is shaded around zero. Maximum drawdown measures the largest decline from a previous cumulative P/L peak." /></span>}>
+      {trades.length ? <>
+        <div className="w-full flex-1 min-h-0 min-w-0 overflow-hidden">
+          <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Cumulative profit and loss with dates and zero reference" className="w-full h-full min-h-0">
+            <defs><linearGradient id="equity-area-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="rgb(var(--positive))" stopOpacity="0.24"/><stop offset={((zeroY / height) * 100) + '%'} stopColor="rgb(var(--positive))" stopOpacity="0.03"/><stop offset={((zeroY / height) * 100) + '%'} stopColor="rgb(var(--negative))" stopOpacity="0.03"/><stop offset="100%" stopColor="rgb(var(--negative))" stopOpacity="0.24"/></linearGradient></defs>
+            {[0,1,2,3,4].map(index => { const y=pad.top+index*chartHeight/4, value=max-index*range/4; return <g key={index}><line x1={pad.left} x2={width-pad.right} y1={y} y2={y} stroke="rgb(var(--border))"/><text x={pad.left-8} y={y+4} textAnchor="end" fill="rgb(var(--text-tertiary))" fontSize="11">{'$'+Math.round(value).toLocaleString()}</text></g>; })}
+            <line x1={pad.left} x2={width-pad.right} y1={zeroY} y2={zeroY} stroke="rgb(var(--text-secondary))" strokeDasharray="4 4"/>
+            {areaPath && <path d={areaPath} fill="url(#equity-area-gradient)"/>}
+            {points.length>1 && <path d={path} fill="none" stroke={running>=0?'rgb(var(--positive))':'rgb(var(--negative))'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>}
+            {[0,1,2,3,4].map(index=>{const pointIndex=Math.round(index*(sorted.length-1)/4); return sorted[pointIndex] ? <text key={index} x={pad.left+index*chartWidth/4} y={height-8} textAnchor="middle" fill="rgb(var(--text-secondary))" fontSize="11">{dateLabel(sorted[pointIndex].exitTime)}</text> : null;})}
+          </svg>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 shrink-0 mt-1">
+          {[['Total P/L', '$'+running.toFixed(2), running>=0],['Highest equity', '$'+highEquity.toFixed(2), true],['Max drawdown', '$'+maxEquityDrawdown.toFixed(2), false],['Trades', String(trades.length), true]].map(([label,value,positive])=><div key={label} className="min-w-0 rounded bg-bg-page px-2 py-1.5"><div className="text-[9px] uppercase text-text-tertiary">{label}</div><div className={'text-xs font-semibold truncate '+(label==='Trades'?'text-text-primary':positive?'text-positive':'text-negative')}>{value}</div></div>)}
+        </div>
+      </> : <p className="text-sm text-text-tertiary">No trades available</p>}
+    </Panel>),
+    tile('performanceByDay', () => <PerformanceByDayTile trades={trades} />),
+    tile('performanceByEntryTime', () => <EntryTimeTile trades={trades} mode={entryTimeMode} onModeChange={onEntryTimeModeChange} />),
+    {
+      ...tile('monteCarloSimulation', () => <MonteCarloTile trades={trades} settings={monteCarloSettings} />),
+      settings: [
+        {
+          id: 'profitTarget', label: 'Profit target ($)', description: 'Evaluation profit target used by each simulation.',
+          type: 'number', min: 1, step: 100, value: monteCarloSettings.profitTarget,
+          onChange: value => onMonteCarloSettingsChange('profitTarget', value),
+        },
+        {
+          id: 'maxDrawdown', label: 'Maximum drawdown ($)', description: 'Trailing drawdown limit checked at the end of each simulated day.',
+          type: 'number', min: 1, step: 100, value: monteCarloSettings.maxDrawdown,
+          onChange: value => onMonteCarloSettingsChange('maxDrawdown', value),
+        },
+      ],
+    },
+  ];
+};
+
+module.exports = { ANALYTICS_CHART_TILE_DEFINITIONS: DEFINITIONS, createAnalyticsChartTiles };
++Math.round(value).toLocaleString()}</text></g>; })}
+      <line x1={pad.left} x2={width-pad.right} y1={zeroY} y2={zeroY} stroke="rgb(var(--text-secondary))" strokeDasharray="4 3"/>
+      {daily.map(([date,day],index)=>{const value=day.totalPL; const barHeight=Math.abs(value)/maxValue*((height-pad.top-pad.bottom)/2-4); const x=pad.left+index*gap+(gap-barWidth)/2; return <rect key={date} x={x} y={value>=0?zeroY-barHeight:zeroY} width={barWidth} height={Math.max(1,barHeight)} fill={value>=0?'rgb(var(--positive))':'rgb(var(--negative))'}><title>{date}: {day.tradeCount} trades · {'
+  const [runVersion, setRunVersion] = useState(0);
+  const results = useMemo(() => runMonteCarloSimulation(trades, settings), [trades, settings.profitTarget, settings.maxDrawdown, runVersion]);
+  if (results.insufficientTrades || !results.paths || results.paths.length === 0) {
+    return <Panel title={<span className="flex items-center gap-2">Monte Carlo Eval Simulation <InfoTooltip text="Historical trade P/L is sampled with replacement at the rounded average trades-per-day rate. Drawdown is checked at the end of each simulated day. Results are illustrative, not a prediction." /></span>}><p className="text-sm text-text-tertiary">At least five trades are needed to run the simulation.</p></Panel>;
+  }
+  let maxDay = 1, minValue = 0, maxValue = 0;
+  results.paths.forEach(path => {
+    maxDay = Math.max(maxDay, path.points.length);
+    path.points.forEach(value => { minValue = Math.min(minValue, value); maxValue = Math.max(maxValue, value); });
+  });
+  maxValue = maxValue > 0 ? maxValue * 1.05 : maxValue * 0.95;
+  minValue = minValue < 0 ? minValue * 1.05 : minValue * 0.95;
+  const range = maxValue - minValue || 1;
+  const width = 900, height = 300;
+  const padding = { top: 18, right: 18, bottom: 28, left: 58 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const toX = day => padding.left + (day / Math.max(1, maxDay - 1)) * chartWidth;
+  const toY = value => padding.top + ((maxValue - value) / range) * chartHeight;
+
+  return (
+    <Panel title="Monte Carlo Eval Simulation">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 text-[10px] text-text-tertiary mb-1">
+        <span>{results.totalSimulations.toLocaleString()} simulations · ${results.profitTarget.toLocaleString()} target · ${results.maxDrawdown.toLocaleString()} EOD drawdown</span><button type="button" onClick={() => setRunVersion(value => value + 1)} className="shrink-0 rounded border border-border px-2 py-1 text-text-secondary hover:text-text-primary">↻ Recalculate</button>
+      </div>
+      
+      <div className="w-full flex-1 min-h-0 min-w-0 overflow-hidden">
+        <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Monte Carlo simulated equity paths" className="w-full h-full min-h-0">
+          {[0, 1, 2, 3, 4, 5].map(index => {
+            const y = padding.top + (chartHeight / 5) * index;
+            const value = maxValue - (range / 5) * index;
+            return <g key={index}><line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="rgb(var(--border))" /><text x={padding.left - 8} y={y + 4} textAnchor="end" fill="rgb(var(--text-tertiary))" fontSize="10">{'$' + value.toFixed(0)}</text></g>;
+          })}
+          <line x1={padding.left} x2={width - padding.right} y1={toY(0)} y2={toY(0)} stroke="rgb(var(--text-tertiary))" strokeDasharray="3 3" />
+          {results.paths.map((path, pathIndex) => {
+            const points = path.points.map((value, index) => toX(index).toFixed(1) + ',' + toY(value).toFixed(1)).join(' ');
+            return <polyline key={pathIndex} points={points} fill="none" stroke={path.passed ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} strokeOpacity={path.passed ? 0.25 : 0.2} strokeWidth="1" />;
+          })}
+        </svg>
+      </div>
+      <div className="grid grid-cols-3 gap-2 mt-2 shrink-0">
+        <div className="bg-bg-page rounded-lg p-2 text-center"><div className="text-text-secondary text-[10px] uppercase">Pass Rate</div><div className={'text-lg font-bold ' + (results.passRate >= 50 ? 'text-positive' : 'text-negative')}>{results.passRate.toFixed(1)}%</div></div>
+        <div className="bg-bg-page rounded-lg p-3 text-center"><div className="text-text-secondary text-[10px] uppercase">Avg Days to Pass</div><div className="text-xl font-bold text-text-primary">{results.avgDaysToPass > 0 ? results.avgDaysToPass.toFixed(1) : '—'}</div></div>
+        <div className="bg-bg-page rounded-lg p-3 text-center"><div className="text-text-secondary text-[10px] uppercase">Median Days to Pass</div><div className="text-xl font-bold text-text-primary">{results.medianDaysToPass > 0 ? results.medianDaysToPass.toFixed(1) : '—'}</div></div>
+      </div>
+    </Panel>
+  );
+};
+
+const createAnalyticsChartTiles = (trades = [], options = {}) => {
+  const monteCarloSettings = options.monteCarloSettings || { profitTarget: 3000, maxDrawdown: 2000 };
+  const onMonteCarloSettingsChange = options.onMonteCarloSettingsChange || (() => {});
+  const entryTimeMode = options.entryTimeMode === 'total' ? 'total' : 'avg';
+  const onEntryTimeModeChange = options.onEntryTimeModeChange || (() => {});
+  const defs = Object.fromEntries(DEFINITIONS.map(item => [item.id, item]));
+  const tile = (id, render) => ({ ...defs[id], preview: <Preview item={defs[id]} />, render });
+  const sorted = [...trades].sort((a, b) => new Date(a.exitTime) - new Date(b.exitTime));
+  const cumulative = [];
+  let running = 0;
+  sorted.forEach(trade => { running += getTradePL(trade); cumulative.push(running); });
+  const width = 900, height = 300, pad = { left: 62, right: 22, top: 24, bottom: 38 };
+  const chartWidth = width - pad.left - pad.right, chartHeight = height - pad.top - pad.bottom;
+  const min = Math.min(0, ...cumulative), max = Math.max(0, ...cumulative), range = max - min || 1;
+  const points = cumulative.map((value, index) => ({
+    x: pad.left + (cumulative.length <= 1 ? chartWidth / 2 : index * chartWidth / (cumulative.length - 1)),
+    y: pad.top + ((max - value) / range) * chartHeight,
+  }));
+  const path = points.map((point, index) => (index ? 'L' : 'M') + ' ' + point.x.toFixed(1) + ' ' + point.y.toFixed(1)).join(' ');
+  const zeroY = pad.top + (max / range) * chartHeight;
+  const areaPath = points.length ? path + ' L ' + points[points.length - 1].x.toFixed(1) + ' ' + zeroY.toFixed(1) + ' L ' + points[0].x.toFixed(1) + ' ' + zeroY.toFixed(1) + ' Z' : '';
+  let equityPeak = 0, maxEquityDrawdown = 0;
+  cumulative.forEach(value => { equityPeak = Math.max(equityPeak, value); maxEquityDrawdown = Math.max(maxEquityDrawdown, equityPeak - value); });
+  const highEquity = cumulative.length ? Math.max(...cumulative) : 0;
+  const dateLabel = value => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, { month: '2-digit', day: '2-digit', year: '2-digit' }); };
+  return [
+    tile('equityCurve', () => <Panel title={<span className="flex items-center gap-2">Equity Curve <InfoTooltip text="Cumulative net trade P/L in exit-time order. The area is shaded around zero. Maximum drawdown measures the largest decline from a previous cumulative P/L peak." /></span>}>
+      {trades.length ? <>
+        <div className="w-full flex-1 min-h-0 min-w-0 overflow-hidden">
+          <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Cumulative profit and loss with dates and zero reference" className="w-full h-full min-h-0">
+            <defs><linearGradient id="equity-area-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="rgb(var(--positive))" stopOpacity="0.24"/><stop offset={((zeroY / height) * 100) + '%'} stopColor="rgb(var(--positive))" stopOpacity="0.03"/><stop offset={((zeroY / height) * 100) + '%'} stopColor="rgb(var(--negative))" stopOpacity="0.03"/><stop offset="100%" stopColor="rgb(var(--negative))" stopOpacity="0.24"/></linearGradient></defs>
+            {[0,1,2,3,4].map(index => { const y=pad.top+index*chartHeight/4, value=max-index*range/4; return <g key={index}><line x1={pad.left} x2={width-pad.right} y1={y} y2={y} stroke="rgb(var(--border))"/><text x={pad.left-8} y={y+4} textAnchor="end" fill="rgb(var(--text-tertiary))" fontSize="11">{'$'+Math.round(value).toLocaleString()}</text></g>; })}
+            <line x1={pad.left} x2={width-pad.right} y1={zeroY} y2={zeroY} stroke="rgb(var(--text-secondary))" strokeDasharray="4 4"/>
+            {areaPath && <path d={areaPath} fill="url(#equity-area-gradient)"/>}
+            {points.length>1 && <path d={path} fill="none" stroke={running>=0?'rgb(var(--positive))':'rgb(var(--negative))'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>}
+            {[0,1,2,3,4].map(index=>{const pointIndex=Math.round(index*(sorted.length-1)/4); return sorted[pointIndex] ? <text key={index} x={pad.left+index*chartWidth/4} y={height-8} textAnchor="middle" fill="rgb(var(--text-secondary))" fontSize="11">{dateLabel(sorted[pointIndex].exitTime)}</text> : null;})}
+          </svg>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 shrink-0 mt-1">
+          {[['Total P/L', '$'+running.toFixed(2), running>=0],['Highest equity', '$'+highEquity.toFixed(2), true],['Max drawdown', '$'+maxEquityDrawdown.toFixed(2), false],['Trades', String(trades.length), true]].map(([label,value,positive])=><div key={label} className="min-w-0 rounded bg-bg-page px-2 py-1.5"><div className="text-[9px] uppercase text-text-tertiary">{label}</div><div className={'text-xs font-semibold truncate '+(label==='Trades'?'text-text-primary':positive?'text-positive':'text-negative')}>{value}</div></div>)}
+        </div>
+      </> : <p className="text-sm text-text-tertiary">No trades available</p>}
+    </Panel>),
+    tile('performanceByDay', () => <PerformanceByDayTile trades={trades} />),
+    tile('performanceByEntryTime', () => <EntryTimeTile trades={trades} mode={entryTimeMode} onModeChange={onEntryTimeModeChange} />),
+    {
+      ...tile('monteCarloSimulation', () => <MonteCarloTile trades={trades} settings={monteCarloSettings} />),
+      settings: [
+        {
+          id: 'profitTarget', label: 'Profit target ($)', description: 'Evaluation profit target used by each simulation.',
+          type: 'number', min: 1, step: 100, value: monteCarloSettings.profitTarget,
+          onChange: value => onMonteCarloSettingsChange('profitTarget', value),
+        },
+        {
+          id: 'maxDrawdown', label: 'Maximum drawdown ($)', description: 'Trailing drawdown limit checked at the end of each simulated day.',
+          type: 'number', min: 1, step: 100, value: monteCarloSettings.maxDrawdown,
+          onChange: value => onMonteCarloSettingsChange('maxDrawdown', value),
+        },
+      ],
+    },
+  ];
+};
+
+module.exports = { ANALYTICS_CHART_TILE_DEFINITIONS: DEFINITIONS, createAnalyticsChartTiles };
++value.toFixed(2)}</title></rect>;})}
+      {[0,1,2,3,4].map(index=>{const entry=daily[Math.round(index*(daily.length-1)/4)];return entry?<text key={index} x={pad.left+index*chartWidth/4} y={height-8} textAnchor="middle" fill="rgb(var(--text-secondary))" fontSize="11">{dateLabel(entry[0])}</text>:null;})}
+    </svg>
+    <div className="shrink-0 text-right text-[10px] text-text-tertiary">{daily.length} trading days</div>
   </Panel>;
 };
 
