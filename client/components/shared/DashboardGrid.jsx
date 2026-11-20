@@ -152,6 +152,37 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     .map(id => items.find(item => item.id === id))
     .filter(Boolean);
   const visibleItems = orderedItems.filter(item => !layout.hidden.includes(item.id));
+  const renderSettingsControl = item => {
+    if (!Array.isArray(item.settings) || item.settings.length === 0) return null;
+    return (
+      <details className="relative">
+        <summary className="list-none cursor-pointer flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg-page/95 text-xs text-text-secondary shadow-sm hover:bg-bg-input" aria-label={`Configure ${item.label}`} title={`Configure ${item.label}`}>⚙</summary>
+        <div className="absolute right-0 top-9 z-50 w-64 max-w-[80vw] rounded-lg border border-border bg-bg-surface p-3 shadow-xl space-y-3 text-left normal-case tracking-normal">
+          <div className="text-xs font-semibold text-text-primary">{item.label} settings</div>
+          {item.settings.map(setting => (
+            <label key={setting.id} className="block space-y-1">
+              <span className="block text-xs text-text-secondary">{setting.label}</span>
+              {setting.description && <span className="block text-[10px] text-text-tertiary">{setting.description}</span>}
+              <input
+                type={setting.type || 'number'}
+                value={settingDrafts[item.id + ':' + setting.id] ?? setting.value}
+                min={setting.min}
+                max={setting.max}
+                step={setting.step || 'any'}
+                onFocus={() => updateSettingDraft(item.id + ':' + setting.id, String(setting.value))}
+                onChange={event => updateSettingDraft(item.id + ':' + setting.id, event.target.value)}
+                onBlur={event => commitSettingDraft(item.id + ':' + setting.id, setting)}
+                onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }}
+                className="w-full rounded-md border border-border bg-bg-input px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent"
+              />
+            </label>
+          ))}
+          <p className="text-[10px] text-text-tertiary">Press Enter or leave a field to apply its value.</p>
+        </div>
+      </details>
+    );
+  };
+
 
   const toggleItem = (id) => {
     setLayout(current => {
@@ -584,45 +615,18 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                   className={`pointer-events-none absolute z-40 left-1 right-1 ${dropTarget.position === 'before' ? 'top-0' : 'bottom-0'} h-1.5 rounded-full bg-accent shadow-[0_0_0_3px_rgba(99,102,241,0.18)]`}
                 />
               )}
-              {(editing || (Array.isArray(item.settings) && item.settings.length > 0)) && (
-                <div className="absolute z-40 flex items-center gap-1" style={{ top: 12, right: 48, transform: item.id === 'kellyRisk' ? 'translateY(-36px)' : undefined }}>
-                  {editing && <button
+              {editing && (
+                <div className="absolute z-40 top-3 right-3">
+                  <button
                     type="button"
                     aria-label={`Remove ${item.label} from dashboard`}
                     title="Remove tile"
                     onClick={() => removeItem(item.id)}
                     className="flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg-page/95 text-base font-semibold text-text-secondary shadow-sm hover:border-red-500/40 hover:bg-red-500/15 hover:text-red-500"
-                  >×</button>}
-                  {Array.isArray(item.settings) && item.settings.length > 0 && (
-                    <details className="relative">
-                      <summary className="list-none cursor-pointer flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg-page/95 text-xs text-text-secondary shadow-sm hover:bg-bg-input" aria-label={`Configure ${item.label}`} title={`Configure ${item.label}`}>⚙</summary>
-                      <div className="absolute right-0 top-9 z-50 w-64 max-w-[80vw] rounded-lg border border-border bg-bg-surface p-3 shadow-xl space-y-3 text-left normal-case tracking-normal">
-                        <div className="text-xs font-semibold text-text-primary">{item.label} settings</div>
-                        {item.settings.map(setting => (
-                          <label key={setting.id} className="block space-y-1">
-                            <span className="block text-xs text-text-secondary">{setting.label}</span>
-                            {setting.description && <span className="block text-[10px] text-text-tertiary">{setting.description}</span>}
-                            <input
-                              type={setting.type || 'number'}
-                              value={settingDrafts[item.id + ':' + setting.id] ?? setting.value}
-                              min={setting.min}
-                              max={setting.max}
-                              step={setting.step || 'any'}
-                              onFocus={() => updateSettingDraft(item.id + ':' + setting.id, String(setting.value))}
-                              onChange={event => updateSettingDraft(item.id + ':' + setting.id, event.target.value)}
-                              onBlur={() => commitSettingDraft(item.id + ':' + setting.id, setting)}
-                              onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }}
-                              className="w-full rounded-md border border-border bg-bg-input px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent"
-                            />
-                          </label>
-                        ))}
-                        <p className="text-[10px] text-text-tertiary">Press Enter or leave a field to apply its value.</p>
-                      </div>
-                    </details>
-                  )}
+                  >×</button>
                 </div>
               )}
-              {item.render()}
+              {item.render({ settingsControl: renderSettingsControl(item) })}
               {editing && [
                 { corner: 'nw', style: { top: 4, left: 4 }, cursor: 'cursor-nwse-resize' },
                 { corner: 'ne', style: { top: 4, right: 4 }, cursor: 'cursor-nesw-resize' },
