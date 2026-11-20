@@ -5,10 +5,10 @@ const { isBreakevenTrade } = require('../../utils/tickValues');
 const { toEST } = require('../../utils/dateUtils');
 
 const DEFINITIONS = [
-  { id: 'equityCurve', label: 'Equity Curve', category: 'Charts', minColumns: 2, minRows: 2, defaultColumns: 4, defaultRows: 2, description: "Tracks cumulative profit and loss in exit-time order across the selected trades." },
-  { id: 'performanceByDay', label: 'Performance by Day', category: 'Charts', minColumns: 2, minRows: 2, defaultColumns: 4, defaultRows: 2, description: "Shows total profit and loss grouped by weekday of trade exit." },
-  { id: 'performanceByEntryTime', label: 'Performance by Entry Time', category: 'Charts', minColumns: 2, minRows: 2, defaultColumns: 6, defaultRows: 2, description: "Groups trades into 30-minute entry-time buckets and compares average or total P/L." },
-  { id: 'monteCarloSimulation', label: 'Monte Carlo Simulation', category: 'Risk', minColumns: 2, minRows: 2, defaultColumns: 6, defaultRows: 2, description: "Runs repeated simulations of the observed trade outcomes to estimate evaluation pass probability and time to pass." },
+  { id: 'equityCurve', label: 'Equity Curve', category: 'Charts', minColumns: 1, minRows: 1, defaultColumns: 4, defaultRows: 2, description: "Tracks cumulative profit and loss in exit-time order across the selected trades." },
+  { id: 'performanceByDay', label: 'Performance by Day', category: 'Charts', minColumns: 1, minRows: 1, defaultColumns: 4, defaultRows: 2, description: "Shows total profit and loss grouped by weekday of trade exit." },
+  { id: 'performanceByEntryTime', label: 'Performance by Entry Time', category: 'Charts', minColumns: 1, minRows: 1, defaultColumns: 6, defaultRows: 2, description: "Groups trades into 30-minute entry-time buckets and compares average or total P/L." },
+  { id: 'monteCarloSimulation', label: 'Monte Carlo Simulation', category: 'Risk', minColumns: 1, minRows: 1, defaultColumns: 6, defaultRows: 2, description: "Runs repeated simulations of the observed trade outcomes to estimate evaluation pass probability and time to pass." },
 ];
 
 const Panel = ({ title, children }) => <div className="h-full min-h-0 min-w-0 overflow-hidden flex flex-col bg-bg-surface border border-border rounded-xl p-3 md:p-4"><h3 className="shrink-0 text-text-primary font-semibold text-sm mb-2">{title}</h3><div className="flex-1 min-h-0 min-w-0 flex flex-col">{children}</div></div>;
