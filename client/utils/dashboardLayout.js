@@ -43,6 +43,43 @@ const getDropPositionFromGrab = ({ clientX, clientY, bounds, columns, grabOffset
   };
 };
 
+const getResizedTileGeometry = ({
+  position,
+  size,
+  corner,
+  deltaX,
+  deltaY,
+  gridWidth,
+  columns,
+  gap = 16,
+  rowUnit = 128,
+  minW = 1,
+  minH = 1,
+  maxW = MAX_COLUMNS,
+  maxH = MAX_ROWS,
+}) => {
+  const west = corner.endsWith('w');
+  const north = corner.startsWith('n');
+  const availableWidth = Math.max(1, gridWidth - gap * (columns - 1));
+  const trackWidth = availableWidth / columns;
+  const logicalColumnWidth = (trackWidth + gap) * columns / MAX_COLUMNS;
+  const widthDelta = Math.round(deltaX / logicalColumnWidth) * (west ? -1 : 1);
+  const heightDelta = Math.round(deltaY / rowUnit) * (north ? -1 : 1);
+
+  const widthLimit = west ? position.col + size.w - 1 : MAX_COLUMNS - position.col + 1;
+  const heightLimit = north ? position.row + size.h - 1 : MAX_ROWS - position.row + 1;
+  const nextW = clamp(size.w + widthDelta, minW, Math.min(maxW, widthLimit));
+  const nextH = clamp(size.h + heightDelta, minH, Math.min(maxH, heightLimit));
+
+  return {
+    size: { w: nextW, h: nextH },
+    position: {
+      col: west ? position.col + size.w - nextW : position.col,
+      row: north ? position.row + size.h - nextH : position.row,
+    },
+  };
+};
+
 const placeTileAndDisplace = (tileId, target, order, hidden, sizes, savedPositions = {}) => {
   const visible = order.filter(id => !hidden.includes(id));
   const positions = { ...savedPositions };
@@ -226,6 +263,7 @@ module.exports = {
   completePositions,
   findAvailablePosition,
   getDropPositionFromGrab,
+  getResizedTileGeometry,
   placeTileAndDisplace,
   normalizeLayout,
   readLayoutFromValue,
