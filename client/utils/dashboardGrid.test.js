@@ -6,6 +6,7 @@ const {
   getDefaultSize,
   completePositions,
   findAvailablePosition,
+  placeTileAndDisplace,
   createStarterLayout,
   STARTER_LAYOUTS,
 } = require('./dashboardLayout');
@@ -141,4 +142,67 @@ test('an independent tile can be placed in empty space without requiring an adja
 test('calendar minimum size is four columns by five rows', () => {
   const calendar = items.find(item => item.id === 'tradingCalendar');
   assert.deepEqual(getDefaultSize(calendar), { w: 4, h: 5 });
+});
+
+
+test('reordering tiles preserves their manually assigned positions', () => {
+  const positions = {
+    totalPL: { col: 1, row: 1 },
+    tradingCalendar: { col: 3, row: 2 },
+    equityCurve: { col: 7, row: 2 },
+  };
+  const reordered = completePositions(
+    ['equityCurve', 'totalPL', 'tradingCalendar'],
+    [],
+    {
+      totalPL: { w: 1, h: 1 },
+      tradingCalendar: { w: 4, h: 5 },
+      equityCurve: { w: 2, h: 2 },
+    },
+    positions
+  );
+
+  assert.deepEqual(reordered, positions);
+});
+
+test('moving a calendar into another tile displaces only the tile in its way', () => {
+  const sizes = {
+    totalPL: { w: 1, h: 1 },
+    tradingCalendar: { w: 4, h: 5 },
+    equityCurve: { w: 2, h: 2 },
+    performanceByDay: { w: 2, h: 2 },
+  };
+  const positions = {
+    totalPL: { col: 1, row: 1 },
+    tradingCalendar: { col: 3, row: 2 },
+    equityCurve: { col: 7, row: 2 },
+    performanceByDay: { col: 1, row: 8 },
+  };
+
+  const moved = placeTileAndDisplace(
+    'tradingCalendar',
+    { col: 5, row: 2 },
+    ['totalPL', 'tradingCalendar', 'equityCurve', 'performanceByDay'],
+    [],
+    sizes,
+    positions
+  );
+
+  assert.deepEqual(moved.tradingCalendar, { col: 5, row: 2 });
+  assert.deepEqual(moved.totalPL, positions.totalPL);
+  assert.deepEqual(moved.performanceByDay, positions.performanceByDay);
+  assert.notDeepEqual(moved.equityCurve, positions.equityCurve);
+
+  const occupied = [];
+  for (const id of ['totalPL', 'tradingCalendar', 'equityCurve', 'performanceByDay']) {
+    const p = moved[id];
+    const size = sizes[id];
+    assert.equal(occupied.some(entry =>
+      p.col < entry.col + entry.w
+      && p.col + size.w > entry.col
+      && p.row < entry.row + entry.h
+      && p.row + size.h > entry.row
+    ), false, `Unexpected overlap for ${id}`);
+    occupied.push({ ...p, ...size });
+  }
 });
