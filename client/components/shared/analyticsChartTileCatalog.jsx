@@ -366,8 +366,8 @@ const TradingScoreTile = ({ trades }) => {
       ) : (
         <>
           <div className="flex flex-row items-center justify-center gap-4 min-h-0">
-            <div className="w-[38%] max-w-[250px] min-w-0 shrink-0 flex items-center justify-center">
-              <svg viewBox="0 0 320 210" role="img" aria-label="Radar chart of six RR Trading Score dimensions" className="w-full h-auto">
+            <div className="w-[58%] max-w-[420px] min-w-0 shrink-0 flex items-center justify-center">
+              <svg viewBox="0 0 320 210" role="img" aria-label="Radar chart of six RR Trading Score dimensions. Hover over a label or point to see the metric value and score." className="w-full h-auto">
                 {[20,40,60,80,100].map(level=>{
                   const pts=result.metrics.map((metric,index)=>polar(level,index));
                   return <polygon key={level} points={pts.map(p=>p.x+','+p.y).join(' ')} fill="none" stroke="rgb(var(--border))" strokeWidth="1"/>;
@@ -377,18 +377,17 @@ const TradingScoreTile = ({ trades }) => {
                   return <line key={metric.id} x1={center.x} y1={center.y} x2={p.x} y2={p.y} stroke="rgb(var(--border))" strokeWidth="1"/>;
                 })}
                 <polygon points={polygon} fill="rgb(var(--accent))" fillOpacity="0.22" stroke="rgb(var(--accent))" strokeWidth="2"/>
-                {radarPoints.map((p,index)=><circle key={result.metrics[index].id} cx={p.x} cy={p.y} r="3.5" fill="rgb(var(--accent))" stroke="rgb(var(--bg-surface))" strokeWidth="1.5"/>)}
-                {labelPoints.map(({x,y,metric,anchor})=><text key={metric.id} x={x} y={y+4} textAnchor={anchor} fill="rgb(var(--text-secondary))" fontSize="9">{metric.label}</text>)}
+                {radarPoints.map((p,index)=>{
+                  const metric=result.metrics[index];
+                  return <circle key={metric.id} cx={p.x} cy={p.y} r="5" fill="rgb(var(--accent))" stroke="rgb(var(--bg-surface))" strokeWidth="1.5" className="cursor-help">
+                    <title>{metric.label}: {metric.displayValue} · Score {Math.round(metric.score)}/100 · Weight {metric.weight}%&#10;{metric.explanation}</title>
+                  </circle>;
+                })}
+                {labelPoints.map(({x,y,metric,anchor})=><text key={metric.id} x={x} y={y+4} textAnchor={anchor} fill="rgb(var(--text-secondary))" fontSize="9" className="cursor-help">
+                  <title>{metric.label}: {metric.displayValue} · Score {Math.round(metric.score)}/100 · Weight {metric.weight}%&#10;{metric.explanation}</title>
+                  {metric.label}
+                </text>)}
               </svg>
-            </div>
-            <div className="flex-1 min-w-0 grid grid-cols-2 gap-x-4 gap-y-2">
-              {result.metrics.map(metric=><div key={metric.id} className="min-w-0 border-b border-border/60 pb-1">
-                <div className="text-[10px] text-text-tertiary truncate">{metric.label}</div>
-                <div className="flex items-baseline justify-between gap-1">
-                  <span className="text-sm font-semibold text-text-primary tabular-nums">{metric.displayValue}</span>
-                  <span className="text-[10px] text-text-secondary tabular-nums">{Math.round(metric.score)}/100</span>
-                </div>
-              </div>)}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 shrink-0">
