@@ -413,6 +413,10 @@ const TradingScoreTile = ({ trades }) => {
           )}
           {view === 'details' && (
             <div className="flex-1 min-h-0 overflow-y-auto rounded-lg bg-bg-page px-3 py-2">
+              <div className="flex justify-end gap-3 pb-2 text-[10px] text-text-tertiary tabular-nums">
+                <span>{result.totalTrades.toLocaleString()} trades</span>
+                <span>{result.tradingDays.toLocaleString()} trading days</span>
+              </div>
               <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1.5fr)_minmax(76px,0.8fr)_minmax(64px,0.6fr)_minmax(54px,0.5fr)] gap-x-3 border-b border-border/70 bg-bg-page py-2 text-[10px] uppercase tracking-wide text-text-tertiary">
                 <span>Dimension</span><span className="text-right">Actual</span><span className="text-right">Score</span><span className="text-right">Weight</span>
               </div>
@@ -430,12 +434,7 @@ const TradingScoreTile = ({ trades }) => {
               <div className="pt-2 text-[10px] text-text-tertiary">Scores are weighted to form your overall RR Trading Score.</div>
             </div>
           )}
-          <div className="flex justify-end shrink-0 text-right text-[10px] text-text-tertiary tabular-nums">
-            <div>
-              <div>{result.totalTrades.toLocaleString()} trades</div>
-              <div>{result.tradingDays.toLocaleString()} trading days</div>
-            </div>
-          </div>
+
         </>
       )}
     </div>
