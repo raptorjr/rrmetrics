@@ -1,5 +1,5 @@
 const React = require('react');
-const { useState } = React;
+const { useState, useMemo } = React;
 
 const KELLY_DRAWDOWN_STORAGE_KEY = 'rrmetrics_kelly_drawdown';
 const DEFAULT_KELLY_DRAWDOWN = 2000;
@@ -102,9 +102,9 @@ const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpe
     try { await onManualSync(); } finally { setSyncing(false); }
   };
 
-  const baseTrades = applyEvalFilter(trades, evalFilter);
-  const dateRange = getDateRange(period);
-  const filteredTrades = filterTradesByDateRange(baseTrades, dateRange);
+  const baseTrades = useMemo(() => applyEvalFilter(trades, evalFilter), [trades, evalFilter]);
+  const dateRange = useMemo(() => getDateRange(period), [period]);
+  const filteredTrades = useMemo(() => filterTradesByDateRange(baseTrades, dateRange), [baseTrades, dateRange]);
   const stats = calculateAnalytics(filteredTrades);
 
   const prevRange = getPreviousDateRange(period);
