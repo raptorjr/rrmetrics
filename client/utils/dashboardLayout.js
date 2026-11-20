@@ -8,12 +8,58 @@ const getDefaultSize = (item) => ({
   h: clamp(Math.trunc(Number(item.defaultRows) || 1), Number(item.minRows) || 1, MAX_ROWS),
 });
 
+const hasCollision = (candidate, size, occupied) => occupied.some(entry =>
+  candidate.col < entry.col + entry.w
+  && candidate.col + size.w > entry.col
+  && candidate.row < entry.row + entry.h
+  && candidate.row + size.h > entry.row
+);
+
+const findAvailablePosition = (size, occupied, preferred = { col: 1, row: 1 }) => {
+  const startCol = clamp(Math.trunc(preferred.col) || 1, 1, Math.max(1, MAX_COLUMNS - size.w + 1));
+  const startRow = Math.max(1, Math.trunc(preferred.row) || 1);
+  for (let rowOffset = 0; rowOffset < 1000; rowOffset += 1) {
+    const row = startRow + rowOffset;
+    const columns = rowOffset === 0
+      ? [...Array.from({ length: MAX_COLUMNS - startCol - size.w + 2 }, (_, index) => startCol + index),
+        ...Array.from({ length: startCol - 1 }, (_, index) => index + 1)]
+      : Array.from({ length: MAX_COLUMNS - size.w + 1 }, (_, index) => index + 1);
+    for (const col of columns) {
+      const candidate = { col, row };
+      if (!hasCollision(candidate, size, occupied)) return candidate;
+    }
+  }
+  return { col: 1, row: startRow + 1000 };
+};
+
+const completePositions = (order, hidden, sizes, savedPositions = {}) => {
+  const hiddenSet = new Set(hidden);
+  const positions = {};
+  const occupied = [];
+  order.filter(id => !hiddenSet.has(id)).forEach(id => {
+    const size = sizes[id] || { w: 1, h: 1 };
+    const saved = savedPositions[id];
+    const candidate = saved && {
+      col: clamp(Math.trunc(Number(saved.col) || 1), 1, Math.max(1, MAX_COLUMNS - size.w + 1)),
+      row: Math.max(1, Math.trunc(Number(saved.row) || 1)),
+    };
+    const position = candidate && !hasCollision(candidate, size, occupied)
+      ? candidate
+      : findAvailablePosition(size, occupied);
+    positions[id] = position;
+    occupied.push({ ...position, w: size.w, h: size.h });
+  });
+  return positions;
+};
+
 const normalizeLayout = (saved, defaultOrder, defaultVisible, items) => {
   const ids = items.map(item => item.id);
   const valid = new Set(ids);
   const defaults = [...new Set(defaultOrder.filter(id => valid.has(id))), ...ids.filter(id => !defaultOrder.includes(id))];
   if (!saved || !Array.isArray(saved.order) || !Array.isArray(saved.hidden)) {
-    return { gridVersion: 2, order: defaults, hidden: defaults.filter(id => !defaultVisible.includes(id)), sizes: Object.fromEntries(items.map(item => [item.id, getDefaultSize(item)])), positions: {} };
+    const hidden = defaults.filter(id => !defaultVisible.includes(id));
+    const sizes = Object.fromEntries(items.map(item => [item.id, getDefaultSize(item)]));
+    return { gridVersion: 2, order: defaults, hidden, sizes, positions: completePositions(defaults, hidden, sizes) };
   }
   const savedOrder = [...new Set(saved.order.filter(id => valid.has(id)))];
   const newIds = defaults.filter(id => !savedOrder.includes(id));
@@ -40,7 +86,7 @@ const normalizeLayout = (saved, defaultOrder, defaultVisible, items) => {
     col: clamp(Math.trunc(Number(point.col)), 1, MAX_COLUMNS),
     row: Math.max(1, Math.trunc(Number(point.row))),
   }]));
-  return { gridVersion: 2, order, hidden, sizes, positions };
+  return { gridVersion: 2, order, hidden, sizes, positions: completePositions(order, hidden, sizes, positions) };
 };
 
 const readLayoutFromValue = (saved, defaultOrder, defaultVisible, items) => {
@@ -114,7 +160,8 @@ const createStarterLayout = (starter, items, currentOrder = []) => {
       h: clamp(Math.trunc(Number(preferred.h) || fallback.h), Number(item.minRows) || 1, MAX_ROWS),
     }];
   }));
-  return { gridVersion: 2, order, hidden: ids.filter(id => !visible.has(id)), sizes, positions: {} };
+  const hidden = ids.filter(id => !visible.has(id));
+  return { gridVersion: 2, order, hidden, sizes, positions: completePositions(order, hidden, sizes) };
 };
 
 module.exports = {
@@ -122,6 +169,8 @@ module.exports = {
   MAX_ROWS,
   clamp,
   getDefaultSize,
+  completePositions,
+  findAvailablePosition,
   normalizeLayout,
   readLayoutFromValue,
   STARTER_LAYOUTS,
