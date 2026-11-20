@@ -733,3 +733,35 @@
     display: block;
   }
 }
+
+
+/* Chart axis labels share the brighter contrast used by Performance by Day. */
+.dashboard-responsive-chart .chart-axis-label {
+  fill: rgb(var(--text-primary));
+  font-size: 12px;
+}
+
+/* Reduce tick density as the tile narrows, keeping the remaining labels readable. */
+@container dashboard-tile (max-width: 650px) {
+  .dashboard-responsive-chart .chart-x-label-1,
+  .dashboard-responsive-chart .chart-x-label-3,
+  .dashboard-responsive-chart .chart-y-label-1,
+  .dashboard-responsive-chart .chart-y-label-3 {
+    display: none;
+  }
+  .dashboard-responsive-chart .chart-axis-label {
+    font-size: 13px;
+  }
+}
+@container dashboard-tile (max-width: 400px) {
+  .dashboard-responsive-chart .chart-x-label-1,
+  .dashboard-responsive-chart .chart-x-label-3,
+  .dashboard-responsive-chart .chart-y-label-1,
+  .dashboard-responsive-chart .chart-y-label-2,
+  .dashboard-responsive-chart .chart-y-label-3 {
+    display: none;
+  }
+  .dashboard-responsive-chart .chart-axis-label {
+    font-size: 14px;
+  }
+}
