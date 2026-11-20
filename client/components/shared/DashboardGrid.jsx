@@ -7,7 +7,6 @@ const {
   clamp,
   getDefaultSize,
   completePositions,
-  findAvailablePosition,
   placeTileAndDisplace,
   normalizeLayout,
   readLayoutFromValue,
