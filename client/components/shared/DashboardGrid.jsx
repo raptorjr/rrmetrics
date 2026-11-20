@@ -642,6 +642,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                   title={`Drag to resize from ${handle.corner.toUpperCase()} corner`}
                   onPointerDown={event => startResize(event, item, handle.corner)}
                   className={`dashboard-resize-handle dashboard-resize-handle-${handle.corner} absolute z-30 box-border appearance-none border-0 bg-transparent p-0 text-accent ${handle.cursor} touch-none select-none`}
+                  style={{ ...handle.style, width: 28, height: 28, minWidth: 28, minHeight: 28, flex: "none" }}
                 />
               ))}
             </div>
