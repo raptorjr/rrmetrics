@@ -13,7 +13,7 @@ const AvgWinLossCard = ({ avgWin, avgLoss, tooltip = 'Compares the average size 
           <div className="text-text-secondary text-xs font-medium uppercase tracking-wider mb-2 flex items-center gap-1.5">
             Avg Win / Loss <InfoTooltip text={tooltip} />
           </div>
-          <div className="font-mono text-2xl font-bold text-text-primary">{ratio}</div>
+          <div className="font-mono text-3xl font-bold text-text-primary">{ratio}</div>
         </div>
         <div className="avg-win-loss-breakdown flex-1 flex flex-col gap-2 ml-0 min-w-0">
           <div
