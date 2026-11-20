@@ -197,19 +197,46 @@ const PerformanceByDayTile = ({ trades }) => {
 const DailyNetPLTile = ({ trades }) => {
   const daily = useMemo(() => Object.entries(groupTradesByDate(trades)).sort(([a],[b]) => a.localeCompare(b)), [trades]);
   const values = daily.map(([, day]) => day.totalPL);
-  const maxValue = Math.max(1, ...values.map(Math.abs));
-  const width = 900, height = 300, pad = { left: 58, right: 18, top: 18, bottom: 36 };
-  const chartWidth = width - pad.left - pad.right, zeroY = pad.top + (height - pad.top - pad.bottom) / 2;
+  const minValue = Math.min(0, ...values);
+  const maxValue = Math.max(0, ...values);
+  const rawStep = Math.max(1, (maxValue - minValue) / 5);
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const normalizedStep = rawStep / magnitude;
+  const step = (normalizedStep <= 1 ? 1 : normalizedStep <= 2 ? 2 : normalizedStep <= 5 ? 5 : 10) * magnitude;
+  let axisMin = Math.floor(minValue / step) * step;
+  let axisMax = Math.ceil(maxValue / step) * step;
+  if (axisMin === axisMax) { axisMin -= step; axisMax += step; }
+  const ticks = [];
+  for (let value = axisMin; value <= axisMax + step * 0.001; value += step) ticks.push(value);
+  const width = 900, height = 300, pad = { left: 72, right: 18, top: 18, bottom: 36 };
+  const chartWidth = width - pad.left - pad.right;
+  const chartHeight = height - pad.top - pad.bottom;
+  const yForValue = value => pad.top + ((axisMax - value) / (axisMax - axisMin)) * chartHeight;
+  const zeroY = yForValue(0);
   const gap = daily.length ? chartWidth / daily.length : chartWidth;
   const barWidth = Math.max(1, Math.min(8, gap * 0.72));
   const dateLabel = value => { const [year,month,day] = value.split('-'); return month + '/' + day + '/' + year.slice(2); };
-  return <Panel title="Net Daily P/L">
-    <div className="flex shrink-0 justify-between text-[10px] text-text-tertiary"><span>Loss</span><span>Profit</span></div>
+  const axisLabel = value => (value < 0 ? '-$' : '$') + Math.abs(value).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  return <Panel title={<span className="flex items-center gap-1">Net Daily P/L <InfoTooltip text="Net profit or loss for each trading day. Green bars are profitable days; red bars are losing days. The horizontal axis marks zero." /></span>}>
     <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Daily net profit and loss over time" preserveAspectRatio="none" className="dashboard-responsive-chart w-full flex-1 min-h-0">
-      {[0,1,2,3,4].map(index => { const y=pad.top+index*(height-pad.top-pad.bottom)/4; const value=maxValue-(index*maxValue*2/4); return <g key={index}><line x1={pad.left} x2={width-pad.right} y1={y} y2={y} stroke="rgb(var(--border))" strokeDasharray="3 4"/><text x={pad.left-8} y={y+4} textAnchor="end" className={`chart-axis-label chart-y-label chart-y-label-${index}`} fill="rgb(var(--text-primary))" fontSize="12">{'$' + Math.round(value).toLocaleString()}</text></g>; })}
-      <line x1={pad.left} x2={width-pad.right} y1={zeroY} y2={zeroY} stroke="rgb(var(--text-secondary))" strokeDasharray="4 3"/>
-      {daily.map(([date,day],index)=>{const value=day.totalPL; const barHeight=Math.abs(value)/maxValue*((height-pad.top-pad.bottom)/2-4); const x=pad.left+index*gap+(gap-barWidth)/2; return <rect key={date} x={x} y={value>=0?zeroY-barHeight:zeroY} width={barWidth} height={Math.max(1,barHeight)} fill={value>=0?'rgb(var(--positive))':'rgb(var(--negative))'}><title>{date}: {day.tradeCount} trades · {'$' + value.toFixed(2)}</title></rect>;})}
-      {[0,1,2,3,4].map(index=>{const entry=daily[Math.round(index*(daily.length-1)/4)];return entry?<text key={index} x={pad.left+index*chartWidth/4} y={height-8} textAnchor="middle" className={`chart-axis-label chart-x-label chart-x-label-${index}` } fill="rgb(var(--text-primary))" fontSize="12">{dateLabel(entry[0])}</text>:null;})}
+      {ticks.map((value, index) => {
+        const y = yForValue(value);
+        return <g key={value}>
+          <line x1={pad.left} x2={width-pad.right} y1={y} y2={y} stroke="rgb(var(--text-tertiary))" strokeWidth="1" strokeDasharray="2 4" opacity="0.42" />
+          <text x={pad.left-9} y={y+4} textAnchor="end" className={'chart-axis-label chart-y-label chart-y-label-' + index} fill="rgb(var(--text-primary))" fontSize="12">{axisLabel(value)}</text>
+        </g>;
+      })}
+      <line x1={pad.left} x2={width-pad.right} y1={zeroY} y2={zeroY} stroke="rgb(var(--text-secondary))" strokeWidth="1.2" strokeDasharray="4 3" />
+      {daily.map(([date,day],index)=>{
+        const value=day.totalPL;
+        const valueY=yForValue(value);
+        const x=pad.left+index*gap+(gap-barWidth)/2;
+        return <rect key={date} x={x} y={Math.min(zeroY,valueY)} width={barWidth} height={Math.max(1,Math.abs(zeroY-valueY))} fill={value>=0?'rgb(var(--positive))':'rgb(var(--negative))'}><title>{date}: {day.tradeCount} trades · {(value < 0 ? '-$' : '$') + Math.abs(value).toFixed(2)}</title></rect>;
+      })}
+      {[0,1,2,3,4].map(index=>{
+        const entry=daily[Math.round(index*(daily.length-1)/4)];
+        return entry?<text key={index} x={pad.left+index*chartWidth/4} y={height-8} textAnchor="middle" className={'chart-axis-label chart-x-label chart-x-label-'+index} fill="rgb(var(--text-primary))" fontSize="12">{dateLabel(entry[0])}</text>:null;
+      })}
     </svg>
     <div className="shrink-0 text-right text-[10px] text-text-tertiary">{daily.length} trading days</div>
   </Panel>;
