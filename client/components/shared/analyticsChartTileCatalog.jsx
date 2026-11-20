@@ -12,7 +12,43 @@ const DEFINITIONS = [
 ];
 
 const Panel = ({ title, children }) => <div className="h-full min-h-[260px] bg-bg-surface border border-border rounded-xl p-5"><h3 className="text-text-primary font-semibold mb-4">{title}</h3>{children}</div>;
-const Preview = ({ item }) => <div className="h-[82px] rounded-md border border-border bg-bg-page p-2 flex flex-col justify-between"><span className="text-[10px] font-semibold text-text-secondary">{item.label}</span><div className="flex items-end gap-1 h-10"><i className="h-3 flex-1 rounded-sm bg-positive/40" /><i className="h-6 flex-1 rounded-sm bg-positive/50" /><i className="h-4 flex-1 rounded-sm bg-negative/50" /><i className="h-8 flex-1 rounded-sm bg-positive/70" /><i className="h-10 flex-1 rounded-sm bg-positive" /></div></div>;
+const Preview = ({ item }) => (
+  <div className="h-[82px] rounded-md border border-border bg-bg-page p-2 flex flex-col justify-between overflow-hidden">
+    <span className="text-[10px] font-semibold text-text-secondary">{item.label}</span>
+    {item.id === 'equityCurve' && (
+      <svg viewBox="0 0 240 52" className="w-full h-12" role="img" aria-label="Illustrative rising equity curve">
+        <line x1="2" x2="238" y1="44" y2="44" stroke="var(--border)" strokeDasharray="3 3" />
+        <path d="M 4 42 L 28 36 L 52 39 L 78 25 L 102 30 L 128 18 L 152 22 L 178 11 L 202 15 L 236 5" fill="none" stroke="var(--positive)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )}
+    {item.id === 'performanceByDay' && (
+      <svg viewBox="0 0 240 52" className="w-full h-12" role="img" aria-label="Illustrative profit and loss by weekday">
+        <line x1="2" x2="238" y1="27" y2="27" stroke="var(--border)" />
+        {[12, 23, -9, 17, -15, 28, 7].map((value, index) => {
+          const height = Math.abs(value);
+          return <rect key={index} x={12 + index * 33} y={value >= 0 ? 27 - height : 27} width="17" height={height} rx="2" fill={value >= 0 ? 'var(--positive)' : 'var(--negative)'} opacity="0.8" />;
+        })}
+      </svg>
+    )}
+    {item.id === 'performanceByEntryTime' && (
+      <svg viewBox="0 0 240 52" className="w-full h-12" role="img" aria-label="Illustrative performance by entry time">
+        <line x1="2" x2="238" y1="27" y2="27" stroke="var(--border)" />
+        {[8, 18, -8, 24, 14, -13, 30, 19, 9, -5, 22].map((value, index) => {
+          const height = Math.abs(value);
+          return <rect key={index} x={5 + index * 21} y={value >= 0 ? 27 - height : 27} width="13" height={height} rx="2" fill={value >= 0 ? 'var(--positive)' : 'var(--negative)'} opacity="0.8" />;
+        })}
+      </svg>
+    )}
+    {item.id === 'monteCarloSimulation' && (
+      <svg viewBox="0 0 240 52" className="w-full h-12" role="img" aria-label="Illustrative Monte Carlo simulation paths">
+        <line x1="2" x2="238" y1="44" y2="44" stroke="var(--border)" strokeDasharray="3 3" />
+        <polyline points="4,44 34,37 64,40 94,27 124,31 154,20 184,15 214,7 236,5" fill="none" stroke="var(--positive)" strokeWidth="1.8" opacity="0.8" />
+        <polyline points="4,44 34,48 64,35 94,39 124,29 154,33 184,24 214,26 236,17" fill="none" stroke="var(--positive)" strokeWidth="1.5" opacity="0.45" />
+        <polyline points="4,44 34,31 64,35 94,42 124,39 154,47 184,41 214,44 236,36" fill="none" stroke="var(--negative)" strokeWidth="1.5" opacity="0.45" />
+      </svg>
+    )}
+  </div>
+);
 
 const EntryTimeTile = ({ trades, mode, onModeChange }) => {
   const [showTable, setShowTable] = useState(false);
