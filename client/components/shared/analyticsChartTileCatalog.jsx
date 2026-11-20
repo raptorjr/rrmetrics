@@ -2,7 +2,8 @@ const React = require('react');
 const { useMemo, useState } = React;
 const { getTradePL, runMonteCarloSimulation } = require('../../utils/analytics');
 const { isBreakevenTrade } = require('../../utils/tickValues');
-const { toEST } = require('../../utils/dateUtils');
+const { toEST, formatDuration } = require('../../utils/dateUtils');
+const InfoTooltip = require('./InfoTooltip');
 
 const DEFINITIONS = [
   { id: 'equityCurve', label: 'Equity Curve', category: 'Charts', minColumns: 1, minRows: 1, defaultColumns: 4, defaultRows: 2, description: "Tracks cumulative profit and loss in exit-time order across the selected trades." },
@@ -85,7 +86,7 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
   const maxValue = Math.max(1, ...values.map(Math.abs));
   const width = 900, height = 260, padding = 28, zeroY = 112, chartHalfHeight = 76;
   const barGap = (width - padding * 2) / timeStats.length;
-  const barWidth = barGap * 0.64;
+  const barWidth = barGap * 0.38;
 
   return (
     <Panel title="Performance by Entry Time">
@@ -108,7 +109,7 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
             const tooltip = stat.time + ' · ' + stat.count + ' trades · ' + stat.breakevens + ' breakeven · ' + stat.winRate.toFixed(1) + '% win rate · PF ' + pf + ' · Total $' + stat.totalPL.toFixed(2) + ' · Average $' + stat.avgPL.toFixed(2);
             return <g key={stat.time}>
               {stat.count > 0 && <rect x={x} y={y} width={barWidth} height={Math.max(1, barHeight)} rx="2" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} opacity="0.85"><title>{tooltip}</title></rect>}
-              {(index % 6 === 0 || index === timeStats.length - 1) && <text x={x + barWidth / 2} y="224" textAnchor="middle" fill="rgb(var(--text-tertiary))" fontSize="10">{stat.time}</text>}
+              {(index % 6 === 0 || index === timeStats.length - 1) && <text x={x + barWidth / 2} y="224" textAnchor="middle" fill="rgb(var(--text-secondary))" fontSize="11">{stat.time}</text>}
             </g>;
           })}
         </svg>
