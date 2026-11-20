@@ -608,52 +608,91 @@
   }
 }
 
-@container dashboard-tile (max-width: 520px) {
+/* Chart tiles use the full width for the chart by default. */
+.dashboard-monte-layout,
+.dashboard-equity-layout {
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.dashboard-monte-summary,
+.dashboard-equity-summary {
+  width: 100%;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0.4rem;
+}
+.dashboard-monte-summary > div,
+.dashboard-equity-summary > div {
+  flex: 1;
+  padding: 0.4rem 0.5rem;
+}
+.dashboard-monte-summary .text-base,
+.dashboard-equity-summary .text-xs {
+  font-size: 0.75rem;
+}
+.dashboard-monte-chart,
+.dashboard-equity-chart {
+  flex: 1;
+}
+
+/* A narrow but tall tile can use a compact vertical summary beside its chart. */
+@container dashboard-tile (max-width: 520px) and (min-height: 260px) {
+  .dashboard-monte-layout,
+  .dashboard-equity-layout {
+    flex-direction: row;
+  }
+  .dashboard-monte-summary,
+  .dashboard-equity-summary {
+    width: 7rem;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .dashboard-monte-summary > div,
+  .dashboard-equity-summary > div {
+    flex: initial;
+    padding: 0.35rem;
+  }
+}
+
+/* On very narrow tiles, use a 2x2 summary above the chart instead. */
+@container dashboard-tile (max-width: 360px) {
   .dashboard-monte-layout,
   .dashboard-equity-layout {
     flex-direction: column;
-    gap: 0.5rem;
   }
   .dashboard-monte-summary,
   .dashboard-equity-summary {
     width: 100%;
-    flex-direction: row;
-    align-items: stretch;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex-direction: initial;
     gap: 0.35rem;
   }
   .dashboard-monte-summary > div,
   .dashboard-equity-summary > div {
-    flex: 1;
-    padding: 0.35rem;
+    min-width: 0;
+    padding: 0.3rem;
   }
   .dashboard-monte-summary .text-base,
   .dashboard-equity-summary .text-xs {
     font-size: 0.7rem;
   }
-  .dashboard-monte-chart,
-  .dashboard-equity-chart {
-    flex: 1;
-  }
 }
-@container analytical-chart-tile (max-height: 190px) {
+
+/* Short tiles prioritize chart height; compact stats remain in a row above. */
+@container dashboard-tile (max-height: 190px) {
   .dashboard-monte-layout,
   .dashboard-equity-layout {
-    flex-direction: row;
+    flex-direction: column;
   }
   .dashboard-monte-summary,
   .dashboard-equity-summary {
-    width: 6.5rem;
-    flex-direction: column;
+    width: 100%;
+    flex-direction: row;
   }
   .dashboard-monte-summary > div,
   .dashboard-equity-summary > div {
-    padding: 0.3rem;
-  }
-}
-@container analytical-chart-tile (max-width: 340px) {
-  .dashboard-monte-summary .text-[9px],
-  .dashboard-equity-summary .text-[9px] {
-    font-size: 7px;
+    padding: 0.25rem 0.35rem;
   }
 }
 
