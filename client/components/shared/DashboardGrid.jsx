@@ -581,41 +581,18 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                 />
               )}
               {editing && (
-                <div className="absolute z-20 top-2 right-2 flex items-center gap-1 rounded-md bg-bg-page/95 border border-border px-1.5 py-1 text-[10px] text-text-secondary">
-                  <span className="select-none pointer-events-none">⠿ Move</span>
+                <div className="absolute z-40 top-2 right-2 flex items-center gap-1">
                   <button
                     type="button"
                     aria-label={`Remove ${item.label} from dashboard`}
                     title="Remove tile"
                     onClick={() => removeItem(item.id)}
-                    className="ml-1 flex h-5 w-5 items-center justify-center rounded text-sm font-bold text-text-secondary hover:bg-red-500/15 hover:text-red-500"
+                    className="flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg-page/95 text-base font-semibold text-text-secondary shadow-sm hover:border-red-500/40 hover:bg-red-500/15 hover:text-red-500"
                   >×</button>
-                  <button
-                    type="button"
-                    disabled={itemIndex === 0}
-                    aria-label={`Move ${item.label} earlier`}
-                    title="Move earlier"
-                    onClick={() => {
-                      const previous = visibleItems[itemIndex - 1];
-                      if (previous) moveItem(item.id, previous.id, 'before');
-                    }}
-                    className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30"
-                  >↑</button>
-                  <button
-                    type="button"
-                    disabled={itemIndex === visibleItems.length - 1}
-                    aria-label={`Move ${item.label} later`}
-                    title="Move later"
-                    onClick={() => {
-                      const next = visibleItems[itemIndex + 1];
-                      if (next) moveItem(item.id, next.id, 'after');
-                    }}
-                    className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30"
-                  >↓</button>
                   {Array.isArray(item.settings) && item.settings.length > 0 && (
                     <details className="relative">
-                      <summary className="list-none cursor-pointer w-6 h-5 rounded hover:bg-bg-input flex items-center justify-center text-xs" aria-label={`Configure ${item.label}`} title={`Configure ${item.label}`}>⚙</summary>
-                      <div className="absolute right-0 top-7 z-50 w-64 max-w-[80vw] rounded-lg border border-border bg-bg-surface p-3 shadow-xl space-y-3 text-left normal-case tracking-normal">
+                      <summary className="list-none cursor-pointer flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg-page/95 text-xs text-text-secondary shadow-sm hover:bg-bg-input" aria-label={`Configure ${item.label}`} title={`Configure ${item.label}`}>⚙</summary>
+                      <div className="absolute right-0 top-9 z-50 w-64 max-w-[80vw] rounded-lg border border-border bg-bg-surface p-3 shadow-xl space-y-3 text-left normal-case tracking-normal">
                         <div className="text-xs font-semibold text-text-primary">{item.label} settings</div>
                         {item.settings.map(setting => (
                           <label key={setting.id} className="block space-y-1">
