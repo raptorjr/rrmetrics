@@ -245,17 +245,21 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     setSelectedTemplate('');
   };
 
-  const startResize = (event, item) => {
+  const startResize = (event, item, corner) => {
     event.preventDefault();
     event.stopPropagation();
     const currentSize = layout.sizes[item.id] || getDefaultSize(item);
+    const currentPosition = layout.positions[item.id] || { col: 1, row: 1 };
     resizeRef.current = {
       id: item.id,
+      corner,
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
       startW: currentSize.w,
       startH: currentSize.h,
+      startCol: currentPosition.col,
+      startRow: currentPosition.row,
       gridWidth: gridRef.current ? gridRef.current.clientWidth : 1200,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -269,57 +273,42 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     const minW = Number(item.minColumns) || 1;
     const minH = Number(item.minRows) || 1;
     const maxW = columns === 2 ? 2 : MAX_COLUMNS;
-    const effectiveMinW = Math.min(minW, maxW);
-    const startW = clamp(start.startW, effectiveMinW, maxW);
-    const availableWidth = start.gridWidth - GRID_GAP * (columns - 1);
-    const trackWidth = availableWidth / columns;
-    const widthFor = width => {
-      const span = Math.max(1, Math.round(width * columns / MAX_COLUMNS));
-      return span * trackWidth + (span - 1) * GRID_GAP;
-    };
-    const horizontalDelta = event.clientX - start.startX;
-    let nextWidth = startW;
-    let closestDistance = Math.abs(horizontalDelta);
-    for (let candidate = effectiveMinW; candidate <= maxW; candidate += 1) {
-      const expectedDelta = widthFor(candidate) - widthFor(startW);
-      const distance = Math.abs(horizontalDelta - expectedDelta);
-      if (distance < closestDistance) {
-        closestDistance = distance;
-        nextWidth = candidate;
-      }
-    }
-    const heightDelta = Math.round((event.clientY - start.startY) / ROW_UNIT);
-    const nextSize = {
-      w: nextWidth,
-      h: clamp(start.startH + heightDelta, minH, MAX_ROWS),
-    };
-    setLayout(current => ({
-      ...current,
-      sizes: { ...current.sizes, [start.id]: nextSize },
-      positions: completePositions(current.order, current.hidden, { ...current.sizes, [start.id]: nextSize }, current.positions),
-    }));
+    const geometry = getResizedTileGeometry({
+      position: { col: start.startCol, row: start.startRow },
+      size: { w: start.startW, h: start.startH },
+      corner: start.corner,
+      deltaX: event.clientX - start.startX,
+      deltaY: event.clientY - start.startY,
+      gridWidth: start.gridWidth,
+      columns,
+      gap: GRID_GAP,
+      rowUnit: ROW_UNIT,
+      minW,
+      minH,
+      maxW,
+      maxH: MAX_ROWS,
+    });
+    setLayout(current => {
+      const sizes = { ...current.sizes, [start.id]: geometry.size };
+      return {
+        ...current,
+        sizes,
+        positions: placeTileAndDisplace(
+          start.id,
+          geometry.position,
+          current.order,
+          current.hidden,
+          sizes,
+          current.positions
+        ),
+      };
+    });
   };
 
   const stopResize = (event) => {
     if (resizeRef.current && resizeRef.current.pointerId === event.pointerId) {
       resizeRef.current = null;
     }
-  };
-
-  const adjustSize = (item, dimension, delta) => {
-    const min = dimension === 'w' ? Number(item.minColumns) || 1 : Number(item.minRows) || 1;
-    const max = dimension === 'w' ? (columns === 2 ? 2 : MAX_COLUMNS) : MAX_ROWS;
-    setLayout(current => {
-      const size = current.sizes[item.id] || getDefaultSize(item);
-      const currentValue = clamp(size[dimension], min, max);
-      const nextValue = clamp(currentValue + delta, min, max);
-      if (nextValue === size[dimension]) return current;
-      return {
-        ...current,
-        sizes: { ...current.sizes, [item.id]: { ...size, [dimension]: nextValue } },
-        positions: completePositions(current.order, current.hidden, { ...current.sizes, [item.id]: { ...size, [dimension]: nextValue } }, current.positions),
-      };
-    });
   };
 
   const getColumnSpan = size => Math.min(columns, Math.max(1, Math.round(size.w * columns / MAX_COLUMNS)));
@@ -685,13 +674,6 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                     }}
                     className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30"
                   >↓</button>
-                  <span className="select-none pointer-events-none">{Math.min(size.w, columns === 2 ? 2 : MAX_COLUMNS)}×{size.h}</span>
-                  <span className="flex items-center gap-0.5 border-l border-border pl-1">
-                    <button type="button" onClick={() => adjustSize(item, 'w', -1)} disabled={size.w <= (Number(item.minColumns) || 1)} aria-label={`Make ${item.label} narrower`} title="Narrower" className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30">−</button>
-                    <button type="button" onClick={() => adjustSize(item, 'w', 1)} disabled={size.w >= (columns === 2 ? 2 : MAX_COLUMNS)} aria-label={`Make ${item.label} wider`} title="Wider" className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30">＋</button>
-                    <button type="button" onClick={() => adjustSize(item, 'h', -1)} disabled={size.h <= (Number(item.minRows) || 1)} aria-label={`Make ${item.label} shorter`} title="Shorter" className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30">−</button>
-                    <button type="button" onClick={() => adjustSize(item, 'h', 1)} disabled={size.h >= MAX_ROWS} aria-label={`Make ${item.label} taller`} title="Taller" className="w-5 h-5 rounded hover:bg-bg-input disabled:opacity-30">＋</button>
-                  </span>
                   {Array.isArray(item.settings) && item.settings.length > 0 && (
                     <details className="relative">
                       <summary className="list-none cursor-pointer w-6 h-5 rounded hover:bg-bg-input flex items-center justify-center text-xs" aria-label={`Configure ${item.label}`} title={`Configure ${item.label}`}>⚙</summary>
@@ -722,20 +704,24 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                 </div>
               )}
               {item.render()}
-              {editing && (
+              {editing && [
+                { corner: 'nw', position: 'left-1 top-1', cursor: 'cursor-nwse-resize' },
+                { corner: 'ne', position: 'right-1 top-1', cursor: 'cursor-nesw-resize' },
+                { corner: 'sw', position: 'left-1 bottom-1', cursor: 'cursor-nesw-resize' },
+                { corner: 'se', position: 'right-1 bottom-1', cursor: 'cursor-nwse-resize' },
+              ].map(handle => (
                 <div
+                  key={handle.corner}
                   role="separator"
-                  aria-label={`Resize ${item.label}. Use the size controls above for keyboard-accessible resizing.`}
-                  title="Drag to resize; use the size controls above for precise keyboard-accessible adjustments"
-                  onPointerDown={event => startResize(event, item)}
+                  aria-label={`Resize ${item.label} from ${handle.corner.toUpperCase()} corner`}
+                  title={`Drag to resize from ${handle.corner.toUpperCase()} corner`}
+                  onPointerDown={event => startResize(event, item, handle.corner)}
                   onPointerMove={moveResize}
                   onPointerUp={stopResize}
                   onPointerCancel={stopResize}
-                  className="absolute z-30 bottom-1 right-1 w-6 h-6 rounded-tl-lg border-l border-t border-border bg-bg-page/90 cursor-nwse-resize touch-none flex items-center justify-center text-text-tertiary select-none"
-                >
-                  ⤡
-                </div>
-              )}
+                  className={`absolute z-30 ${handle.position} w-4 h-4 rounded-sm border-[3px] border-accent bg-bg-page shadow-md ${handle.cursor} touch-none select-none`}
+                />
+              ))}
             </div>
           );
         })}
