@@ -262,7 +262,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       startRow: currentPosition.row,
       gridWidth: gridRef.current ? gridRef.current.clientWidth : 1200,
     };
-    event.currentTarget.setPointerCapture(event.pointerId);
+    if (gridRef.current && gridRef.current.setPointerCapture) gridRef.current.setPointerCapture(event.pointerId);
   };
 
   const moveResize = (event) => {
@@ -567,6 +567,10 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
 
       <div
         ref={gridRef}
+        onPointerMove={moveResize}
+        onPointerUp={stopResize}
+        onPointerCancel={stopResize}
+        onLostPointerCapture={stopResize}
         onDragOver={editing ? event => {
           const targetTile = event.target.closest('[data-dashboard-tile]');
           if (!targetTile || targetTile.dataset.dashboardTile === draggedId) {
@@ -713,13 +717,12 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                 <button
                   key={handle.corner}
                   type="button"
+                  draggable={false}
+                  data-dashboard-resize-handle={handle.corner}
                   aria-label={`Resize ${item.label} from ${handle.corner.toUpperCase()} corner`}
                   title={`Drag to resize from ${handle.corner.toUpperCase()} corner`}
                   onPointerDown={event => startResize(event, item, handle.corner)}
-                  onPointerMove={moveResize}
-                  onPointerUp={stopResize}
-                  onPointerCancel={stopResize}
-                  className={`absolute z-30 appearance-none box-border rounded-sm border-[3px] border-accent bg-bg-page shadow-md p-0 ${handle.cursor} touch-none select-none`}
+                                    className={`absolute z-30 appearance-none box-border rounded-sm border-[3px] border-accent bg-bg-page shadow-md p-0 ${handle.cursor} touch-none select-none`}
                   style={{ ...handle.style, width: 18, height: 18, minWidth: 18, minHeight: 18, flex: 'none' }}
                 />
               ))}
