@@ -139,7 +139,7 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
             const tooltip = stat.time + ' · ' + stat.count + ' trades · ' + stat.breakevens + ' breakeven · ' + stat.winRate.toFixed(1) + '% win rate · PF ' + pf + ' · Total $' + stat.totalPL.toFixed(2) + ' · Average $' + stat.avgPL.toFixed(2);
             return <g key={stat.time}>
               {stat.count > 0 && <rect x={x} y={Math.min(zeroY, valueY)} width={barWidth} height={Math.max(1, Math.abs(zeroY - valueY))} rx="2" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} opacity="0.85"><title>{tooltip}</title></rect>}
-              {(index % 12 === 0 || index === timeStats.length - 1) && <text x={x + barWidth / 2} y={height - 9} textAnchor="middle" className={`chart-axis-label chart-x-label chart-x-label-${index === timeStats.length - 1 ? 4 : Math.floor(index / 12)}`} fill="rgb(var(--text-primary))" fontSize="12">{stat.time}</text>}
+              {(index % 8 === 0 || index === timeStats.length - 1) && <text x={x + barWidth / 2} y={height - 9} textAnchor="middle" className={`chart-axis-label chart-x-label chart-x-label-${index === timeStats.length - 1 ? 6 : Math.floor(index / 8)}`} fill="rgb(var(--text-primary))" fontSize="12">{stat.time}</text>}
             </g>;
           })}
         </svg>
@@ -362,7 +362,7 @@ const createAnalyticsChartTiles = (trades = [], options = {}) => {
             <line x1={pad.left} x2={width-pad.right} y1={zeroY} y2={zeroY} stroke="rgb(var(--text-secondary))" strokeDasharray="4 4"/>
             {areaPath && <path d={areaPath} fill="url(#equity-area-gradient)"/>}
             {points.length>1 && <path d={path} fill="none" stroke={running>=0?'rgb(var(--positive))':'rgb(var(--negative))'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>}
-            {[0,1,2,3,4].map(index=>{const pointIndex=Math.round(index*(sorted.length-1)/4); return sorted[pointIndex] ? <text key={index} x={pad.left+index*chartWidth/4} y={height-8} textAnchor="middle" className={`chart-axis-label chart-x-label chart-x-label-${index}` } fill="rgb(var(--text-primary))" fontSize="12">{dateLabel(sorted[pointIndex].exitTime)}</text> : null;})}
+            {[0,1,2,3,4].map(index=>{const pointIndex=Math.round(index*(sorted.length-1)/4); const isLast=index===4; return sorted[pointIndex] ? <text key={index} x={pad.left+index*chartWidth/4-(isLast?6:0)} y={height-8} textAnchor={isLast?'end':'middle'} className={`chart-axis-label chart-x-label chart-x-label-${index}` } fill="rgb(var(--text-primary))" fontSize="12">{dateLabel(sorted[pointIndex].exitTime)}</text> : null;})}
           </svg>
         </div>
       </div> : <p className="text-sm text-text-tertiary">No trades available</p>}
