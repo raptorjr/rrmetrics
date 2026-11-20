@@ -350,7 +350,6 @@
 
 .dashboard-ticker-list > div:last-child {
   border-right: 0;
-  padding-right: 0;
 }
 
 .dashboard-monte-summary {
@@ -530,7 +529,6 @@
 }
 .dashboard-ticker-item:last-child {
   border-right: 0;
-  padding-right: 0;
 }
 .dashboard-ticker-meta {
   white-space: nowrap;
