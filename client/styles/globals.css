@@ -400,3 +400,20 @@
     font-size: 0.65rem;
   }
 }
+
+
+@container dashboard-tile (max-height: 170px) {
+  .dashboard-monte-description {
+    display: none;
+  }
+}
+
+@container dashboard-tile (max-width: 360px) {
+  .dashboard-monte-summary > div {
+    padding: 0.35rem;
+  }
+
+  .dashboard-monte-summary .text-xl {
+    font-size: 0.9rem;
+  }
+}
