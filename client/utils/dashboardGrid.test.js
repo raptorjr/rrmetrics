@@ -6,7 +6,7 @@ const {
   getDefaultSize,
   createStarterLayout,
   STARTER_LAYOUTS,
-} = require('../components/shared/DashboardGrid');
+} = require('./dashboardLayout');
 
 const items = [
   { id: 'totalPL', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1 },
