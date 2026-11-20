@@ -63,8 +63,8 @@ const createPerformanceTiles = ({
           <div className="flex min-w-0 items-center gap-1.5 text-text-secondary text-xs font-medium uppercase tracking-wider">
             <span>Kelly Optimal Risk</span>
             <InfoTooltip text="Estimates the optimal fraction of the selected drawdown bankroll using the historical win rate and average win/loss ratio. A zero result means the observed sample does not show a positive Kelly edge." />
+            {settingsControl}
           </div>
-          {settingsControl}
         </div>
         <div className="font-mono text-2xl font-bold text-text-primary">${kelly.optimalRisk.toFixed(0)}</div>
         <div className="text-text-tertiary text-xs mt-1">{kelly.kellyPct.toFixed(1)}% of drawdown</div>
