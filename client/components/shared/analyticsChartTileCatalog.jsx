@@ -13,6 +13,27 @@ const DEFINITIONS = [
   { id: 'monteCarloSimulation', label: 'Monte Carlo Simulation', category: 'Risk', minColumns: 2, minRows: 2, defaultColumns: 6, defaultRows: 2, description: "Runs repeated simulations of the observed trade outcomes to estimate evaluation pass probability and time to pass." },
 ];
 
+
+const getNiceAxis = (values, targetIntervals = 5) => {
+  const min = Math.min(0, ...values), max = Math.max(0, ...values);
+  const rawStep = Math.max(1, (max - min) / targetIntervals);
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const normalized = rawStep / magnitude;
+  const step = (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10) * magnitude;
+  let axisMin = Math.floor(min / step) * step, axisMax = Math.ceil(max / step) * step;
+  if (axisMin === axisMax) { axisMin -= step; axisMax += step; }
+  const ticks = [];
+  for (let value = axisMin; value <= axisMax + step * 0.001; value += step) ticks.push(Number(value.toPrecision(12)));
+  return { min: axisMin, max: axisMax, ticks };
+};
+const formatAxisCurrency = value => (value < 0 ? '-$' : '$') + Math.abs(value).toLocaleString('en-US', { maximumFractionDigits: 0 });
+const renderAxisGrid = (ticks, yForValue, left, right) => ticks.map((value, index) => {
+  const y = yForValue(value);
+  return <g key={value}>
+    <line x1={left} x2={right} y1={y} y2={y} stroke="rgb(var(--text-tertiary))" strokeWidth="1" strokeDasharray="2 4" opacity="0.42" />
+    <text x={left - 9} y={y + 4} textAnchor="end" className={"chart-axis-label chart-y-label chart-y-label-" + index} fill="rgb(var(--text-primary))" fontSize="12">{formatAxisCurrency(value)}</text>
+  </g>;
+});
 const Panel = ({ title, children, actions }) => <div className="dashboard-tile-panel h-full min-h-0 min-w-0 overflow-hidden flex flex-col bg-bg-surface border border-border rounded-xl p-3 md:p-4"><div className="shrink-0 flex items-center justify-between gap-2 mb-2"><h3 className="min-w-0 text-text-primary font-semibold text-sm">{title}</h3>{actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}</div><div className="flex-1 min-h-0 min-w-0 flex flex-col">{children}</div></div>;
 const Preview = ({ item }) => (
   <div className="h-[82px] rounded-md border border-border bg-bg-page p-2 flex flex-col justify-between overflow-hidden">
@@ -90,9 +111,11 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
   }, [trades]);
 
   const values = timeStats.map(stat => mode === 'avg' ? stat.avgPL : stat.totalPL);
-  const maxValue = Math.max(1, ...values.map(Math.abs));
-  const width = 900, height = 260, padding = 28, zeroY = 112, chartHalfHeight = 76;
-  const barGap = (width - padding * 2) / timeStats.length;
+  const axis = getNiceAxis(values);
+  const width = 900, height = 300, pad = { left: 76, right: 18, top: 18, bottom: 38 };
+  const chartWidth = width - pad.left - pad.right, chartHeight = height - pad.top - pad.bottom;
+  const yForValue = value => pad.top + ((axis.max - value) / (axis.max - axis.min)) * chartHeight;
+  const zeroY = yForValue(0), barGap = chartWidth / timeStats.length;
   const barWidth = Math.max(2, barGap * 0.62);
 
   return (
@@ -106,17 +129,17 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
       </div>
       <div className="w-full flex-1 min-h-0 min-w-0 overflow-hidden">
         <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Profit and loss by entry time" preserveAspectRatio="none" className="dashboard-responsive-chart w-full h-full min-h-0">
-          <line x1={padding} x2={width - padding} y1={zeroY} y2={zeroY} stroke="rgb(var(--border))" strokeDasharray="4 4" />
+          {renderAxisGrid(axis.ticks, yForValue, pad.left, width - pad.right)}
+          <line x1={pad.left} x2={width - pad.right} y1={zeroY} y2={zeroY} stroke="rgb(var(--text-secondary))" strokeWidth="1.2" strokeDasharray="4 3" />
           {timeStats.map((stat, index) => {
             const value = values[index];
-            const barHeight = (Math.abs(value) / maxValue) * chartHalfHeight;
-            const x = padding + index * barGap + (barGap - barWidth) / 2;
-            const y = value >= 0 ? zeroY - barHeight : zeroY;
+            const valueY = yForValue(value);
+            const x = pad.left + index * barGap + (barGap - barWidth) / 2;
             const pf = stat.grossLossPL === 0 ? (stat.grossWinPL > 0 ? '∞' : '0.00') : (stat.grossWinPL / stat.grossLossPL).toFixed(2);
             const tooltip = stat.time + ' · ' + stat.count + ' trades · ' + stat.breakevens + ' breakeven · ' + stat.winRate.toFixed(1) + '% win rate · PF ' + pf + ' · Total $' + stat.totalPL.toFixed(2) + ' · Average $' + stat.avgPL.toFixed(2);
             return <g key={stat.time}>
-              {stat.count > 0 && <rect x={x} y={y} width={barWidth} height={Math.max(1, barHeight)} rx="2" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} opacity="0.85"><title>{tooltip}</title></rect>}
-              {(index % 12 === 0 || index === timeStats.length - 1) && <text x={x + barWidth / 2} y="224" textAnchor="middle" className={`chart-axis-label chart-x-label chart-x-label-${index === timeStats.length - 1 ? 4 : Math.floor(index / 12)}`} fill="rgb(var(--text-primary))" fontSize="12">{stat.time}</text>}
+              {stat.count > 0 && <rect x={x} y={Math.min(zeroY, valueY)} width={barWidth} height={Math.max(1, Math.abs(zeroY - valueY))} rx="2" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} opacity="0.85"><title>{tooltip}</title></rect>}
+              {(index % 12 === 0 || index === timeStats.length - 1) && <text x={x + barWidth / 2} y={height - 9} textAnchor="middle" className={`chart-axis-label chart-x-label chart-x-label-${index === timeStats.length - 1 ? 4 : Math.floor(index / 12)}`} fill="rgb(var(--text-primary))" fontSize="12">{stat.time}</text>}
             </g>;
           })}
         </svg>
@@ -159,8 +182,11 @@ const PerformanceByDayTile = ({ trades }) => {
     return days.map(day => ({ ...day, avgPL: day.count ? day.totalPL / day.count : 0, winRate: day.wins + day.losses ? day.wins / (day.wins + day.losses) * 100 : 0 }));
   }, [trades]);
   const values = stats.map(day => mode === 'avg' ? day.avgPL : day.totalPL);
-  const maxValue = Math.max(1, ...values.map(Math.abs));
-  const zeroY = 116, halfHeight = 76, left = 24, right = 616, gap = (right - left) / 7, barWidth = gap * 0.58;
+  const axis = getNiceAxis(values);
+  const width = 900, height = 300, pad = { left: 76, right: 18, top: 18, bottom: 38 };
+  const chartWidth = width - pad.left - pad.right, chartHeight = height - pad.top - pad.bottom;
+  const yForValue = value => pad.top + ((axis.max - value) / (axis.max - axis.min)) * chartHeight;
+  const zeroY = yForValue(0), gap = chartWidth / 7, barWidth = gap * 0.58;
   return <Panel title="Performance by Day">
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 mb-1">
       <div className="flex bg-bg-input rounded-lg p-0.5 text-xs">
@@ -169,14 +195,15 @@ const PerformanceByDayTile = ({ trades }) => {
       </div>
       <span className="text-[10px] text-text-tertiary">By exit weekday</span>
     </div>
-    <svg viewBox="0 0 640 230" role="img" aria-label={mode === 'avg' ? 'Average profit and loss by weekday' : 'Total profit and loss by weekday'} preserveAspectRatio="none" className="dashboard-responsive-chart w-full flex-1 min-h-0">
-      <line x1={left} x2={right} y1={zeroY} y2={zeroY} stroke="rgb(var(--text-muted))" strokeDasharray="4 4" />
+    <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label={mode === 'avg' ? 'Average profit and loss by weekday' : 'Total profit and loss by weekday'} preserveAspectRatio="none" className="dashboard-responsive-chart w-full flex-1 min-h-0">
+      {renderAxisGrid(axis.ticks, yForValue, pad.left, width - pad.right)}
+      <line x1={pad.left} x2={width - pad.right} y1={zeroY} y2={zeroY} stroke="rgb(var(--text-secondary))" strokeWidth="1.2" strokeDasharray="4 3" />
       {stats.map((day, index) => {
-        const value = values[index], height = Math.abs(value) / maxValue * halfHeight;
-        const x = left + index * gap + (gap - barWidth) / 2, y = value >= 0 ? zeroY - height : zeroY;
+        const value = values[index], valueY = yForValue(value);
+        const x = pad.left + index * gap + (gap - barWidth) / 2;
         return <g key={day.day}>
-          <rect x={x} y={y} width={barWidth} height={Math.max(1, height)} rx="3" className="performance-day-bar" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} />
-          <text className="weekday-full" x={x + barWidth / 2} y="210" textAnchor="middle" fill="rgb(var(--text-primary))" fontSize="12">{day.day}</text><text className="weekday-short" x={x + barWidth / 2} y="210" textAnchor="middle" fill="rgb(var(--text-primary))" fontSize="12">{day.day[0]}</text>
+          <rect x={x} y={Math.min(zeroY, valueY)} width={barWidth} height={Math.max(1, Math.abs(zeroY - valueY))} rx="3" className="performance-day-bar" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} />
+          <text className="weekday-full" x={x + barWidth / 2} y={height - 9} textAnchor="middle" fill="rgb(var(--text-primary))" fontSize="12">{day.day}</text><text className="weekday-short" x={x + barWidth / 2} y="210" textAnchor="middle" fill="rgb(var(--text-primary))" fontSize="12">{day.day[0]}</text>
           {day.count > 0 && <title>{day.day}: {day.count} trades · {mode === 'avg' ? 'Average' : 'Total'} P/L ${value.toFixed(2)}</title>}
         </g>;
       })}
@@ -306,15 +333,16 @@ const createAnalyticsChartTiles = (trades = [], options = {}) => {
   const cumulative = [];
   let running = 0;
   sorted.forEach(trade => { running += getTradePL(trade); cumulative.push(running); });
-  const width = 900, height = 300, pad = { left: 62, right: 22, top: 24, bottom: 38 };
+  const equityAxis = getNiceAxis(cumulative);
+  const width = 900, height = 300, pad = { left: 76, right: 22, top: 24, bottom: 38 };
   const chartWidth = width - pad.left - pad.right, chartHeight = height - pad.top - pad.bottom;
-  const min = Math.min(0, ...cumulative), max = Math.max(0, ...cumulative), range = max - min || 1;
+  const yForEquity = value => pad.top + ((equityAxis.max - value) / (equityAxis.max - equityAxis.min)) * chartHeight;
   const points = cumulative.map((value, index) => ({
     x: pad.left + (cumulative.length <= 1 ? chartWidth / 2 : index * chartWidth / (cumulative.length - 1)),
-    y: pad.top + ((max - value) / range) * chartHeight,
+    y: yForEquity(value),
   }));
   const path = points.map((point, index) => (index ? 'L' : 'M') + ' ' + point.x.toFixed(1) + ' ' + point.y.toFixed(1)).join(' ');
-  const zeroY = pad.top + (max / range) * chartHeight;
+  const zeroY = yForEquity(0);
   const areaPath = points.length ? path + ' L ' + points[points.length - 1].x.toFixed(1) + ' ' + zeroY.toFixed(1) + ' L ' + points[0].x.toFixed(1) + ' ' + zeroY.toFixed(1) + ' Z' : '';
   let equityPeak = 0, maxEquityDrawdown = 0;
   cumulative.forEach(value => { equityPeak = Math.max(equityPeak, value); maxEquityDrawdown = Math.max(maxEquityDrawdown, equityPeak - value); });
@@ -330,7 +358,7 @@ const createAnalyticsChartTiles = (trades = [], options = {}) => {
         <div className="dashboard-equity-chart flex-1 min-h-0 min-w-0 overflow-hidden">
           <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Cumulative profit and loss with dates and zero reference" preserveAspectRatio="none" className="dashboard-responsive-chart w-full h-full min-h-0">
             <defs><linearGradient id="equity-area-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="rgb(var(--positive))" stopOpacity="0.24"/><stop offset={((zeroY / height) * 100) + '%'} stopColor="rgb(var(--positive))" stopOpacity="0.03"/><stop offset={((zeroY / height) * 100) + '%'} stopColor="rgb(var(--negative))" stopOpacity="0.03"/><stop offset="100%" stopColor="rgb(var(--negative))" stopOpacity="0.24"/></linearGradient></defs>
-            {[0,1,2,3,4].map(index => { const y=pad.top+index*chartHeight/4, value=max-index*range/4; return <g key={index}><line x1={pad.left} x2={width-pad.right} y1={y} y2={y} stroke="rgb(var(--border))"/><text x={pad.left-8} y={y+4} textAnchor="end" className={`chart-axis-label chart-y-label chart-y-label-${index}`} fill="rgb(var(--text-primary))" fontSize="12">{'$'+Math.round(value).toLocaleString()}</text></g>; })}
+            {renderAxisGrid(equityAxis.ticks, yForEquity, pad.left, width - pad.right)}
             <line x1={pad.left} x2={width-pad.right} y1={zeroY} y2={zeroY} stroke="rgb(var(--text-secondary))" strokeDasharray="4 4"/>
             {areaPath && <path d={areaPath} fill="url(#equity-area-gradient)"/>}
             {points.length>1 && <path d={path} fill="none" stroke={running>=0?'rgb(var(--positive))':'rgb(var(--negative))'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>}
