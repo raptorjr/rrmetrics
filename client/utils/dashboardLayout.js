@@ -70,7 +70,7 @@ const STARTER_LAYOUTS = [
     description: 'Focus on equity progression, expectancy and risk-adjusted performance.',
     visible: ['totalPL', 'expectancy', 'profitFactor', 'maxDrawdown', 'sharpeRatio', 'sortinoRatio', 'equityCurve', 'performanceByDay', 'monteCarloSimulation'],
     sizes: {
-      equityCurve: { w: 4, h: 3 },
+      equityCurve: { w: 8, h: 3 },
       performanceByDay: { w: 4, h: 2 },
       monteCarloSimulation: { w: 8, h: 3 },
     },
