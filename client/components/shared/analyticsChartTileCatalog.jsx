@@ -167,7 +167,7 @@ const PerformanceByDayTile = ({ trades }) => {
         return <g key={day.day}>
           <rect x={x} y={y} width={barWidth} height={Math.max(1, height)} rx="3" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} />
           <text x={x + barWidth / 2} y="210" textAnchor="middle" fill="rgb(var(--text-secondary))" fontSize="12">{day.day}</text>
-          {day.count > 0 && <title>{day.day}: {day.count} trades · {mode === 'avg' ? 'Average' : 'Total'} P/L \${value.toFixed(2)}</title>}
+          {day.count > 0 && <title>{day.day}: {day.count} trades · {mode === 'avg' ? 'Average' : 'Total'} P/L ${value.toFixed(2)}</title>}
         </g>;
       })}
     </svg>
@@ -178,16 +178,17 @@ const PerformanceByDayTile = ({ trades }) => {
     {showTable && <div className="max-h-[260px] overflow-y-auto mt-2">
       <table className="w-full text-xs">
         <thead className="sticky top-0 bg-bg-surface"><tr className="border-b border-border"><th className="text-left py-2">Day</th><th className="text-right">Trades</th><th className="text-right">Wins</th><th className="text-right">Losses</th><th className="text-right">Win rate</th><th className="text-right">Total P/L</th><th className="text-right">Avg P/L</th></tr></thead>
-        <tbody>{stats.filter(day => day.count > 0).map(day => <tr key={day.day} className="border-b border-border/50"><td className="py-1.5">{day.day}</td><td className="text-right">{day.count}</td><td className="text-right">{day.wins}</td><td className="text-right">{day.losses}</td><td className="text-right">{day.winRate.toFixed(1)}%</td><td className={'text-right ' + (day.totalPL >= 0 ? 'text-positive' : 'text-negative')}>\${day.totalPL.toFixed(2)}</td><td className={'text-right ' + (day.avgPL >= 0 ? 'text-positive' : 'text-negative')}>\${day.avgPL.toFixed(2)}</td></tr>)}</tbody>
+        <tbody>{stats.filter(day => day.count > 0).map(day => <tr key={day.day} className="border-b border-border/50"><td className="py-1.5">{day.day}</td><td className="text-right">{day.count}</td><td className="text-right">{day.wins}</td><td className="text-right">{day.losses}</td><td className="text-right">{day.winRate.toFixed(1)}%</td><td className={'text-right ' + (day.totalPL >= 0 ? 'text-positive' : 'text-negative')}>${day.totalPL.toFixed(2)}</td><td className={'text-right ' + (day.avgPL >= 0 ? 'text-positive' : 'text-negative')}>${day.avgPL.toFixed(2)}</td></tr>)}</tbody>
       </table>
     </div>}
   </Panel>;
 };
 
 const MonteCarloTile = ({ trades, settings }) => {
-  const results = useMemo(() => runMonteCarloSimulation(trades, settings), [trades, settings.profitTarget, settings.maxDrawdown]);
+  const [runVersion, setRunVersion] = useState(0);
+  const results = useMemo(() => runMonteCarloSimulation(trades, settings), [trades, settings.profitTarget, settings.maxDrawdown, runVersion]);
   if (results.insufficientTrades || !results.paths || results.paths.length === 0) {
-    return <Panel title="Monte Carlo Eval Simulation"><p className="text-sm text-text-tertiary">At least five trades are needed to run the simulation.</p></Panel>;
+    return <Panel title={<span className="flex items-center gap-2">Monte Carlo Eval Simulation <InfoTooltip text="Historical trade P/L is sampled with replacement at the rounded average trades-per-day rate. Drawdown is checked at the end of each simulated day. Results are illustrative, not a prediction." /></span>}><p className="text-sm text-text-tertiary">At least five trades are needed to run the simulation.</p></Panel>;
   }
   let maxDay = 1, minValue = 0, maxValue = 0;
   results.paths.forEach(path => {
@@ -206,10 +207,10 @@ const MonteCarloTile = ({ trades, settings }) => {
 
   return (
     <Panel title="Monte Carlo Eval Simulation">
-      <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-text-tertiary mb-2">
-        <span>{results.totalSimulations.toLocaleString()} simulations · ${results.profitTarget.toLocaleString()} target · ${results.maxDrawdown.toLocaleString()} EOD trailing drawdown</span><span>{results.paths.length} sample paths</span>
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 text-[10px] text-text-tertiary mb-1">
+        <span>{results.totalSimulations.toLocaleString()} simulations · ${results.profitTarget.toLocaleString()} target · ${results.maxDrawdown.toLocaleString()} EOD drawdown</span><button type="button" onClick={() => setRunVersion(value => value + 1)} className="shrink-0 rounded border border-border px-2 py-1 text-text-secondary hover:text-text-primary">↻ Recalculate</button>
       </div>
-      <p className="text-[10px] text-text-tertiary mb-2">Historical trade P/L is sampled with replacement at the rounded average trades-per-day rate. Drawdown is checked at the end of each simulated day; results are illustrative, not a prediction.</p>
+      
       <div className="w-full flex-1 min-h-0 min-w-0 overflow-hidden">
         <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Monte Carlo simulated equity paths" className="w-full h-full min-h-0">
           {[0, 1, 2, 3, 4, 5].map(index => {
@@ -224,8 +225,8 @@ const MonteCarloTile = ({ trades, settings }) => {
           })}
         </svg>
       </div>
-      <div className="grid grid-cols-3 gap-2 mt-3">
-        <div className="bg-bg-page rounded-lg p-3 text-center"><div className="text-text-secondary text-[10px] uppercase">Pass Rate</div><div className={'text-xl font-bold ' + (results.passRate >= 50 ? 'text-positive' : 'text-negative')}>{results.passRate.toFixed(1)}%</div></div>
+      <div className="grid grid-cols-3 gap-2 mt-2 shrink-0">
+        <div className="bg-bg-page rounded-lg p-2 text-center"><div className="text-text-secondary text-[10px] uppercase">Pass Rate</div><div className={'text-lg font-bold ' + (results.passRate >= 50 ? 'text-positive' : 'text-negative')}>{results.passRate.toFixed(1)}%</div></div>
         <div className="bg-bg-page rounded-lg p-3 text-center"><div className="text-text-secondary text-[10px] uppercase">Avg Days to Pass</div><div className="text-xl font-bold text-text-primary">{results.avgDaysToPass > 0 ? results.avgDaysToPass.toFixed(1) : '—'}</div></div>
         <div className="bg-bg-page rounded-lg p-3 text-center"><div className="text-text-secondary text-[10px] uppercase">Median Days to Pass</div><div className="text-xl font-bold text-text-primary">{results.medianDaysToPass > 0 ? results.medianDaysToPass.toFixed(1) : '—'}</div></div>
       </div>
