@@ -766,3 +766,34 @@
     font-size: 14px;
   }
 }
+
+
+/* Shared icon-button treatment for dashboard tile header actions. */
+.dashboard-tile-icon-button {
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(var(--border));
+  border-radius: 9999px;
+  background: rgb(var(--bg-page));
+  color: rgb(var(--text-secondary));
+  font-size: 0.75rem;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+.dashboard-tile-icon-button:hover {
+  background: rgb(var(--bg-input));
+  color: rgb(var(--text-primary));
+  border-color: rgb(var(--text-tertiary));
+}
+.dashboard-tile-icon-button:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
+}
+.dashboard-tile-icon-button::-webkit-details-marker {
+  display: none;
+}
