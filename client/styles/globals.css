@@ -519,3 +519,154 @@
     font-size: 0.9rem;
   }
 }
+
+
+/* Dashboard tile review refinements */
+.dashboard-ticker-list {
+  container-type: size;
+  container-name: ticker-tile;
+  align-items: center;
+}
+.dashboard-ticker-item {
+  min-width: 145px;
+}
+.dashboard-ticker-item:last-child {
+  border-right: 0;
+  padding-right: 0;
+}
+.dashboard-ticker-meta {
+  white-space: nowrap;
+}
+.dashboard-long-short {
+  container-type: size;
+  container-name: long-short-tile;
+  align-content: center;
+}
+.dashboard-long-short > div {
+  min-width: 0;
+}
+.dashboard-detailed-stats {
+  scrollbar-gutter: stable;
+  padding-right: 0.35rem;
+}
+.dashboard-monte-layout,
+.dashboard-equity-layout {
+  container-type: size;
+  container-name: analytical-chart-tile;
+}
+.dashboard-monte-summary,
+.dashboard-equity-summary {
+  width: 7.5rem;
+}
+.dashboard-monte-summary > div,
+.dashboard-equity-summary > div {
+  min-width: 0;
+}
+.dashboard-monte-chart,
+.dashboard-equity-chart {
+  min-height: 0;
+  min-width: 0;
+}
+.weekday-short {
+  display: none;
+}
+.performance-day-bar {
+  transition: opacity 120ms ease;
+}
+
+@container ticker-tile (max-width: 320px) {
+  .dashboard-ticker-list {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    overflow-x: hidden;
+    overflow-y: auto;
+    gap: 0.5rem;
+  }
+  .dashboard-ticker-item {
+    width: 100%;
+    min-width: 0;
+    border-right: 0;
+    border-bottom: 1px solid rgb(var(--border));
+    padding: 0.35rem 0;
+  }
+  .dashboard-ticker-item:last-child {
+    border-bottom: 0;
+  }
+}
+
+@container long-short-tile (min-height: 190px) {
+  .dashboard-long-short {
+    align-content: space-evenly;
+    gap: 1.5rem;
+  }
+  .dashboard-long-short > div {
+    padding-block: 0.75rem;
+  }
+}
+@container long-short-tile (min-width: 420px) and (max-height: 190px) {
+  .dashboard-long-short {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: center;
+    gap: 1rem;
+    overflow: hidden;
+  }
+}
+
+@container analytical-chart-tile (max-width: 520px) {
+  .dashboard-monte-layout,
+  .dashboard-equity-layout {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .dashboard-monte-summary,
+  .dashboard-equity-summary {
+    width: 100%;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0.35rem;
+  }
+  .dashboard-monte-summary > div,
+  .dashboard-equity-summary > div {
+    flex: 1;
+    padding: 0.35rem;
+  }
+  .dashboard-monte-summary .text-base,
+  .dashboard-equity-summary .text-xs {
+    font-size: 0.7rem;
+  }
+  .dashboard-monte-chart,
+  .dashboard-equity-chart {
+    flex: 1;
+  }
+}
+@container analytical-chart-tile (max-height: 190px) {
+  .dashboard-monte-layout,
+  .dashboard-equity-layout {
+    flex-direction: row;
+  }
+  .dashboard-monte-summary,
+  .dashboard-equity-summary {
+    width: 6.5rem;
+    flex-direction: column;
+  }
+  .dashboard-monte-summary > div,
+  .dashboard-equity-summary > div {
+    padding: 0.3rem;
+  }
+}
+@container analytical-chart-tile (max-width: 340px) {
+  .dashboard-monte-summary .text-[9px],
+  .dashboard-equity-summary .text-[9px] {
+    font-size: 7px;
+  }
+}
+
+@container dashboard-tile (max-width: 330px) {
+  .weekday-full {
+    display: none;
+  }
+  .weekday-short {
+    display: block;
+  }
+}
