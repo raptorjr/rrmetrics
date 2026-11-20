@@ -60,7 +60,7 @@ const createPerformanceTiles = ({
     card('kellyRisk', ({ settingsControl } = {}) => (
       <div className="h-full min-h-0 rounded-xl bg-bg-surface border border-border p-3 flex flex-col justify-center">
         <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="flex min-w-0 items-center gap-1 text-text-secondary text-xs font-medium uppercase tracking-wider">
+          <div className="flex min-w-0 items-center gap-0.5 text-text-secondary text-xs font-medium uppercase tracking-wider">
             <span>Kelly Optimal Risk</span>
             <InfoTooltip text="Estimates the optimal fraction of the selected drawdown bankroll using the historical win rate and average win/loss ratio. A zero result means the observed sample does not show a positive Kelly edge." />
             {settingsControl}
