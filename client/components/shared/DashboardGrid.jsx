@@ -8,6 +8,7 @@ const {
   getDefaultSize,
   completePositions,
   findAvailablePosition,
+  placeTileAndDisplace,
   normalizeLayout,
   readLayoutFromValue,
   createStarterLayout,
@@ -172,7 +173,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       const target = order.indexOf(toId);
       if (target < 0) return current;
       order.splice(target + (position === 'after' ? 1 : 0), 0, fromId);
-      return { ...current, order, positions: completePositions(order, current.hidden, current.sizes) };
+      return { ...current, order, positions: completePositions(order, current.hidden, current.sizes, current.positions) };
     });
   };
 
@@ -339,17 +340,21 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     const size = layout.sizes[fromId] || getDefaultSize(item);
     const target = getEmptyDropPosition(event);
     setLayout(current => {
-      const remaining = { ...(current.positions || {}) };
-      delete remaining[fromId];
-      const occupied = current.order
-        .filter(id => id !== fromId && !current.hidden.includes(id))
-        .map(id => ({ ...(remaining[id] || { col: 1, row: 1 }), ...(current.sizes[id] || getDefaultSize(items.find(candidate => candidate.id === id))) }));
       const preferred = {
         col: clamp(target.col - Math.floor((size.w - 1) / 2), 1, Math.max(1, MAX_COLUMNS - size.w + 1)),
         row: Math.max(1, target.row - Math.floor((size.h - 1) / 2)),
       };
-      const position = findAvailablePosition(size, occupied, preferred);
-      return { ...current, positions: { ...remaining, [fromId]: position } };
+      return {
+        ...current,
+        positions: placeTileAndDisplace(
+          fromId,
+          preferred,
+          current.order,
+          current.hidden,
+          current.sizes,
+          current.positions
+        ),
+      };
     });
     setDraggedId(null);
     setDropTarget(null);
