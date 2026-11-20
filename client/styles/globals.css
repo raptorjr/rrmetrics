@@ -878,6 +878,7 @@
   }
   .avg-win-loss-breakdown {
     gap: 0.5rem;
+    transform: translateY(0.75rem);
   }
   .avg-win-loss-breakdown .flex {
     gap: 0.35rem;
