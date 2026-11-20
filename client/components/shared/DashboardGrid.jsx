@@ -565,7 +565,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
         className="grid items-stretch gap-4"
         style={{
           gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-          gridAutoRows: `minmax(${ROW_UNIT - GRID_GAP}px, auto)`,
+          gridAutoRows: `${ROW_UNIT - GRID_GAP}px`,
           gridAutoFlow: 'row',
           backgroundImage: editing ? 'linear-gradient(to right, rgba(148,163,184,0.11) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.11) 1px, transparent 1px)' : 'none',
           backgroundSize: editing ? `calc((100% + ${GRID_GAP}px) / ${columns}) ${ROW_UNIT}px` : undefined,
