@@ -10,9 +10,40 @@ const TILE_DEFINITIONS = [
 ];
 
 const Preview = ({ item }) => (
-  <div className="h-[82px] rounded-md border border-border bg-bg-page p-2 flex flex-col justify-between">
+  <div className="h-[82px] rounded-md border border-border bg-bg-page p-2 flex flex-col justify-between overflow-hidden">
     <span className="text-[10px] font-semibold text-text-secondary">{item.label}</span>
-    <div className="space-y-1.5"><div className="h-2 rounded bg-bg-input w-full" /><div className="h-2 rounded bg-bg-input w-4/5" /><div className="h-2 rounded bg-bg-input w-3/5" /></div>
+    {item.id === 'longShortBreakdown' && (
+      <div className="grid grid-cols-2 gap-3">
+        {['Long', 'Short'].map((label, index) => (
+          <div key={label} className="space-y-1">
+            <div className={`text-[9px] font-bold ${index === 0 ? 'text-positive' : 'text-negative'}`}>{label}</div>
+            <div className="h-1.5 rounded bg-bg-input overflow-hidden"><div className={`h-full rounded ${index === 0 ? 'bg-positive' : 'bg-negative'}`} style={{ width: index === 0 ? '72%' : '46%' }} /></div>
+            <div className="h-1 rounded bg-bg-input w-4/5" />
+          </div>
+        ))}
+      </div>
+    )}
+    {item.id === 'detailedStatistics' && (
+      <div className="space-y-1.5">
+        {['Trades', 'Win rate', 'Avg. P/L', 'Streak'].map((label, index) => (
+          <div key={label} className="flex items-center justify-between gap-2 text-[8px]">
+            <span className="text-text-tertiary">{label}</span>
+            <span className={index === 1 || index === 2 ? 'text-positive font-semibold' : 'text-text-secondary'}>{['50', '64%', '+$49', '5'][index]}</span>
+          </div>
+        ))}
+      </div>
+    )}
+    {item.id === 'tickerPerformance' && (
+      <div className="space-y-1.5">
+        {['MGC', 'MES', 'MNQ'].map((ticker, index) => (
+          <div key={ticker} className="flex items-center gap-2 text-[8px]">
+            <span className="w-7 font-mono text-text-secondary">{ticker}</span>
+            <div className="h-1.5 flex-1 rounded bg-bg-input overflow-hidden"><div className={`h-full rounded ${index === 1 ? 'bg-negative' : 'bg-positive'}`} style={{ width: ['76%', '42%', '61%'][index] }} /></div>
+            <span className={index === 1 ? 'text-negative' : 'text-positive'}>{index === 1 ? '-$80' : '+$120'}</span>
+          </div>
+        ))}
+      </div>
+    )}
   </div>
 );
 const Panel = ({ title, children }) => <div className="h-full bg-bg-surface border border-border rounded-xl p-5"><h3 className="text-text-primary font-semibold mb-4">{title}</h3>{children}</div>;
