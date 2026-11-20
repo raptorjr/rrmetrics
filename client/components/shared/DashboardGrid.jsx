@@ -124,6 +124,29 @@ const STARTER_LAYOUTS = [
   },
 ];
 
+const createStarterLayout = (starter, items, currentOrder = []) => {
+  const ids = items.map(item => item.id);
+  const visible = new Set(starter.visible.filter(id => ids.includes(id)));
+  const order = [
+    ...starter.visible.filter(id => ids.includes(id)),
+    ...currentOrder.filter(id => !starter.visible.includes(id) && ids.includes(id)),
+    ...ids.filter(id => !starter.visible.includes(id) && !currentOrder.includes(id)),
+  ];
+  const sizes = Object.fromEntries(items.map(item => {
+    const fallback = getDefaultSize(item);
+    const preferred = starter.sizes[item.id] || {};
+    return [item.id, {
+      w: clamp(Math.trunc(Number(preferred.w) || fallback.w), Number(item.minColumns) || 1, MAX_COLUMNS),
+      h: clamp(Math.trunc(Number(preferred.h) || fallback.h), Number(item.minRows) || 1, MAX_ROWS),
+    }];
+  }));
+  return {
+    order,
+    hidden: ids.filter(id => !visible.has(id)),
+    sizes,
+  };
+};
+
 const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defaultOrder }) => {
   const ids = useMemo(() => items.map(item => item.id), [items]);
   const [layout, setLayout] = useState(() => readLayout(storageKey, defaultOrder, defaultVisible, items));
@@ -307,24 +330,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const applyStarterLayout = () => {
     const starter = STARTER_LAYOUTS.find(candidate => candidate.id === selectedStarter);
     if (!starter) return;
-    const visible = new Set(starter.visible.filter(id => ids.includes(id)));
-    const order = [
-      ...starter.visible.filter(id => ids.includes(id)),
-      ...layout.order.filter(id => !starter.visible.includes(id)),
-    ];
-    const sizes = Object.fromEntries(items.map(item => {
-      const fallback = getDefaultSize(item);
-      const preferred = starter.sizes[item.id] || {};
-      return [item.id, {
-        w: clamp(Math.trunc(Number(preferred.w) || fallback.w), Number(item.minColumns) || 1, MAX_COLUMNS),
-        h: clamp(Math.trunc(Number(preferred.h) || fallback.h), Number(item.minRows) || 1, MAX_ROWS),
-      }];
-    }));
-    setLayout({
-      order,
-      hidden: ids.filter(id => !visible.has(id)),
-      sizes,
-    });
+    setLayout(createStarterLayout(starter, items, layout.order));
     setSelectedTemplate('');
     setSelectedStarter('');
   };
@@ -789,3 +795,8 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
 };
 
 module.exports = DashboardGrid;
+module.exports.normalizeLayout = normalizeLayout;
+module.exports.readLayoutFromValue = readLayoutFromValue;
+module.exports.getDefaultSize = getDefaultSize;
+module.exports.createStarterLayout = createStarterLayout;
+module.exports.STARTER_LAYOUTS = STARTER_LAYOUTS;
