@@ -203,7 +203,7 @@ const PerformanceByDayTile = ({ trades }) => {
         const x = pad.left + index * gap + (gap - barWidth) / 2;
         return <g key={day.day}>
           <rect x={x} y={Math.min(zeroY, valueY)} width={barWidth} height={Math.max(1, Math.abs(zeroY - valueY))} rx="3" className="performance-day-bar" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} />
-          <text className="weekday-full" x={x + barWidth / 2} y={height - 9} textAnchor="middle" fill="rgb(var(--text-primary))" fontSize="12">{day.day}</text><text className="weekday-short" x={x + barWidth / 2} y="210" textAnchor="middle" fill="rgb(var(--text-primary))" fontSize="12">{day.day[0]}</text>
+          <text className="weekday-full" x={x + barWidth / 2} y={height - 9} textAnchor="middle" fill="rgb(var(--text-primary))" fontSize="12">{day.day}</text><text className="weekday-short" x={x + barWidth / 2} y={height - 9} textAnchor="middle" fill="rgb(var(--text-primary))" fontSize="12">{day.day[0]}</text>
           {day.count > 0 && <title>{day.day}: {day.count} trades · {mode === 'avg' ? 'Average' : 'Total'} P/L ${value.toFixed(2)}</title>}
         </g>;
       })}
