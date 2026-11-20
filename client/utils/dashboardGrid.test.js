@@ -4,6 +4,8 @@ const {
   normalizeLayout,
   readLayoutFromValue,
   getDefaultSize,
+  completePositions,
+  findAvailablePosition,
   createStarterLayout,
   STARTER_LAYOUTS,
 } = require('./dashboardLayout');
@@ -11,7 +13,7 @@ const {
 const items = [
   { id: 'totalPL', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1 },
   { id: 'winRate', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1 },
-  { id: 'tradingCalendar', minColumns: 4, minRows: 4, defaultColumns: 4, defaultRows: 4 },
+  { id: 'tradingCalendar', minColumns: 4, minRows: 5, defaultColumns: 4, defaultRows: 5 },
   { id: 'equityCurve', minColumns: 2, minRows: 2, defaultColumns: 4, defaultRows: 2 },
   { id: 'performanceByDay', minColumns: 2, minRows: 2, defaultColumns: 4, defaultRows: 2 },
 ];
@@ -21,7 +23,7 @@ test('new dashboard layouts include all valid tiles and respect default visibili
 
   assert.deepEqual(layout.order, ['totalPL', 'winRate', 'tradingCalendar', 'equityCurve', 'performanceByDay']);
   assert.deepEqual(layout.hidden, ['winRate', 'tradingCalendar', 'equityCurve', 'performanceByDay']);
-  assert.deepEqual(layout.sizes.tradingCalendar, { w: 4, h: 4 });
+  assert.deepEqual(layout.sizes.tradingCalendar, { w: 4, h: 5 });
 });
 
 test('saved layouts discard removed tiles, deduplicate order and append newly introduced tiles', () => {
@@ -78,7 +80,7 @@ test('applying a starter layout preserves the other tiles without overwriting sa
 
   assert.deepEqual(layout.order, ['totalPL', 'winRate', 'tradingCalendar', 'equityCurve', 'performanceByDay', 'extra']);
   assert.deepEqual(layout.hidden, ['extra']);
-  assert.deepEqual(layout.sizes.tradingCalendar, { w: 4, h: 4 });
+  assert.deepEqual(layout.sizes.tradingCalendar, { w: 4, h: 5 });
   assert.deepEqual(layout.sizes.equityCurve, { w: 4, h: 3 });
 });
 
@@ -109,5 +111,34 @@ test('saved manual positions are normalized and retained', () => {
     positions: { totalPL: { col: 99, row: 3 }, removed: { col: 2, row: 2 } },
   }, ['totalPL'], ['totalPL'], items);
 
-  assert.deepEqual(layout.positions, { totalPL: { col: 8, row: 3 } });
+  assert.deepEqual(layout.positions.totalPL, { col: 8, row: 3 });
+  assert.equal(Object.keys(layout.positions).length, items.length);
+});
+
+
+test('visible tiles receive independent non-overlapping grid positions', () => {
+  const layout = normalizeLayout(null, items.map(item => item.id), items.map(item => item.id), items);
+  const occupied = [];
+  for (const item of items) {
+    const position = layout.positions[item.id];
+    const size = layout.sizes[item.id];
+    assert.ok(position, `Missing position for ${item.id}`);
+    assert.equal(occupied.some(entry =>
+      position.col < entry.col + entry.w
+      && position.col + size.w > entry.col
+      && position.row < entry.row + entry.h
+      && position.row + size.h > entry.row
+    ), false, `Unexpected overlap for ${item.id}`);
+    occupied.push({ ...position, ...size });
+  }
+});
+
+test('an independent tile can be placed in empty space without requiring an adjacent tile', () => {
+  const occupied = [{ col: 1, row: 1, w: 2, h: 2 }];
+  assert.deepEqual(findAvailablePosition({ w: 2, h: 2 }, occupied, { col: 5, row: 3 }), { col: 5, row: 3 });
+});
+
+test('calendar minimum size is four columns by five rows', () => {
+  const calendar = items.find(item => item.id === 'tradingCalendar');
+  assert.deepEqual(getDefaultSize(calendar), { w: 4, h: 5 });
 });
