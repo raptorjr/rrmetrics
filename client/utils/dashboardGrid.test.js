@@ -6,6 +6,7 @@ const {
   getDefaultSize,
   completePositions,
   findAvailablePosition,
+  getDropPositionFromGrab,
   placeTileAndDisplace,
   createStarterLayout,
   STARTER_LAYOUTS,
@@ -205,4 +206,39 @@ test('moving a calendar into another tile displaces only the tile in its way', (
     ), false, `Unexpected overlap for ${id}`);
     occupied.push({ ...p, ...size });
   }
+});
+
+
+test('drop placement preserves the point grabbed inside a wide tile', () => {
+  const bounds = { left: 0, top: 0, width: 2048, height: 1200 };
+  const gap = 16;
+  const trackWidth = (bounds.width - gap * 7) / 8;
+  const drop = getDropPositionFromGrab({
+    clientX: 5 * (trackWidth + gap) + trackWidth / 2,
+    clientY: 3 * 128 + 64,
+    bounds,
+    columns: 8,
+    grabOffset: { col: 1, row: 2 },
+    gap,
+    rowUnit: 128,
+  });
+
+  assert.deepEqual(drop, { col: 5, row: 2 });
+});
+
+test('drop placement maps responsive four-column tracks to logical grid columns', () => {
+  const bounds = { left: 0, top: 0, width: 1200, height: 800 };
+  const gap = 16;
+  const trackWidth = (bounds.width - gap * 3) / 4;
+  const drop = getDropPositionFromGrab({
+    clientX: 2 * (trackWidth + gap) + trackWidth / 2,
+    clientY: 128 + 64,
+    bounds,
+    columns: 4,
+    grabOffset: { col: 0, row: 0 },
+    gap,
+    rowUnit: 128,
+  });
+
+  assert.deepEqual(drop, { col: 5, row: 2 });
 });
