@@ -330,8 +330,8 @@ const MonteCarloTile = ({ trades, settings, settingsControl }) => {
 
 const TradingScoreTile = ({ trades }) => {
   const result = useMemo(() => calculateTradingScore(trades), [trades]);
-  const center = { x: 160, y: 126 };
-  const radius = 82;
+  const center = { x: 160, y: 105 };
+  const radius = 70;
   const polar = (value, index, scale = 1) => {
     const angle = (-Math.PI / 2) + (index * Math.PI * 2 / result.metrics.length);
     const distance = radius * scale * (value / 100);
@@ -340,7 +340,7 @@ const TradingScoreTile = ({ trades }) => {
   const radarPoints = result.metrics.map((metric, index) => polar(metric.score, index));
   const polygon = radarPoints.map(point => point.x.toFixed(1) + ',' + point.y.toFixed(1)).join(' ');
   const labelPoints = result.metrics.map((metric,index) => {
-    const p = polar(100,index,1.28);
+    const p = polar(100,index,1.22);
     return { ...p, metric, anchor: p.x < center.x - 12 ? 'end' : p.x > center.x + 12 ? 'start' : 'middle' };
   });
   const scoreColor = result.score === null ? 'text-text-secondary' : result.score >= 70 ? 'text-positive' : result.score >= 45 ? 'text-warning' : 'text-negative';
@@ -365,9 +365,9 @@ const TradingScoreTile = ({ trades }) => {
         </div>
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-center gap-3 min-h-0">
-            <div className="w-full max-w-[300px] shrink-0">
-              <svg viewBox="0 0 320 252" role="img" aria-label="Radar chart of six RR Trading Score dimensions" className="w-full h-auto">
+          <div className="flex flex-row items-center justify-center gap-4 min-h-0">
+            <div className="w-[38%] max-w-[250px] min-w-0 shrink-0 flex items-center justify-center">
+              <svg viewBox="0 0 320 210" role="img" aria-label="Radar chart of six RR Trading Score dimensions" className="w-full h-auto">
                 {[20,40,60,80,100].map(level=>{
                   const pts=result.metrics.map((metric,index)=>polar(level,index));
                   return <polygon key={level} points={pts.map(p=>p.x+','+p.y).join(' ')} fill="none" stroke="rgb(var(--border))" strokeWidth="1"/>;
@@ -378,10 +378,10 @@ const TradingScoreTile = ({ trades }) => {
                 })}
                 <polygon points={polygon} fill="rgb(var(--accent))" fillOpacity="0.22" stroke="rgb(var(--accent))" strokeWidth="2"/>
                 {radarPoints.map((p,index)=><circle key={result.metrics[index].id} cx={p.x} cy={p.y} r="3.5" fill="rgb(var(--accent))" stroke="rgb(var(--bg-surface))" strokeWidth="1.5"/>)}
-                {labelPoints.map(({x,y,metric,anchor})=><text key={metric.id} x={x} y={y+4} textAnchor={anchor} fill="rgb(var(--text-secondary))" fontSize="10">{metric.label}</text>)}
+                {labelPoints.map(({x,y,metric,anchor})=><text key={metric.id} x={x} y={y+4} textAnchor={anchor} fill="rgb(var(--text-secondary))" fontSize="9">{metric.label}</text>)}
               </svg>
             </div>
-            <div className="flex-1 min-w-[210px] grid grid-cols-2 gap-x-3 gap-y-2">
+            <div className="flex-1 min-w-0 grid grid-cols-2 gap-x-4 gap-y-2">
               {result.metrics.map(metric=><div key={metric.id} className="min-w-0 border-b border-border/60 pb-1">
                 <div className="text-[10px] text-text-tertiary truncate">{metric.label}</div>
                 <div className="flex items-baseline justify-between gap-1">
@@ -391,16 +391,16 @@ const TradingScoreTile = ({ trades }) => {
               </div>)}
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 shrink-0">
+          <div className="grid grid-cols-2 gap-2 shrink-0">
             <div className="rounded-lg bg-bg-page p-3 min-w-0">
               <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-warning mb-1"><span>Improvement opportunity</span></div>
               <div className="text-sm font-semibold text-text-primary">{result.weakest.label} · {Math.round(result.weakest.score)}/100</div>
-              <p className="text-xs text-text-secondary mt-1">{result.weakest.improvement}</p>
+              <p className="text-xs text-text-secondary mt-1 leading-snug">{result.weakest.improvement}</p>
             </div>
             <div className="rounded-lg bg-bg-page p-3 min-w-0">
               <div className="text-[10px] uppercase tracking-wider text-positive mb-1">Current strength</div>
               <div className="text-sm font-semibold text-text-primary">{result.strongest.label} · {Math.round(result.strongest.score)}/100</div>
-              <p className="text-xs text-text-secondary mt-1">{result.strongest.explanation}</p>
+              <p className="text-xs text-text-secondary mt-1 leading-snug">{result.strongest.explanation}</p>
             </div>
           </div>
           <div className="text-[10px] text-text-tertiary shrink-0">A personal review tool, not a target to chase. Score based on the selected trades.</div>
