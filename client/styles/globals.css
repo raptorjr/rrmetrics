@@ -894,7 +894,10 @@
 
 /* Entry-time labels use a regular three-hour cadence; reduce only on very narrow tiles. */
 @container dashboard-tile (max-width: 400px) {
-  .dashboard-responsive-chart.entry-time-chart .entry-time-x-label:nth-of-type(even) {
+  .dashboard-responsive-chart.entry-time-chart .chart-x-label-1,
+  .dashboard-responsive-chart.entry-time-chart .chart-x-label-3,
+  .dashboard-responsive-chart.entry-time-chart .chart-x-label-5,
+  .dashboard-responsive-chart.entry-time-chart .chart-x-label-7 {
     display: none;
   }
 }
