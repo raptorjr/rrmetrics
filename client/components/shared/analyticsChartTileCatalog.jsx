@@ -13,7 +13,7 @@ const DEFINITIONS = [
   { id: 'monteCarloSimulation', label: 'Monte Carlo Simulation', category: 'Risk', minColumns: 1, minRows: 1, defaultColumns: 6, defaultRows: 2, description: "Runs repeated simulations of the observed trade outcomes to estimate evaluation pass probability and time to pass." },
 ];
 
-const Panel = ({ title, children, actions }) => <div className="dashboard-tile-panel h-full min-h-0 min-w-0 overflow-hidden flex flex-col bg-bg-surface border border-border rounded-xl p-3 md:p-4"><div className="shrink-0 flex items-center justify-between gap-2 mb-2"><h3 className="min-w-0 text-text-primary font-semibold text-sm">{title}</h3>{actions && <div className="mr-9 flex shrink-0 items-center gap-1">{actions}</div>}</div><div className="flex-1 min-h-0 min-w-0 flex flex-col">{children}</div></div>;
+const Panel = ({ title, children, actions }) => <div className="dashboard-tile-panel h-full min-h-0 min-w-0 overflow-hidden flex flex-col bg-bg-surface border border-border rounded-xl p-3 md:p-4"><div className="shrink-0 flex items-center justify-between gap-2 mb-2"><h3 className="min-w-0 text-text-primary font-semibold text-sm">{title}</h3>{actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}</div><div className="flex-1 min-h-0 min-w-0 flex flex-col">{children}</div></div>;
 const Preview = ({ item }) => (
   <div className="h-[82px] rounded-md border border-border bg-bg-page p-2 flex flex-col justify-between overflow-hidden">
     <span className="text-[10px] font-semibold text-text-secondary">{item.label}</span>
@@ -215,7 +215,7 @@ const DailyNetPLTile = ({ trades }) => {
   </Panel>;
 };
 
-const MonteCarloTile = ({ trades, settings }) => {
+const MonteCarloTile = ({ trades, settings, settingsControl }) => {
   const [runVersion, setRunVersion] = useState(0);
   const results = useMemo(() => runMonteCarloSimulation(trades, settings), [trades, settings.profitTarget, settings.maxDrawdown, runVersion]);
   if (results.insufficientTrades || !results.paths || results.paths.length === 0) {
@@ -239,7 +239,7 @@ const MonteCarloTile = ({ trades, settings }) => {
   return (
     <Panel
       title={<span className="flex items-center gap-2">Monte Carlo Eval Simulation <InfoTooltip text="Historical trade P/L is sampled with replacement at the rounded average trades-per-day rate. Drawdown is checked at the end of each simulated day. Results are illustrative, not a prediction." /></span>}
-      actions={<button type="button" onClick={() => setRunVersion(value => value + 1)} title="Recalculate simulation" aria-label="Recalculate simulation" className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-sm text-text-secondary hover:text-text-primary">↻</button>}
+      actions={<>{settingsControl}<button type="button" onClick={() => setRunVersion(value => value + 1)} title="Recalculate simulation" aria-label="Recalculate simulation" className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-sm text-text-secondary hover:text-text-primary">↻</button></>}
     >
       <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 text-[10px] text-text-tertiary mb-1">
         <span>{results.totalSimulations.toLocaleString()} simulations · ${results.profitTarget.toLocaleString()} target · ${results.maxDrawdown.toLocaleString()} EOD drawdown</span>
@@ -316,7 +316,7 @@ const createAnalyticsChartTiles = (trades = [], options = {}) => {
     tile('performanceByDay', () => <PerformanceByDayTile trades={trades} />),
     tile('performanceByEntryTime', () => <EntryTimeTile trades={trades} mode={entryTimeMode} onModeChange={onEntryTimeModeChange} />),
     {
-      ...tile('monteCarloSimulation', () => <MonteCarloTile trades={trades} settings={monteCarloSettings} />),
+      ...tile('monteCarloSimulation', ({ settingsControl } = {}) => <MonteCarloTile trades={trades} settings={monteCarloSettings} settingsControl={settingsControl} />),
       settings: [
         {
           id: 'profitTarget', label: 'Profit target ($)', description: 'Evaluation profit target used by each simulation.',
