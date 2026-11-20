@@ -9,6 +9,7 @@ const {
   completePositions,
   placeTileAndDisplace,
   getDropPositionFromGrab,
+  getResizedTileGeometry,
   normalizeLayout,
   readLayoutFromValue,
   createStarterLayout,
