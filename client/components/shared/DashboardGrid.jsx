@@ -254,7 +254,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     // Prevent the tile's native HTML drag operation from competing with resizing.
     if (tileElement) tileElement.draggable = false;
 
-    const view = event.currentTarget.ownerDocument.defaultView;
+    const doc = event.currentTarget.ownerDocument;
     resizeRef.current = {
       id: item.id,
       corner,
@@ -267,18 +267,19 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       startRow: currentPosition.row,
       gridWidth: gridRef.current ? gridRef.current.clientWidth : 1200,
       tileElement,
-      view,
+      doc,
     };
-    // Listen on the window so movement remains available even if the pointer
-    // leaves the small corner handle or crosses another draggable tile.
-    view.addEventListener('pointermove', moveResize);
-    view.addEventListener('pointerup', stopResize);
-    view.addEventListener('pointercancel', stopResize);
+    // Capture at document level so the drag cannot be swallowed by the
+    // draggable tile or by another tile crossed during the resize.
+    doc.addEventListener('pointermove', moveResize, true);
+    doc.addEventListener('pointerup', stopResize, true);
+    doc.addEventListener('pointercancel', stopResize, true);
   };
 
   const moveResize = (event) => {
     const start = resizeRef.current;
     if (!start || start.pointerId !== event.pointerId) return;
+    event.preventDefault();
     const item = items.find(candidate => candidate.id === start.id);
     if (!item) return;
     const minW = Number(item.minColumns) || 1;
@@ -319,9 +320,9 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const stopResize = (event) => {
     const active = resizeRef.current;
     if (!active || (event.pointerId !== undefined && active.pointerId !== event.pointerId)) return;
-    active.view.removeEventListener('pointermove', moveResize);
-    active.view.removeEventListener('pointerup', stopResize);
-    active.view.removeEventListener('pointercancel', stopResize);
+    active.doc.removeEventListener('pointermove', moveResize, true);
+    active.doc.removeEventListener('pointerup', stopResize, true);
+    active.doc.removeEventListener('pointercancel', stopResize, true);
     if (active.tileElement) active.tileElement.draggable = true;
     resizeRef.current = null;
   };
