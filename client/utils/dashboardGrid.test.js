@@ -242,3 +242,45 @@ test('drop placement maps responsive four-column tracks to logical grid columns'
 
   assert.deepEqual(drop, { col: 5, row: 2 });
 });
+
+
+test('dropping a tile onto an occupied area gives it priority and displaces every collision', () => {
+  const sizes = {
+    moving: { w: 2, h: 2 },
+    occupiedA: { w: 1, h: 1 },
+    occupiedB: { w: 1, h: 1 },
+    untouched: { w: 1, h: 1 },
+  };
+  const positions = {
+    moving: { col: 1, row: 1 },
+    occupiedA: { col: 5, row: 3 },
+    occupiedB: { col: 6, row: 4 },
+    untouched: { col: 8, row: 1 },
+  };
+  const moved = placeTileAndDisplace(
+    'moving',
+    { col: 5, row: 3 },
+    ['moving', 'occupiedA', 'occupiedB', 'untouched'],
+    [],
+    sizes,
+    positions
+  );
+
+  assert.deepEqual(moved.moving, { col: 5, row: 3 });
+  assert.notDeepEqual(moved.occupiedA, positions.occupiedA);
+  assert.notDeepEqual(moved.occupiedB, positions.occupiedB);
+  assert.deepEqual(moved.untouched, positions.untouched);
+
+  const occupied = [];
+  for (const id of ['moving', 'occupiedA', 'occupiedB', 'untouched']) {
+    const position = moved[id];
+    const size = sizes[id];
+    assert.equal(occupied.some(entry =>
+      position.col < entry.col + entry.w
+      && position.col + size.w > entry.col
+      && position.row < entry.row + entry.h
+      && position.row + size.h > entry.row
+    ), false, `Unexpected overlap for ${id}`);
+    occupied.push({ ...position, ...size });
+  }
+});
