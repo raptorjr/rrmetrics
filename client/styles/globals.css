@@ -331,3 +331,72 @@
 .onboard-float {
   animation: onboard-float-anim 2s ease-in-out infinite;
 }
+
+
+/* Dashboard tiles use their own dimensions rather than the viewport to reflow content. */
+.dashboard-tile-panel {
+  container-type: size;
+  container-name: dashboard-tile;
+}
+
+.dashboard-long-short {
+  align-content: start;
+  overflow: auto;
+}
+
+.dashboard-detailed-stats {
+  align-content: start;
+}
+
+.dashboard-ticker-list > div:last-child {
+  border-right: 0;
+  padding-right: 0;
+}
+
+.dashboard-monte-summary {
+  grid-template-columns: 1fr;
+}
+
+@container dashboard-tile (min-width: 420px) and (min-height: 150px) {
+  .dashboard-long-short {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+    overflow: visible;
+  }
+
+  .dashboard-detailed-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-monte-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container dashboard-tile (max-height: 150px) {
+  .dashboard-detailed-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: auto;
+  }
+
+  .dashboard-long-short {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    overflow: auto;
+  }
+}
+
+@container dashboard-tile (max-width: 300px) {
+  .dashboard-tile-panel {
+    padding: 0.5rem;
+  }
+
+  .dashboard-tile-panel h3 {
+    font-size: 0.7rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .dashboard-detailed-stats span {
+    font-size: 0.65rem;
+  }
+}
