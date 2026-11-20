@@ -11,40 +11,40 @@ const DEFINITIONS = [
   { id: 'monteCarloSimulation', label: 'Monte Carlo Simulation', category: 'Risk', minColumns: 2, minRows: 2, defaultColumns: 6, defaultRows: 2, description: "Runs repeated simulations of the observed trade outcomes to estimate evaluation pass probability and time to pass." },
 ];
 
-const Panel = ({ title, children }) => <div className="h-full min-h-[260px] bg-bg-surface border border-border rounded-xl p-5"><h3 className="text-text-primary font-semibold mb-4">{title}</h3>{children}</div>;
+const Panel = ({ title, children }) => <div className="h-full min-h-0 min-w-0 overflow-hidden flex flex-col bg-bg-surface border border-border rounded-xl p-3 md:p-4"><h3 className="shrink-0 text-text-primary font-semibold text-sm mb-2">{title}</h3><div className="flex-1 min-h-0 min-w-0 flex flex-col">{children}</div></div>;
 const Preview = ({ item }) => (
   <div className="h-[82px] rounded-md border border-border bg-bg-page p-2 flex flex-col justify-between overflow-hidden">
     <span className="text-[10px] font-semibold text-text-secondary">{item.label}</span>
     {item.id === 'equityCurve' && (
       <svg viewBox="0 0 240 52" className="w-full h-12" role="img" aria-label="Illustrative rising equity curve">
-        <line x1="2" x2="238" y1="44" y2="44" stroke="var(--border)" strokeDasharray="3 3" />
-        <path d="M 4 42 L 28 36 L 52 39 L 78 25 L 102 30 L 128 18 L 152 22 L 178 11 L 202 15 L 236 5" fill="none" stroke="var(--positive)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <line x1="2" x2="238" y1="44" y2="44" stroke="rgb(var(--border))" strokeDasharray="3 3" />
+        <path d="M 4 42 L 28 36 L 52 39 L 78 25 L 102 30 L 128 18 L 152 22 L 178 11 L 202 15 L 236 5" fill="none" stroke="rgb(var(--positive))" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     )}
     {item.id === 'performanceByDay' && (
       <svg viewBox="0 0 240 52" className="w-full h-12" role="img" aria-label="Illustrative profit and loss by weekday">
-        <line x1="2" x2="238" y1="27" y2="27" stroke="var(--border)" />
+        <line x1="2" x2="238" y1="27" y2="27" stroke="rgb(var(--border))" />
         {[12, 23, -9, 17, -15, 28, 7].map((value, index) => {
           const height = Math.abs(value);
-          return <rect key={index} x={12 + index * 33} y={value >= 0 ? 27 - height : 27} width="17" height={height} rx="2" fill={value >= 0 ? 'var(--positive)' : 'var(--negative)'} opacity="0.8" />;
+          return <rect key={index} x={12 + index * 33} y={value >= 0 ? 27 - height : 27} width="17" height={height} rx="2" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} opacity="0.8" />;
         })}
       </svg>
     )}
     {item.id === 'performanceByEntryTime' && (
       <svg viewBox="0 0 240 52" className="w-full h-12" role="img" aria-label="Illustrative performance by entry time">
-        <line x1="2" x2="238" y1="27" y2="27" stroke="var(--border)" />
+        <line x1="2" x2="238" y1="27" y2="27" stroke="rgb(var(--border))" />
         {[8, 18, -8, 24, 14, -13, 30, 19, 9, -5, 22].map((value, index) => {
           const height = Math.abs(value);
-          return <rect key={index} x={5 + index * 21} y={value >= 0 ? 27 - height : 27} width="13" height={height} rx="2" fill={value >= 0 ? 'var(--positive)' : 'var(--negative)'} opacity="0.8" />;
+          return <rect key={index} x={5 + index * 21} y={value >= 0 ? 27 - height : 27} width="13" height={height} rx="2" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} opacity="0.8" />;
         })}
       </svg>
     )}
     {item.id === 'monteCarloSimulation' && (
       <svg viewBox="0 0 240 52" className="w-full h-12" role="img" aria-label="Illustrative Monte Carlo simulation paths">
-        <line x1="2" x2="238" y1="44" y2="44" stroke="var(--border)" strokeDasharray="3 3" />
-        <polyline points="4,44 34,37 64,40 94,27 124,31 154,20 184,15 214,7 236,5" fill="none" stroke="var(--positive)" strokeWidth="1.8" opacity="0.8" />
-        <polyline points="4,44 34,48 64,35 94,39 124,29 154,33 184,24 214,26 236,17" fill="none" stroke="var(--positive)" strokeWidth="1.5" opacity="0.45" />
-        <polyline points="4,44 34,31 64,35 94,42 124,39 154,47 184,41 214,44 236,36" fill="none" stroke="var(--negative)" strokeWidth="1.5" opacity="0.45" />
+        <line x1="2" x2="238" y1="44" y2="44" stroke="rgb(var(--border))" strokeDasharray="3 3" />
+        <polyline points="4,44 34,37 64,40 94,27 124,31 154,20 184,15 214,7 236,5" fill="none" stroke="rgb(var(--positive))" strokeWidth="1.8" opacity="0.8" />
+        <polyline points="4,44 34,48 64,35 94,39 124,29 154,33 184,24 214,26 236,17" fill="none" stroke="rgb(var(--positive))" strokeWidth="1.5" opacity="0.45" />
+        <polyline points="4,44 34,31 64,35 94,42 124,39 154,47 184,41 214,44 236,36" fill="none" stroke="rgb(var(--negative))" strokeWidth="1.5" opacity="0.45" />
       </svg>
     )}
   </div>
@@ -96,9 +96,9 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
         </div>
         <span className="text-[10px] text-text-tertiary">30-minute buckets · US Eastern time</span>
       </div>
-      <div className="w-full overflow-x-auto">
-        <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Profit and loss by entry time" className="w-full min-w-[620px] h-auto">
-          <line x1={padding} x2={width - padding} y1={zeroY} y2={zeroY} stroke="var(--border)" strokeDasharray="4 4" />
+      <div className="w-full flex-1 min-h-0 min-w-0 overflow-hidden">
+        <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Profit and loss by entry time" className="w-full h-full min-h-0">
+          <line x1={padding} x2={width - padding} y1={zeroY} y2={zeroY} stroke="rgb(var(--border))" strokeDasharray="4 4" />
           {timeStats.map((stat, index) => {
             const value = values[index];
             const barHeight = (Math.abs(value) / maxValue) * chartHalfHeight;
@@ -107,8 +107,8 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
             const pf = stat.grossLossPL === 0 ? (stat.grossWinPL > 0 ? '∞' : '0.00') : (stat.grossWinPL / stat.grossLossPL).toFixed(2);
             const tooltip = stat.time + ' · ' + stat.count + ' trades · ' + stat.breakevens + ' breakeven · ' + stat.winRate.toFixed(1) + '% win rate · PF ' + pf + ' · Total $' + stat.totalPL.toFixed(2) + ' · Average $' + stat.avgPL.toFixed(2);
             return <g key={stat.time}>
-              {stat.count > 0 && <rect x={x} y={y} width={barWidth} height={Math.max(1, barHeight)} rx="2" fill={value >= 0 ? 'var(--positive)' : 'var(--negative)'} opacity="0.85"><title>{tooltip}</title></rect>}
-              {(index % 6 === 0 || index === timeStats.length - 1) && <text x={x + barWidth / 2} y="224" textAnchor="middle" fill="var(--text-tertiary)" fontSize="10">{stat.time}</text>}
+              {stat.count > 0 && <rect x={x} y={y} width={barWidth} height={Math.max(1, barHeight)} rx="2" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} opacity="0.85"><title>{tooltip}</title></rect>}
+              {(index % 6 === 0 || index === timeStats.length - 1) && <text x={x + barWidth / 2} y="224" textAnchor="middle" fill="rgb(var(--text-tertiary))" fontSize="10">{stat.time}</text>}
             </g>;
           })}
         </svg>
@@ -157,17 +157,17 @@ const MonteCarloTile = ({ trades, settings }) => {
         <span>{results.totalSimulations.toLocaleString()} simulations · ${results.profitTarget.toLocaleString()} target · ${results.maxDrawdown.toLocaleString()} EOD trailing drawdown</span><span>{results.paths.length} sample paths</span>
       </div>
       <p className="text-[10px] text-text-tertiary mb-2">Historical trade P/L is sampled with replacement at the rounded average trades-per-day rate. Drawdown is checked at the end of each simulated day; results are illustrative, not a prediction.</p>
-      <div className="w-full overflow-x-auto">
-        <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Monte Carlo simulated equity paths" className="w-full min-w-[520px] h-auto">
+      <div className="w-full flex-1 min-h-0 min-w-0 overflow-hidden">
+        <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Monte Carlo simulated equity paths" className="w-full h-full min-h-0">
           {[0, 1, 2, 3, 4, 5].map(index => {
             const y = padding.top + (chartHeight / 5) * index;
             const value = maxValue - (range / 5) * index;
-            return <g key={index}><line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="var(--border)" /><text x={padding.left - 8} y={y + 4} textAnchor="end" fill="var(--text-tertiary)" fontSize="10">{'$' + value.toFixed(0)}</text></g>;
+            return <g key={index}><line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="rgb(var(--border))" /><text x={padding.left - 8} y={y + 4} textAnchor="end" fill="rgb(var(--text-tertiary))" fontSize="10">{'$' + value.toFixed(0)}</text></g>;
           })}
-          <line x1={padding.left} x2={width - padding.right} y1={toY(0)} y2={toY(0)} stroke="var(--text-tertiary)" strokeDasharray="3 3" />
+          <line x1={padding.left} x2={width - padding.right} y1={toY(0)} y2={toY(0)} stroke="rgb(var(--text-tertiary))" strokeDasharray="3 3" />
           {results.paths.map((path, pathIndex) => {
             const points = path.points.map((value, index) => toX(index).toFixed(1) + ',' + toY(value).toFixed(1)).join(' ');
-            return <polyline key={pathIndex} points={points} fill="none" stroke={path.passed ? 'var(--positive)' : 'var(--negative)'} strokeOpacity={path.passed ? 0.25 : 0.2} strokeWidth="1" />;
+            return <polyline key={pathIndex} points={points} fill="none" stroke={path.passed ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} strokeOpacity={path.passed ? 0.25 : 0.2} strokeWidth="1" />;
           })}
         </svg>
       </div>
@@ -205,18 +205,18 @@ const createAnalyticsChartTiles = (trades = [], options = {}) => {
   const zeroY = 105;
   return [
     tile('equityCurve', () => <Panel title="Equity Curve">
-      {trades.length ? <div className="w-full overflow-hidden"><svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Cumulative profit and loss chart" className="w-full h-auto">
-        {[0, 1, 2, 3, 4].map(index => <line key={index} x1={pad} x2={width - pad} y1={pad + index * (height - pad * 2) / 4} y2={pad + index * (height - pad * 2) / 4} stroke="var(--border)" strokeWidth="1" />)}
-        {min < 0 && max > 0 && <line x1={pad} x2={width - pad} y1={pad + (max / range) * (height - pad * 2)} y2={pad + (max / range) * (height - pad * 2)} stroke="var(--text-muted)" strokeDasharray="4 4" />}
-        {points.length > 1 && <path d={path} fill="none" stroke={cumulative[cumulative.length - 1] >= 0 ? 'var(--positive)' : 'var(--negative)'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
+      {trades.length ? <div className="w-full flex-1 min-h-0 min-w-0 overflow-hidden"><svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Cumulative profit and loss chart" className="w-full h-full min-h-0">
+        {[0, 1, 2, 3, 4].map(index => <line key={index} x1={pad} x2={width - pad} y1={pad + index * (height - pad * 2) / 4} y2={pad + index * (height - pad * 2) / 4} stroke="rgb(var(--border))" strokeWidth="1" />)}
+        {min < 0 && max > 0 && <line x1={pad} x2={width - pad} y1={pad + (max / range) * (height - pad * 2)} y2={pad + (max / range) * (height - pad * 2)} stroke="rgb(var(--text-muted))" strokeDasharray="4 4" />}
+        {points.length > 1 && <path d={path} fill="none" stroke={cumulative[cumulative.length - 1] >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
       </svg></div> : <p className="text-sm text-text-tertiary">No trades available</p>}
       <div className={'text-right text-sm font-semibold ' + (running >= 0 ? 'text-positive' : 'text-negative')}>{(running >= 0 ? '+' : '') + '$' + running.toFixed(2)} total P/L</div>
     </Panel>),
     tile('performanceByDay', () => <Panel title="Performance by Day">
       <div className="flex items-center justify-between text-[10px] text-text-tertiary mb-2"><span>Loss</span><span>Profit</span></div>
-      <svg viewBox="0 0 640 230" role="img" aria-label="Profit and loss by weekday" className="w-full h-auto">
-        <line x1="24" x2="616" y1={zeroY} y2={zeroY} stroke="var(--border)" strokeDasharray="4 4" />
-        {dayValues.map((value, index) => { const barHeight = Math.abs(value) / dayMax * 78; const x = 48 + index * 84; return <g key={dayNames[index]}><rect x={x} y={value >= 0 ? zeroY - barHeight : zeroY} width="42" height={Math.max(1, barHeight)} rx="4" fill={value >= 0 ? 'var(--positive)' : 'var(--negative)'} opacity="0.85" /><text x={x + 21} y="205" textAnchor="middle" fill="var(--text-tertiary)" fontSize="12">{dayNames[index]}</text><text x={x + 21} y={value >= 0 ? zeroY - barHeight - 7 : zeroY + barHeight + 15} textAnchor="middle" fill="var(--text-secondary)" fontSize="10">{value === 0 ? '' : Math.round(value)}</text></g>; })}
+      <svg viewBox="0 0 640 230" role="img" aria-label="Profit and loss by weekday" className="w-full h-full min-h-0">
+        <line x1="24" x2="616" y1={zeroY} y2={zeroY} stroke="rgb(var(--border))" strokeDasharray="4 4" />
+        {dayValues.map((value, index) => { const barHeight = Math.abs(value) / dayMax * 78; const x = 48 + index * 84; return <g key={dayNames[index]}><rect x={x} y={value >= 0 ? zeroY - barHeight : zeroY} width="42" height={Math.max(1, barHeight)} rx="4" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} opacity="0.85" /><text x={x + 21} y="205" textAnchor="middle" fill="rgb(var(--text-tertiary))" fontSize="12">{dayNames[index]}</text><text x={x + 21} y={value >= 0 ? zeroY - barHeight - 7 : zeroY + barHeight + 15} textAnchor="middle" fill="rgb(var(--text-secondary))" fontSize="10">{value === 0 ? '' : Math.round(value)}</text></g>; })}
       </svg>
       <p className="text-[11px] text-text-tertiary text-right">Total P/L by exit weekday</p>
     </Panel>),
