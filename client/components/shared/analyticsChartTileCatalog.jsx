@@ -237,29 +237,33 @@ const MonteCarloTile = ({ trades, settings }) => {
   const toY = value => padding.top + ((maxValue - value) / range) * chartHeight;
 
   return (
-    <Panel title={<span className="flex items-center gap-2">Monte Carlo Eval Simulation <InfoTooltip text="Historical trade P/L is sampled with replacement at the rounded average trades-per-day rate. Drawdown is checked at the end of each simulated day. Results are illustrative, not a prediction." /></span>}>
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 text-[10px] text-text-tertiary mb-1">
-        <span>{results.totalSimulations.toLocaleString()} simulations · ${results.profitTarget.toLocaleString()} target · ${results.maxDrawdown.toLocaleString()} EOD drawdown</span><button type="button" onClick={() => setRunVersion(value => value + 1)} className="shrink-0 rounded border border-border px-2 py-1 text-text-secondary hover:text-text-primary">↻ Recalculate</button>
+    <Panel
+      title={<span className="flex items-center gap-2">Monte Carlo Eval Simulation <InfoTooltip text="Historical trade P/L is sampled with replacement at the rounded average trades-per-day rate. Drawdown is checked at the end of each simulated day. Results are illustrative, not a prediction." /></span>}
+      actions={<button type="button" onClick={() => setRunVersion(value => value + 1)} title="Recalculate simulation" aria-label="Recalculate simulation" className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-sm text-text-secondary hover:text-text-primary">↻</button>}
+    >
+      <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 text-[10px] text-text-tertiary mb-1">
+        <span>{results.totalSimulations.toLocaleString()} simulations · ${results.profitTarget.toLocaleString()} target · ${results.maxDrawdown.toLocaleString()} EOD drawdown</span>
       </div>
-      
-      <div className="w-full flex-1 min-h-0 min-w-0 overflow-hidden">
-        <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Monte Carlo simulated equity paths" className="w-full h-full min-h-0">
-          {[0, 1, 2, 3, 4, 5].map(index => {
-            const y = padding.top + (chartHeight / 5) * index;
-            const value = maxValue - (range / 5) * index;
-            return <g key={index}><line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="rgb(var(--border))" /><text x={padding.left - 8} y={y + 4} textAnchor="end" fill="rgb(var(--text-tertiary))" fontSize="10">{'$' + value.toFixed(0)}</text></g>;
-          })}
-          <line x1={padding.left} x2={width - padding.right} y1={toY(0)} y2={toY(0)} stroke="rgb(var(--text-tertiary))" strokeDasharray="3 3" />
-          {results.paths.map((path, pathIndex) => {
-            const points = path.points.map((value, index) => toX(index).toFixed(1) + ',' + toY(value).toFixed(1)).join(' ');
-            return <polyline key={pathIndex} points={points} fill="none" stroke={path.passed ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} strokeOpacity={path.passed ? 0.25 : 0.2} strokeWidth="1" />;
-          })}
-        </svg>
-      </div>
-      <div className="grid grid-cols-3 gap-2 mt-2 shrink-0">
-        <div className="bg-bg-page rounded-lg p-2 text-center"><div className="text-text-secondary text-[10px] uppercase">Pass Rate</div><div className={'text-lg font-bold ' + (results.passRate >= 50 ? 'text-positive' : 'text-negative')}>{results.passRate.toFixed(1)}%</div></div>
-        <div className="bg-bg-page rounded-lg p-3 text-center"><div className="text-text-secondary text-[10px] uppercase">Avg Days to Pass</div><div className="text-xl font-bold text-text-primary">{results.avgDaysToPass > 0 ? results.avgDaysToPass.toFixed(1) : '—'}</div></div>
-        <div className="bg-bg-page rounded-lg p-3 text-center"><div className="text-text-secondary text-[10px] uppercase">Median Days to Pass</div><div className="text-xl font-bold text-text-primary">{results.medianDaysToPass > 0 ? results.medianDaysToPass.toFixed(1) : '—'}</div></div>
+      <div className="dashboard-monte-layout flex flex-1 min-h-0 min-w-0 gap-3">
+        <div className="dashboard-monte-summary flex shrink-0 flex-col justify-center gap-2 w-28">
+          <div className="bg-bg-page rounded-lg px-2 py-2 text-center"><div className="text-text-secondary text-[9px] uppercase">Pass Rate</div><div className={'text-base font-bold ' + (results.passRate >= 50 ? 'text-positive' : 'text-negative')}>{results.passRate.toFixed(1)}%</div></div>
+          <div className="bg-bg-page rounded-lg px-2 py-2 text-center"><div className="text-text-secondary text-[9px] uppercase">Avg Days</div><div className="text-base font-bold text-text-primary">{results.avgDaysToPass > 0 ? results.avgDaysToPass.toFixed(1) : '—'}</div></div>
+          <div className="bg-bg-page rounded-lg px-2 py-2 text-center"><div className="text-text-secondary text-[9px] uppercase">Median Days</div><div className="text-base font-bold text-text-primary">{results.medianDaysToPass > 0 ? results.medianDaysToPass.toFixed(1) : '—'}</div></div>
+        </div>
+        <div className="dashboard-monte-chart flex-1 min-h-0 min-w-0 overflow-hidden">
+          <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Monte Carlo simulated equity paths" className="w-full h-full min-h-0">
+            {[0, 1, 2, 3, 4, 5].map(index => {
+              const y = padding.top + (chartHeight / 5) * index;
+              const value = maxValue - (range / 5) * index;
+              return <g key={index}><line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="rgb(var(--border))" /><text x={padding.left - 8} y={y + 4} textAnchor="end" fill="rgb(var(--text-tertiary))" fontSize="10">{'$' + value.toFixed(0)}</text></g>;
+            })}
+            <line x1={padding.left} x2={width - padding.right} y1={toY(0)} y2={toY(0)} stroke="rgb(var(--text-tertiary))" strokeDasharray="3 3" />
+            {results.paths.map((path, pathIndex) => {
+              const points = path.points.map((value, index) => toX(index).toFixed(1) + ',' + toY(value).toFixed(1)).join(' ');
+              return <polyline key={pathIndex} points={points} fill="none" stroke={path.passed ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} strokeOpacity={path.passed ? 0.25 : 0.2} strokeWidth="1" />;
+            })}
+          </svg>
+        </div>
       </div>
     </Panel>
   );
