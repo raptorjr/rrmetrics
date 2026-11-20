@@ -90,7 +90,7 @@ const calculateTradingScore = (trades = []) => {
       id: 'consistency', label: 'Consistency', weight: SCORE_WEIGHTS.consistency,
       value: bestDayShare, displayValue: (bestDayShare * 100).toFixed(1) + '%',
       score: 100 - linearScore(bestDayShare, 0.2, 0.8),
-      explanation: 'Only 2.7% of positive-day profits came from your best day, suggesting profits are spread across many sessions.',
+      explanation: 'A low share from one day suggests profits are spread across many sessions.',
       improvement: 'Aim for repeatable execution across sessions. Review whether a large share of profits depends on one unusually strong day or a small number of exceptional trades.',
     },
   ];
