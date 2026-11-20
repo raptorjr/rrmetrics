@@ -392,15 +392,15 @@ const TradingScoreTile = ({ trades }) => {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 shrink-0">
-            <div className="rounded-lg bg-bg-page p-3 min-w-0">
+            <div className="rounded-lg bg-bg-page p-2.5 min-w-0">
               <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-warning mb-1"><span>Improvement opportunity</span></div>
               <div className="text-sm font-semibold text-text-primary">{result.weakest.label} · {Math.round(result.weakest.score)}/100</div>
-              <p className="text-xs text-text-secondary mt-1 leading-snug">{result.weakest.improvement}</p>
+              <p className="text-[11px] text-text-secondary mt-1 leading-snug">{result.weakest.improvement}</p>
             </div>
-            <div className="rounded-lg bg-bg-page p-3 min-w-0">
+            <div className="rounded-lg bg-bg-page p-2.5 min-w-0">
               <div className="text-[10px] uppercase tracking-wider text-positive mb-1">Current strength</div>
               <div className="text-sm font-semibold text-text-primary">{result.strongest.label} · {Math.round(result.strongest.score)}/100</div>
-              <p className="text-xs text-text-secondary mt-1 leading-snug">{result.strongest.explanation}</p>
+              <p className="text-[11px] text-text-secondary mt-1 leading-snug">{result.strongest.explanation}</p>
             </div>
           </div>
           <div className="text-[10px] text-text-tertiary shrink-0">A personal review tool, not a target to chase. Score based on the selected trades.</div>
