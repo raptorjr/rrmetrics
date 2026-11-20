@@ -257,6 +257,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const reset = () => {
     setLayout(readLayoutFromValue(null, defaultOrder, defaultVisible, items));
     setSelectedTemplate('');
+    setSelectedStarter('');
   };
 
   const selectedTemplateData = templates.find(template => template.name === selectedTemplate);
@@ -325,6 +326,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       sizes,
     });
     setSelectedTemplate('');
+    setSelectedStarter('');
   };
 
   const deleteTemplate = () => {
