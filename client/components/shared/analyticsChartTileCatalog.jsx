@@ -6,7 +6,7 @@ const { toEST, getDisplayTimeZone, formatDuration } = require('../../utils/dateU
 const InfoTooltip = require('./InfoTooltip');
 
 const DEFINITIONS = [
-  { id: 'dailyNetPL', label: 'Net Daily P/L', category: 'Charts', minColumns: 1, minRows: 1, defaultColumns: 6, defaultRows: 2, description: "Shows net profit and loss for each trading day over time." },
+  { id: 'dailyNetPL', label: 'Net Daily P/L', category: 'Charts', minColumns: 2, minRows: 2, defaultColumns: 6, defaultRows: 2, description: "Shows net profit and loss for each trading day over time." },
   { id: 'equityCurve', label: 'Equity Curve', category: 'Charts', minColumns: 1, minRows: 2, defaultColumns: 4, defaultRows: 2, description: "Tracks cumulative profit and loss in exit-time order across the selected trades." },
   { id: 'performanceByDay', label: 'Performance by Day', category: 'Charts', minColumns: 1, minRows: 2, defaultColumns: 4, defaultRows: 2, description: "Shows total profit and loss grouped by weekday of trade exit." },
   { id: 'performanceByEntryTime', label: 'Performance by Entry Time', category: 'Charts', minColumns: 1, minRows: 2, defaultColumns: 6, defaultRows: 2, description: "Groups trades into 30-minute entry-time buckets and compares average or total P/L." },
@@ -275,20 +275,19 @@ const MonteCarloTile = ({ trades, settings, settingsControl }) => {
   if (results.insufficientTrades || !results.paths || results.paths.length === 0) {
     return <Panel title={<span className="flex items-center gap-1">Monte Carlo Eval Simulation <InfoTooltip text="Historical trade P/L is sampled with replacement at the rounded average trades-per-day rate. Drawdown is checked at the end of each simulated day. Results are illustrative, not a prediction." /></span>}><p className="text-sm text-text-tertiary">At least five trades are needed to run the simulation.</p></Panel>;
   }
-  let maxDay = 1, minValue = 0, maxValue = 0;
+  let maxDay = 1;
+  const simulationValues = [];
   results.paths.forEach(path => {
     maxDay = Math.max(maxDay, path.points.length);
-    path.points.forEach(value => { minValue = Math.min(minValue, value); maxValue = Math.max(maxValue, value); });
+    simulationValues.push(...path.points);
   });
-  maxValue = maxValue > 0 ? maxValue * 1.05 : maxValue * 0.95;
-  minValue = minValue < 0 ? minValue * 1.05 : minValue * 0.95;
-  const range = maxValue - minValue || 1;
+  const axis = getNiceAxis(simulationValues);
   const width = 900, height = 300;
-  const padding = { top: 18, right: 18, bottom: 28, left: 58 };
+  const padding = { top: 18, right: 18, bottom: 28, left: 76 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
   const toX = day => padding.left + (day / Math.max(1, maxDay - 1)) * chartWidth;
-  const toY = value => padding.top + ((maxValue - value) / range) * chartHeight;
+  const toY = value => padding.top + ((axis.max - value) / (axis.max - axis.min)) * chartHeight;
 
   return (
     <Panel
@@ -305,12 +304,8 @@ const MonteCarloTile = ({ trades, settings, settingsControl }) => {
         </div>
         <div className="dashboard-monte-chart flex-1 min-h-0 min-w-0 overflow-hidden">
           <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Monte Carlo simulated equity paths" preserveAspectRatio="none" className="dashboard-responsive-chart w-full h-full min-h-0">
-            {[0, 1, 2, 3, 4, 5].map(index => {
-              const y = padding.top + (chartHeight / 5) * index;
-              const value = maxValue - (range / 5) * index;
-              return <g key={index}><line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="rgb(var(--border))" /><text x={padding.left - 8} y={y + 4} textAnchor="end" className={`chart-axis-label chart-y-label chart-y-label-${index}`} fill="rgb(var(--text-primary))" fontSize="12">{'$' + value.toFixed(0)}</text></g>;
-            })}
-            <line x1={padding.left} x2={width - padding.right} y1={toY(0)} y2={toY(0)} stroke="rgb(var(--text-tertiary))" strokeDasharray="3 3" />
+            {renderAxisGrid(axis.ticks, toY, padding.left, width - padding.right)}
+            <line x1={padding.left} x2={width - padding.right} y1={toY(0)} y2={toY(0)} stroke="rgb(var(--text-secondary))" strokeWidth="1.2" strokeDasharray="4 3" />
             {results.paths.map((path, pathIndex) => {
               const points = path.points.map((value, index) => toX(index).toFixed(1) + ',' + toY(value).toFixed(1)).join(' ');
               return <polyline key={pathIndex} points={points} fill="none" stroke={path.passed ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} strokeOpacity={path.passed ? 0.25 : 0.2} strokeWidth="1" />;
