@@ -128,7 +128,7 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
         <span className="text-[10px] text-text-tertiary">30-minute buckets · local time</span>
       </div>
       <div className="w-full flex-1 min-h-0 min-w-0 overflow-hidden">
-        <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Profit and loss by entry time" preserveAspectRatio="none" className="dashboard-responsive-chart w-full h-full min-h-0">
+        <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Profit and loss by entry time" preserveAspectRatio="none" className="dashboard-responsive-chart entry-time-chart w-full h-full min-h-0">
           {renderAxisGrid(axis.ticks, yForValue, pad.left, width - pad.right)}
           <line x1={pad.left} x2={width - pad.right} y1={zeroY} y2={zeroY} stroke="rgb(var(--text-secondary))" strokeWidth="1.2" strokeDasharray="4 3" />
           {timeStats.map((stat, index) => {
@@ -139,7 +139,7 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
             const tooltip = stat.time + ' · ' + stat.count + ' trades · ' + stat.breakevens + ' breakeven · ' + stat.winRate.toFixed(1) + '% win rate · PF ' + pf + ' · Total $' + stat.totalPL.toFixed(2) + ' · Average $' + stat.avgPL.toFixed(2);
             return <g key={stat.time}>
               {stat.count > 0 && <rect x={x} y={Math.min(zeroY, valueY)} width={barWidth} height={Math.max(1, Math.abs(zeroY - valueY))} rx="2" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} opacity="0.85"><title>{tooltip}</title></rect>}
-              {(index % 8 === 0 || index === timeStats.length - 1) && <text x={x + barWidth / 2} y={height - 9} textAnchor="middle" className={`chart-axis-label chart-x-label chart-x-label-${index === timeStats.length - 1 ? 6 : Math.floor(index / 8)}`} fill="rgb(var(--text-primary))" fontSize="12">{stat.time}</text>}
+              {(index % 6 === 0 || index === timeStats.length - 1) && <text x={x + barWidth / 2} y={height - 9} textAnchor="middle" className={`chart-axis-label chart-x-label entry-time-x-label chart-x-label-${index === timeStats.length - 1 ? 8 : Math.floor(index / 6)}`} fill="rgb(var(--text-primary))" fontSize="12">{stat.time}</text>}
             </g>;
           })}
         </svg>
@@ -260,9 +260,9 @@ const DailyNetPLTile = ({ trades }) => {
         const x=pad.left+index*gap+(gap-barWidth)/2;
         return <rect key={date} x={x} y={Math.min(zeroY,valueY)} width={barWidth} height={Math.max(1,Math.abs(zeroY-valueY))} fill={value>=0?'rgb(var(--positive))':'rgb(var(--negative))'}><title>{date}: {day.tradeCount} trades · {(value < 0 ? '-$' : '$') + Math.abs(value).toFixed(2)}</title></rect>;
       })}
-      {[0,1,2,3,4].map(index=>{
-        const entry=daily[Math.round(index*(daily.length-1)/4)];
-        return entry?<text key={index} x={pad.left+index*chartWidth/4} y={height-8} textAnchor="middle" className={'chart-axis-label chart-x-label chart-x-label-'+index} fill="rgb(var(--text-primary))" fontSize="12">{dateLabel(entry[0])}</text>:null;
+      {[0,1,2,3,4,5,6].map(index=>{
+        const entry=daily[Math.round(index*(daily.length-1)/6)];
+        return entry?<text key={index} x={pad.left+index*chartWidth/6} y={height-8} textAnchor={index===0?'start':index===6?'end':'middle'} className={'chart-axis-label chart-x-label chart-x-label-'+index} fill="rgb(var(--text-primary))" fontSize="12">{dateLabel(entry[0])}</text>:null;
       })}
     </svg>
     <div className="shrink-0 text-right text-[10px] text-text-tertiary">{daily.length} trading days</div>
@@ -362,7 +362,7 @@ const createAnalyticsChartTiles = (trades = [], options = {}) => {
             <line x1={pad.left} x2={width-pad.right} y1={zeroY} y2={zeroY} stroke="rgb(var(--text-secondary))" strokeDasharray="4 4"/>
             {areaPath && <path d={areaPath} fill="url(#equity-area-gradient)"/>}
             {points.length>1 && <path d={path} fill="none" stroke={running>=0?'rgb(var(--positive))':'rgb(var(--negative))'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>}
-            {[0,1,2,3,4].map(index=>{const pointIndex=Math.round(index*(sorted.length-1)/4); const isLast=index===4; return sorted[pointIndex] ? <text key={index} x={pad.left+index*chartWidth/4-(isLast?6:0)} y={height-8} textAnchor={isLast?'end':'middle'} className={`chart-axis-label chart-x-label chart-x-label-${index}` } fill="rgb(var(--text-primary))" fontSize="12">{dateLabel(sorted[pointIndex].exitTime)}</text> : null;})}
+            {[0,1,2,3,4,5,6].map(index=>{const pointIndex=Math.round(index*(sorted.length-1)/6); const isFirst=index===0, isLast=index===6; return sorted[pointIndex] ? <text key={index} x={pad.left+index*chartWidth/6} y={height-8} textAnchor={isFirst?'start':isLast?'end':'middle'} className={`chart-axis-label chart-x-label chart-x-label-${index}` } fill="rgb(var(--text-primary))" fontSize="12">{dateLabel(sorted[pointIndex].exitTime)}</text> : null;})}
           </svg>
         </div>
       </div> : <p className="text-sm text-text-tertiary">No trades available</p>}
