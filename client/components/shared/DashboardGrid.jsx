@@ -622,7 +622,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                     aria-label={`Remove ${item.label} from dashboard`}
                     title="Remove tile"
                     onClick={() => removeItem(item.id)}
-                    className="flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg-page/95 text-base font-semibold text-text-secondary shadow-sm hover:border-red-500/40 hover:bg-red-500/15 hover:text-red-500"
+                    className="flex h-7 w-7 items-center justify-center rounded-full border border-accent/70 bg-accent/15 text-base font-semibold leading-none text-accent shadow-sm transition-colors hover:border-accent hover:bg-accent/30 hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
                   >×</button>
                 </div>
               )}
