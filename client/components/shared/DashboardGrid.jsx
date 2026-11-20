@@ -632,6 +632,11 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
               onDrop={editing ? event => {
                 event.preventDefault();
                 const fromId = event.dataTransfer.getData('text/plain') || draggedId;
+                if (fromId === item.id) {
+                  event.stopPropagation();
+                  dropOnEmptySpace(event);
+                  return;
+                }
                 const position = dropTarget && dropTarget.id === item.id ? dropTarget.position : 'before';
                 moveItem(fromId, item.id, position);
                 setDraggedId(null);
