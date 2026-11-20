@@ -16,9 +16,9 @@ const AvgWinLossCard = ({ avgWin, avgLoss, tooltip = 'Compares the average size 
           <div className="font-mono text-2xl font-bold text-text-primary">{ratio}</div>
         </div>
         <div className="avg-win-loss-breakdown flex-1 flex flex-col gap-2 ml-0 min-w-0">
-          <div className="flex h-2 rounded-full overflow-hidden">
-            <div className="bg-positive" style={{ width: winPct + '%' }} />
-            <div className="bg-negative flex-1" />
+          <div className="flex h-2 w-full rounded-full overflow-hidden">
+            <div className="bg-positive shrink-0" style={{ width: winPct + '%', flex: '0 0 ' + winPct + '%' }} />
+            <div className="bg-negative shrink-0" style={{ width: (100 - winPct) + '%', flex: '0 0 ' + (100 - winPct) + '%' }} />
           </div>
           <div className="flex justify-between text-[12px] font-mono gap-2">
             <span className="text-positive">{'$'}{avgWin.toFixed(0)}</span>
