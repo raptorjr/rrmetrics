@@ -214,7 +214,7 @@ const createAnalyticsChartTiles = (trades = [], options = {}) => {
     </Panel>),
     tile('performanceByDay', () => <Panel title="Performance by Day">
       <div className="flex items-center justify-between text-[10px] text-text-tertiary mb-2"><span>Loss</span><span>Profit</span></div>
-      <svg viewBox="0 0 640 230" role="img" aria-label="Profit and loss by weekday" className="w-full h-full min-h-0">
+      <svg viewBox="0 0 640 230" role="img" aria-label="Profit and loss by weekday" className="w-full flex-1 h-full min-h-0">
         <line x1="24" x2="616" y1={zeroY} y2={zeroY} stroke="rgb(var(--border))" strokeDasharray="4 4" />
         {dayValues.map((value, index) => { const barHeight = Math.abs(value) / dayMax * 78; const x = 48 + index * 84; return <g key={dayNames[index]}><rect x={x} y={value >= 0 ? zeroY - barHeight : zeroY} width="42" height={Math.max(1, barHeight)} rx="4" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} opacity="0.85" /><text x={x + 21} y="205" textAnchor="middle" fill="rgb(var(--text-tertiary))" fontSize="12">{dayNames[index]}</text><text x={x + 21} y={value >= 0 ? zeroY - barHeight - 7 : zeroY + barHeight + 15} textAnchor="middle" fill="rgb(var(--text-secondary))" fontSize="10">{value === 0 ? '' : Math.round(value)}</text></g>; })}
       </svg>
