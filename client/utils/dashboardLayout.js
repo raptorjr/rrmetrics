@@ -32,6 +32,17 @@ const findAvailablePosition = (size, occupied, preferred = { col: 1, row: 1 }) =
   return { col: 1, row: startRow + 1000 };
 };
 
+const getDropPositionFromGrab = ({ clientX, clientY, bounds, columns, grabOffset, gap = 16, rowUnit = 128 }) => {
+  const trackWidth = (bounds.width - gap * (columns - 1)) / columns;
+  const actualColumn = clamp(Math.floor((clientX - bounds.left) / (trackWidth + gap)), 0, columns - 1);
+  const logicalColumn = Math.floor(actualColumn * MAX_COLUMNS / columns) + 1;
+  const logicalRow = Math.max(1, Math.floor((clientY - bounds.top) / rowUnit) + 1);
+  return {
+    col: clamp(logicalColumn - grabOffset.col, 1, MAX_COLUMNS),
+    row: Math.max(1, logicalRow - grabOffset.row),
+  };
+};
+
 const placeTileAndDisplace = (tileId, target, order, hidden, sizes, savedPositions = {}) => {
   const visible = order.filter(id => !hidden.includes(id));
   const positions = { ...savedPositions };
@@ -214,6 +225,7 @@ module.exports = {
   getDefaultSize,
   completePositions,
   findAvailablePosition,
+  getDropPositionFromGrab,
   placeTileAndDisplace,
   normalizeLayout,
   readLayoutFromValue,
