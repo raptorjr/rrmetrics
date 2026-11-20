@@ -312,6 +312,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     if (!item) return;
     const minW = Number(item.minColumns) || 1;
     const minH = Number(item.minRows) || 1;
+    const minArea = Number(item.minArea) || 1;
     const maxW = columns === 2 ? 2 : MAX_COLUMNS;
     const geometry = getResizedTileGeometry({
       position: { col: start.startCol, row: start.startRow },
@@ -325,6 +326,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       rowUnit: ROW_UNIT,
       minW,
       minH,
+      minArea,
       maxW,
       maxH: MAX_ROWS,
     });
