@@ -7,15 +7,15 @@ const AvgWinLossCard = ({ avgWin, avgLoss, tooltip = 'Compares the average size 
   const ratio = absLoss > 0 ? (avgWin / absLoss).toFixed(2) : avgWin > 0 ? '∞' : '0.00';
   const winPct = total > 0 ? (avgWin / total) * 100 : 50;
   return (
-    <div className="bg-bg-surface border border-border rounded-xl p-5">
-      <div className="flex items-center gap-4">
-        <div className="min-w-0">
+    <div className="avg-win-loss-card bg-bg-surface border border-border rounded-xl p-3 sm:p-5">
+      <div className="avg-win-loss-layout flex items-center gap-3 sm:gap-4">
+        <div className="avg-win-loss-ratio min-w-0 shrink-0">
           <div className="text-text-secondary text-xs font-medium uppercase tracking-wider mb-2 flex items-center gap-1.5">
             Avg Win / Loss <InfoTooltip text={tooltip} />
           </div>
           <div className="font-mono text-2xl font-bold text-text-primary">{ratio}</div>
         </div>
-        <div className="flex-1 flex flex-col gap-3 ml-8 min-w-0">
+        <div className="avg-win-loss-breakdown flex-1 flex flex-col gap-2 ml-0 min-w-0">
           <div className="flex h-2 rounded-full overflow-hidden">
             <div className="bg-positive" style={{ width: winPct + '%' }} />
             <div className="bg-negative flex-1" />
