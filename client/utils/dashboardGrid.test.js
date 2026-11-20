@@ -32,7 +32,7 @@ test('saved layouts discard removed tiles, deduplicate order and append newly in
   }, ['totalPL', 'winRate', 'tradingCalendar'], ['totalPL'], items);
 
   assert.deepEqual(layout.order, ['winRate', 'totalPL', 'tradingCalendar', 'equityCurve', 'performanceByDay']);
-  assert.deepEqual(layout.hidden, ['totalPL', 'equityCurve', 'performanceByDay']);
+  assert.deepEqual(layout.hidden, ['totalPL', 'tradingCalendar', 'equityCurve', 'performanceByDay']);
   assert.deepEqual(layout.sizes.winRate, { w: 4, h: 8 });
 });
 
@@ -73,10 +73,11 @@ test('starter layouts only expose valid tiles and apply independent sizes', () =
 
 test('applying a starter layout preserves the other tiles without overwriting saved layouts', () => {
   const starter = STARTER_LAYOUTS.find(item => item.id === 'trading-overview');
-  const layout = createStarterLayout(starter, items, ['performanceByDay', 'totalPL', 'winRate']);
+  const itemsWithExtra = [...items, { id: 'extra', minColumns: 1, minRows: 1, defaultColumns: 1, defaultRows: 1 }];
+  const layout = createStarterLayout(starter, itemsWithExtra, ['extra', 'performanceByDay', 'totalPL', 'winRate']);
 
-  assert.deepEqual(layout.order, ['totalPL', 'winRate', 'performanceByDay', 'tradingCalendar', 'equityCurve']);
-  assert.deepEqual(layout.hidden, ['performanceByDay']);
+  assert.deepEqual(layout.order, ['totalPL', 'winRate', 'tradingCalendar', 'equityCurve', 'performanceByDay', 'extra']);
+  assert.deepEqual(layout.hidden, ['extra']);
   assert.deepEqual(layout.sizes.tradingCalendar, { w: 2, h: 3 });
   assert.deepEqual(layout.sizes.equityCurve, { w: 2, h: 3 });
 });
