@@ -331,8 +331,8 @@ const MonteCarloTile = ({ trades, settings, settingsControl }) => {
 const TradingScoreTile = ({ trades }) => {
   const result = useMemo(() => calculateTradingScore(trades), [trades]);
   const [showDetails, setShowDetails] = useState(false);
-  const center = { x: 160, y: 105 };
-  const radius = 70;
+  const center = { x: 190, y: 125 };
+  const radius = 84;
   const polar = (value, index, scale = 1) => {
     const angle = (-Math.PI / 2) + (index * Math.PI * 2 / result.metrics.length);
     const distance = radius * scale * (value / 100);
@@ -341,7 +341,7 @@ const TradingScoreTile = ({ trades }) => {
   const radarPoints = result.metrics.map((metric, index) => polar(metric.score, index));
   const polygon = radarPoints.map(point => point.x.toFixed(1) + ',' + point.y.toFixed(1)).join(' ');
   const labelPoints = result.metrics.map((metric,index) => {
-    const p = polar(100,index,1.22);
+    const p = polar(100,index,1.18);
     return { ...p, metric, anchor: p.x < center.x - 12 ? 'end' : p.x > center.x + 12 ? 'start' : 'middle' };
   });
   const scoreColor = result.score === null ? 'text-text-secondary' : result.score >= 70 ? 'text-positive' : result.score >= 45 ? 'text-warning' : 'text-negative';
@@ -371,7 +371,7 @@ const TradingScoreTile = ({ trades }) => {
           </div>
           {showDetails ? (
             <div className="flex-1 min-h-0 overflow-y-auto rounded-lg bg-bg-page px-3 py-2">
-              <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(76px,0.8fr)_minmax(64px,0.6fr)_minmax(54px,0.5fr)] gap-x-3 border-b border-border/70 pb-2 text-[10px] uppercase tracking-wide text-text-tertiary">
+              <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1.5fr)_minmax(76px,0.8fr)_minmax(64px,0.6fr)_minmax(54px,0.5fr)] gap-x-3 border-b border-border/70 bg-bg-page py-2 text-[10px] uppercase tracking-wide text-text-tertiary">
                 <span>Dimension</span><span className="text-right">Actual</span><span className="text-right">Score</span><span className="text-right">Weight</span>
               </div>
               {result.metrics.map(metric => (
@@ -388,9 +388,9 @@ const TradingScoreTile = ({ trades }) => {
               <div className="pt-2 text-[10px] text-text-tertiary">Scores are weighted to form your overall RR Trading Score. The weakest dimension is highlighted below.</div>
             </div>
           ) : (
-          <div className="flex flex-row items-center justify-center gap-4 min-h-0">
-            <div className="w-[58%] max-w-[420px] min-w-0 shrink-0 flex items-center justify-center">
-              <svg viewBox="0 0 320 210" role="img" aria-label="Radar chart of six RR Trading Score dimensions. Hover over a label or point to see the metric value and score." className="w-full h-auto">
+          <div className="flex flex-row items-center gap-3 min-h-0 flex-1">
+            <div className="flex-[1_1_70%] min-w-0 flex items-center justify-center">
+              <svg viewBox="0 0 380 250" role="img" aria-label="Radar chart of six RR Trading Score dimensions. Metric values appear below each label; hover for more details." className="w-full h-auto">
                 {[20,40,60,80,100].map(level=>{
                   const pts=result.metrics.map((metric,index)=>polar(level,index));
                   return <polygon key={level} points={pts.map(p=>p.x+','+p.y).join(' ')} fill="none" stroke="rgb(var(--border))" strokeWidth="1"/>;
@@ -406,14 +406,28 @@ const TradingScoreTile = ({ trades }) => {
                     <title>{metric.label}: {metric.displayValue} · Score {Math.round(metric.score)}/100 · Weight {metric.weight}%&#10;{metric.explanation}</title>
                   </circle>;
                 })}
-                {labelPoints.map(({x,y,metric,anchor})=><text key={metric.id} x={x} y={y+4} textAnchor={anchor} fill="rgb(var(--text-secondary))" fontSize="9" className="cursor-help">
+                {labelPoints.map(({x,y,metric,anchor})=><text key={metric.id} x={x} y={y-2} textAnchor={anchor} fill="rgb(var(--text-secondary))" fontSize="9" className="cursor-help">
                   <title>{metric.label}: {metric.displayValue} · Score {Math.round(metric.score)}/100 · Weight {metric.weight}%&#10;{metric.explanation}</title>
-                  {metric.label}
+                  <tspan x={x} dy="0">{metric.label}</tspan>
+                  <tspan x={x} dy="12" fill="rgb(var(--text-primary))" fontSize="10" fontWeight="600">{metric.displayValue}</tspan>
                 </text>)}
               </svg>
             </div>
+            <div className="flex-[0_1_30%] min-w-[190px] max-w-[270px] flex flex-col gap-2 self-stretch justify-center">
+              <div className="rounded-lg bg-bg-page p-2.5 min-w-0">
+                <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-warning mb-1"><span>Improvement opportunity</span></div>
+                <div className="text-sm font-semibold text-text-primary">{result.weakest.label} · {Math.round(result.weakest.score)}/100</div>
+                <p className="text-[11px] text-text-secondary mt-1 leading-snug">{result.weakest.improvement}</p>
+              </div>
+              <div className="rounded-lg bg-bg-page p-2.5 min-w-0">
+                <div className="text-[10px] uppercase tracking-wider text-positive mb-1">Current strength</div>
+                <div className="text-sm font-semibold text-text-primary">{result.strongest.label} · {Math.round(result.strongest.score)}/100</div>
+                <p className="text-[11px] text-text-secondary mt-1 leading-snug">{result.strongest.explanation}</p>
+              </div>
+            </div>
           </div>
           )}
+          {showDetails && (
           <div className="grid grid-cols-2 gap-2 shrink-0">
             <div className="rounded-lg bg-bg-page p-2.5 min-w-0">
               <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-warning mb-1"><span>Improvement opportunity</span></div>
@@ -426,6 +440,7 @@ const TradingScoreTile = ({ trades }) => {
               <p className="text-[11px] text-text-secondary mt-1 leading-snug">{result.strongest.explanation}</p>
             </div>
           </div>
+          )}
           <div className="text-[10px] text-text-tertiary shrink-0">A personal review tool, not a target to chase. Score based on the selected trades.</div>
         </>
       )}
