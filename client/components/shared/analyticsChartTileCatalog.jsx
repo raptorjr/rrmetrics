@@ -238,7 +238,7 @@ const MonteCarloTile = ({ trades, settings, settingsControl }) => {
 
   return (
     <Panel
-      title={<span className="flex items-center gap-2">Monte Carlo Eval Simulation <InfoTooltip text="Historical trade P/L is sampled with replacement at the rounded average trades-per-day rate. Drawdown is checked at the end of each simulated day. Results are illustrative, not a prediction." />{settingsControl}<button type="button" onClick={() => setRunVersion(value => value + 1)} title="Recalculate simulation" aria-label="Recalculate simulation" className="dashboard-tile-icon-button">↻</button></span>}
+      title={<span className="flex items-center gap-0.5">Monte Carlo Eval Simulation<InfoTooltip text="Historical trade P/L is sampled with replacement at the rounded average trades-per-day rate. Drawdown is checked at the end of each simulated day. Results are illustrative, not a prediction." />{settingsControl}<button type="button" onClick={() => setRunVersion(value => value + 1)} title="Recalculate simulation" aria-label="Recalculate simulation" className="dashboard-tile-icon-button">↻</button></span>}
     >
       <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 text-[10px] text-text-tertiary mb-1">
         <span>{results.totalSimulations.toLocaleString()} simulations · ${results.profitTarget.toLocaleString()} target · ${results.maxDrawdown.toLocaleString()} EOD drawdown</span>
