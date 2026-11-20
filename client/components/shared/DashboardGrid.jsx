@@ -156,7 +156,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     if (!Array.isArray(item.settings) || item.settings.length === 0) return null;
     return (
       <details className="relative">
-        <summary className="list-none cursor-pointer flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg-page/95 text-xs text-text-secondary shadow-sm hover:bg-bg-input" aria-label={`Configure ${item.label}`} title={`Configure ${item.label}`}>⚙</summary>
+        <summary className="dashboard-tile-icon-button list-none cursor-pointer" aria-label={`Configure ${item.label}`} title={`Configure ${item.label}`}>⚙</summary>
         <div className="absolute right-0 top-9 z-50 w-64 max-w-[80vw] rounded-lg border border-border bg-bg-surface p-3 shadow-xl space-y-3 text-left normal-case tracking-normal">
           <div className="text-xs font-semibold text-text-primary">{item.label} settings</div>
           {item.settings.map(setting => (
