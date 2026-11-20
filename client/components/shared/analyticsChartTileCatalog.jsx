@@ -63,9 +63,12 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
   const timeStats = useMemo(() => {
     const buckets = {};
     trades.forEach(trade => {
-      const est = toEST(trade.enterTime);
-      const minute = est.minutes < 30 ? 0 : 30;
-      const key = String(est.hours).padStart(2, '0') + ':' + String(minute).padStart(2, '0');
+      const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: getDisplayTimeZone(), hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+      }).formatToParts(new Date(trade.enterTime));
+      const hour = Number(parts.find(part => part.type === 'hour').value);
+      const minute = Number(parts.find(part => part.type === 'minute').value) < 30 ? 0 : 30;
+      const key = String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0');
       if (!buckets[key]) buckets[key] = { totalPL: 0, wins: 0, losses: 0, breakevens: 0, count: 0, winPL: 0, lossPL: 0, grossWinPL: 0, grossLossPL: 0 };
       const pl = getTradePL(trade);
       buckets[key].totalPL += pl;
@@ -93,7 +96,7 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
   const maxValue = Math.max(1, ...values.map(Math.abs));
   const width = 900, height = 260, padding = 28, zeroY = 112, chartHalfHeight = 76;
   const barGap = (width - padding * 2) / timeStats.length;
-  const barWidth = barGap * 0.38;
+  const barWidth = Math.max(2, barGap * 0.62);
 
   return (
     <Panel title="Performance by Entry Time">
@@ -102,7 +105,7 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
           <button onClick={() => onModeChange('avg')} className={'px-2.5 py-1 rounded-md ' + (mode === 'avg' ? 'bg-accent text-accent-text' : 'text-text-secondary')}>Avg P/L</button>
           <button onClick={() => onModeChange('total')} className={'px-2.5 py-1 rounded-md ' + (mode === 'total' ? 'bg-accent text-accent-text' : 'text-text-secondary')}>Total P/L</button>
         </div>
-        <span className="text-[10px] text-text-tertiary">30-minute buckets · US Eastern time</span>
+        <span className="text-[10px] text-text-tertiary">30-minute buckets · local time</span>
       </div>
       <div className="w-full flex-1 min-h-0 min-w-0 overflow-hidden">
         <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Profit and loss by entry time" className="w-full h-full min-h-0">
@@ -116,7 +119,7 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
             const tooltip = stat.time + ' · ' + stat.count + ' trades · ' + stat.breakevens + ' breakeven · ' + stat.winRate.toFixed(1) + '% win rate · PF ' + pf + ' · Total $' + stat.totalPL.toFixed(2) + ' · Average $' + stat.avgPL.toFixed(2);
             return <g key={stat.time}>
               {stat.count > 0 && <rect x={x} y={y} width={barWidth} height={Math.max(1, barHeight)} rx="2" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} opacity="0.85"><title>{tooltip}</title></rect>}
-              {(index % 6 === 0 || index === timeStats.length - 1) && <text x={x + barWidth / 2} y="224" textAnchor="middle" fill="rgb(var(--text-secondary))" fontSize="11">{stat.time}</text>}
+              {(index % 12 === 0 || index === timeStats.length - 1) && <text x={x + barWidth / 2} y="224" textAnchor="middle" fill="rgb(var(--text-secondary))" fontSize="11">{stat.time}</text>}
             </g>;
           })}
         </svg>
