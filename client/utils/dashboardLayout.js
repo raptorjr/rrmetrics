@@ -32,6 +32,41 @@ const findAvailablePosition = (size, occupied, preferred = { col: 1, row: 1 }) =
   return { col: 1, row: startRow + 1000 };
 };
 
+const placeTileAndDisplace = (tileId, target, order, hidden, sizes, savedPositions = {}) => {
+  const visible = order.filter(id => !hidden.includes(id));
+  const positions = { ...savedPositions };
+  const sizeFor = id => sizes[id] || { w: 1, h: 1 };
+  const movingSize = sizeFor(tileId);
+  const preferred = {
+    col: clamp(Math.trunc(Number(target.col) || 1), 1, Math.max(1, MAX_COLUMNS - movingSize.w + 1)),
+    row: Math.max(1, Math.trunc(Number(target.row) || 1)),
+  };
+  const collides = (a, aSize, b, bSize) =>
+    a.col < b.col + bSize.w && a.col + aSize.w > b.col
+    && a.row < b.row + bSize.h && a.row + aSize.h > b.row;
+
+  const displaced = [];
+  const occupied = [];
+  visible.forEach(id => {
+    if (id === tileId) return;
+    const position = positions[id] || { col: 1, row: 1 };
+    const size = sizeFor(id);
+    if (collides(preferred, movingSize, position, size)) displaced.push(id);
+    else occupied.push({ ...position, ...size });
+  });
+
+  positions[tileId] = preferred;
+  occupied.push({ ...preferred, ...movingSize });
+  displaced.forEach(id => {
+    const size = sizeFor(id);
+    const next = findAvailablePosition(size, occupied, positions[id] || { col: 1, row: 1 });
+    positions[id] = next;
+    occupied.push({ ...next, ...size });
+  });
+
+  return completePositions(order, hidden, sizes, positions);
+};
+
 const completePositions = (order, hidden, sizes, savedPositions = {}) => {
   const visible = order.filter(id => !hidden.includes(id));
   const positions = {};
@@ -179,6 +214,7 @@ module.exports = {
   getDefaultSize,
   completePositions,
   findAvailablePosition,
+  placeTileAndDisplace,
   normalizeLayout,
   readLayoutFromValue,
   STARTER_LAYOUTS,
