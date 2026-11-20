@@ -119,15 +119,15 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
   const barWidth = Math.max(2, barGap * 0.62);
 
   return (
-    <Panel title="Performance by Entry Time">
+    <Panel title={<span className="flex items-center gap-1">Performance by Entry Time <InfoTooltip text="Groups trades by their local entry time in 30-minute buckets. Avg P/L is the average result per trade in each bucket; Total P/L is the combined result. The table also shows trade count, breakeven trades, win rate and profit/loss values." /></span>}>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="flex bg-bg-input rounded-lg p-0.5 text-xs">
           <button onClick={() => onModeChange('avg')} className={'px-2.5 py-1 rounded-md ' + (mode === 'avg' ? 'bg-accent text-accent-text' : 'text-text-secondary')}>Avg P/L</button>
           <button onClick={() => onModeChange('total')} className={'px-2.5 py-1 rounded-md ' + (mode === 'total' ? 'bg-accent text-accent-text' : 'text-text-secondary')}>Total P/L</button>
         </div>
-        <span className="text-[10px] text-text-tertiary">30-minute buckets · local time</span>
+
       </div>
-      <div className="w-full flex-1 min-h-0 min-w-0 overflow-hidden">
+      {!showTable && <div className="w-full flex-1 min-h-0 min-w-0 overflow-hidden">
         <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Profit and loss by entry time" preserveAspectRatio="none" className="dashboard-responsive-chart entry-time-chart w-full h-full min-h-0">
           {renderAxisGrid(axis.ticks, yForValue, pad.left, width - pad.right)}
           <line x1={pad.left} x2={width - pad.right} y1={zeroY} y2={zeroY} stroke="rgb(var(--text-secondary))" strokeWidth="1.2" strokeDasharray="4 3" />
@@ -143,12 +143,12 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
             </g>;
           })}
         </svg>
-      </div>
+      </div>}
       <div className="flex items-center justify-between mt-2">
         <span className="text-[10px] text-text-tertiary">{timeStats.reduce((sum, stat) => sum + stat.count, 0)} trades in selected period</span>
         <button onClick={() => setShowTable(value => !value)} className="text-xs text-text-secondary hover:text-text-primary underline">{showTable ? 'Hide details' : 'Show details'}</button>
       </div>
-      {showTable && <div className="max-h-[260px] overflow-y-auto mt-3">
+      {showTable && <div className="max-h-[260px] overflow-y-auto mt-3 pr-2">
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-bg-surface"><tr className="border-b border-border"><th className="text-left py-2">Time</th><th className="text-right py-2">Trades</th><th className="text-right py-2">BE</th><th className="text-right py-2">Win rate</th><th className="text-right py-2">Total P/L</th><th className="text-right py-2">Avg P/L</th></tr></thead>
           <tbody>{timeStats.filter(stat => stat.count > 0).map(stat => <tr key={stat.time} className="border-b border-border/50">
@@ -187,15 +187,15 @@ const PerformanceByDayTile = ({ trades }) => {
   const chartWidth = width - pad.left - pad.right, chartHeight = height - pad.top - pad.bottom;
   const yForValue = value => pad.top + ((axis.max - value) / (axis.max - axis.min)) * chartHeight;
   const zeroY = yForValue(0), gap = chartWidth / 7, barWidth = gap * 0.58;
-  return <Panel title="Performance by Day">
+  return <Panel title={<span className="flex items-center gap-1">Performance by Day <InfoTooltip text="Groups trades by the weekday they exited, using your selected display time zone. Avg P/L is the average result per trade for that weekday; Total P/L is the combined result. The table breaks results down into trade count, wins, losses, win rate, total P/L and average P/L." /></span>}>
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 mb-1">
       <div className="flex bg-bg-input rounded-lg p-0.5 text-xs">
         <button onClick={() => setMode('avg')} className={'px-2.5 py-1 rounded-md ' + (mode === 'avg' ? 'bg-accent text-accent-text' : 'text-text-secondary')}>Avg P/L</button>
         <button onClick={() => setMode('total')} className={'px-2.5 py-1 rounded-md ' + (mode === 'total' ? 'bg-accent text-accent-text' : 'text-text-secondary')}>Total P/L</button>
       </div>
-      <span className="text-[10px] text-text-tertiary">By exit weekday</span>
+
     </div>
-    <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label={mode === 'avg' ? 'Average profit and loss by weekday' : 'Total profit and loss by weekday'} preserveAspectRatio="none" className="dashboard-responsive-chart w-full flex-1 min-h-0">
+    {!showTable && <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label={mode === 'avg' ? 'Average profit and loss by weekday' : 'Total profit and loss by weekday'} preserveAspectRatio="none" className="dashboard-responsive-chart w-full flex-1 min-h-0">
       {renderAxisGrid(axis.ticks, yForValue, pad.left, width - pad.right)}
       <line x1={pad.left} x2={width - pad.right} y1={zeroY} y2={zeroY} stroke="rgb(var(--text-secondary))" strokeWidth="1.2" strokeDasharray="4 3" />
       {stats.map((day, index) => {
@@ -207,12 +207,12 @@ const PerformanceByDayTile = ({ trades }) => {
           {day.count > 0 && <title>{day.day}: {day.count} trades · {mode === 'avg' ? 'Average' : 'Total'} P/L ${value.toFixed(2)}</title>}
         </g>;
       })}
-    </svg>
+    </svg>}
     <div className="flex shrink-0 items-center justify-between mt-1">
       <span className="text-[10px] text-text-tertiary">{trades.length} trades in selected period</span>
       <button onClick={() => setShowTable(value => !value)} className="text-xs text-text-secondary hover:text-text-primary underline">{showTable ? 'Hide details' : 'Show details'}</button>
     </div>
-    {showTable && <div className="max-h-[260px] overflow-y-auto mt-2">
+    {showTable && <div className="max-h-[260px] overflow-y-auto mt-2 pr-2">
       <table className="w-full text-xs">
         <thead className="sticky top-0 bg-bg-surface"><tr className="border-b border-border"><th className="text-left py-2">Day</th><th className="text-right">Trades</th><th className="text-right">Wins</th><th className="text-right">Losses</th><th className="text-right">Win rate</th><th className="text-right">Total P/L</th><th className="text-right">Avg P/L</th></tr></thead>
         <tbody>{stats.filter(day => day.count > 0).map(day => <tr key={day.day} className="border-b border-border/50"><td className="py-1.5">{day.day}</td><td className="text-right">{day.count}</td><td className="text-right">{day.wins}</td><td className="text-right">{day.losses}</td><td className="text-right">{day.winRate.toFixed(1)}%</td><td className={'text-right ' + (day.totalPL >= 0 ? 'text-positive' : 'text-negative')}>${day.totalPL.toFixed(2)}</td><td className={'text-right ' + (day.avgPL >= 0 ? 'text-positive' : 'text-negative')}>${day.avgPL.toFixed(2)}</td></tr>)}</tbody>
