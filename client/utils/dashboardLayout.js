@@ -1,4 +1,4 @@
-const MAX_COLUMNS = 4;
+const MAX_COLUMNS = 8;
 const MAX_ROWS = 8;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -13,11 +13,7 @@ const normalizeLayout = (saved, defaultOrder, defaultVisible, items) => {
   const valid = new Set(ids);
   const defaults = [...new Set(defaultOrder.filter(id => valid.has(id))), ...ids.filter(id => !defaultOrder.includes(id))];
   if (!saved || !Array.isArray(saved.order) || !Array.isArray(saved.hidden)) {
-    return {
-      order: defaults,
-      hidden: defaults.filter(id => !defaultVisible.includes(id)),
-      sizes: Object.fromEntries(items.map(item => [item.id, getDefaultSize(item)])),
-    };
+    return { gridVersion: 2, order: defaults, hidden: defaults.filter(id => !defaultVisible.includes(id)), sizes: Object.fromEntries(items.map(item => [item.id, getDefaultSize(item)])), positions: {} };
   }
   const savedOrder = [...new Set(saved.order.filter(id => valid.has(id)))];
   const newIds = defaults.filter(id => !savedOrder.includes(id));
@@ -26,15 +22,25 @@ const normalizeLayout = (saved, defaultOrder, defaultVisible, items) => {
     ...saved.hidden.filter(id => valid.has(id)),
     ...newIds.filter(id => !defaultVisible.includes(id)),
   ])];
+  const legacy = saved.gridVersion !== 2;
   const sizes = Object.fromEntries(items.map(item => {
     const fallback = getDefaultSize(item);
     const savedSize = saved.sizes && saved.sizes[item.id];
+    const rawWidth = Number(savedSize && savedSize.w);
+    const migratedWidth = legacy && rawWidth > 1 ? rawWidth * 2 : rawWidth;
     return [item.id, {
-      w: clamp(Math.trunc(Number(savedSize && savedSize.w) || fallback.w), Number(item.minColumns) || 1, MAX_COLUMNS),
+      w: clamp(Math.trunc(migratedWidth || fallback.w), Number(item.minColumns) || 1, MAX_COLUMNS),
       h: clamp(Math.trunc(Number(savedSize && savedSize.h) || fallback.h), Number(item.minRows) || 1, MAX_ROWS),
     }];
   }));
-  return { order, hidden, sizes };
+  const positions = Object.fromEntries(Object.entries(saved.positions || {}).filter(([id, point]) =>
+    valid.has(id) && point && Number.isFinite(Number(point.col)) && Number(point.col) >= 1
+    && Number.isFinite(Number(point.row)) && Number(point.row) >= 1
+  ).map(([id, point]) => [id, {
+    col: clamp(Math.trunc(Number(point.col)), 1, MAX_COLUMNS),
+    row: Math.max(1, Math.trunc(Number(point.row))),
+  }]));
+  return { gridVersion: 2, order, hidden, sizes, positions };
 };
 
 const readLayoutFromValue = (saved, defaultOrder, defaultVisible, items) => {
@@ -53,9 +59,9 @@ const STARTER_LAYOUTS = [
     visible: ['totalPL', 'winRate', 'totalTrades', 'avgWinLoss', 'tradingCalendar', 'equityCurve', 'performanceByDay'],
     sizes: {
       avgWinLoss: { w: 1, h: 1 },
-      tradingCalendar: { w: 2, h: 3 },
-      equityCurve: { w: 2, h: 3 },
-      performanceByDay: { w: 2, h: 2 },
+      tradingCalendar: { w: 4, h: 4 },
+      equityCurve: { w: 8, h: 3 },
+      performanceByDay: { w: 4, h: 2 },
     },
   },
   {
@@ -65,8 +71,8 @@ const STARTER_LAYOUTS = [
     visible: ['totalPL', 'expectancy', 'profitFactor', 'maxDrawdown', 'sharpeRatio', 'sortinoRatio', 'equityCurve', 'performanceByDay', 'monteCarloSimulation'],
     sizes: {
       equityCurve: { w: 4, h: 3 },
-      performanceByDay: { w: 2, h: 2 },
-      monteCarloSimulation: { w: 4, h: 3 },
+      performanceByDay: { w: 4, h: 2 },
+      monteCarloSimulation: { w: 8, h: 3 },
     },
   },
   {
@@ -75,10 +81,10 @@ const STARTER_LAYOUTS = [
     description: 'Compare direction, instruments, execution times and detailed trade statistics.',
     visible: ['longShortBreakdown', 'detailedStatistics', 'tickerPerformance', 'performanceByEntryTime', 'avgDuration', 'bestTrade', 'worstTrade'],
     sizes: {
-      longShortBreakdown: { w: 4, h: 1 },
-      detailedStatistics: { w: 2, h: 3 },
-      tickerPerformance: { w: 2, h: 3 },
-      performanceByEntryTime: { w: 4, h: 3 },
+      longShortBreakdown: { w: 8, h: 1 },
+      detailedStatistics: { w: 4, h: 3 },
+      tickerPerformance: { w: 4, h: 3 },
+      performanceByEntryTime: { w: 8, h: 3 },
     },
   },
   {
@@ -108,11 +114,7 @@ const createStarterLayout = (starter, items, currentOrder = []) => {
       h: clamp(Math.trunc(Number(preferred.h) || fallback.h), Number(item.minRows) || 1, MAX_ROWS),
     }];
   }));
-  return {
-    order,
-    hidden: ids.filter(id => !visible.has(id)),
-    sizes,
-  };
+  return { gridVersion: 2, order, hidden: ids.filter(id => !visible.has(id)), sizes, positions: {} };
 };
 
 module.exports = {
