@@ -330,6 +330,7 @@ const MonteCarloTile = ({ trades, settings, settingsControl }) => {
 
 const TradingScoreTile = ({ trades }) => {
   const result = useMemo(() => calculateTradingScore(trades), [trades]);
+  const [showDetails, setShowDetails] = useState(false);
   const center = { x: 160, y: 105 };
   const radius = 70;
   const polar = (value, index, scale = 1) => {
@@ -365,6 +366,28 @@ const TradingScoreTile = ({ trades }) => {
         </div>
       ) : (
         <>
+          <div className="flex justify-end shrink-0">
+            <button onClick={() => setShowDetails(value => !value)} className="text-xs text-text-secondary hover:text-text-primary underline">{showDetails ? 'Hide details' : 'Show details'}</button>
+          </div>
+          {showDetails ? (
+            <div className="flex-1 min-h-0 overflow-y-auto rounded-lg bg-bg-page px-3 py-2">
+              <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(76px,0.8fr)_minmax(64px,0.6fr)_minmax(54px,0.5fr)] gap-x-3 border-b border-border/70 pb-2 text-[10px] uppercase tracking-wide text-text-tertiary">
+                <span>Dimension</span><span className="text-right">Actual</span><span className="text-right">Score</span><span className="text-right">Weight</span>
+              </div>
+              {result.metrics.map(metric => (
+                <div key={metric.id} className="grid grid-cols-[minmax(0,1.5fr)_minmax(76px,0.8fr)_minmax(64px,0.6fr)_minmax(54px,0.5fr)] gap-x-3 border-b border-border/40 py-2 last:border-0">
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-text-primary">{metric.label}</div>
+                    <div className="text-[10px] leading-snug text-text-tertiary mt-0.5">{metric.explanation}</div>
+                  </div>
+                  <span className="text-right text-xs font-semibold text-text-primary tabular-nums">{metric.displayValue}</span>
+                  <span className="text-right text-xs text-text-secondary tabular-nums">{Math.round(metric.score)}/100</span>
+                  <span className="text-right text-xs text-text-secondary tabular-nums">{metric.weight}%</span>
+                </div>
+              ))}
+              <div className="pt-2 text-[10px] text-text-tertiary">Scores are weighted to form your overall RR Trading Score. The weakest dimension is highlighted below.</div>
+            </div>
+          ) : (
           <div className="flex flex-row items-center justify-center gap-4 min-h-0">
             <div className="w-[58%] max-w-[420px] min-w-0 shrink-0 flex items-center justify-center">
               <svg viewBox="0 0 320 210" role="img" aria-label="Radar chart of six RR Trading Score dimensions. Hover over a label or point to see the metric value and score." className="w-full h-auto">
@@ -390,6 +413,7 @@ const TradingScoreTile = ({ trades }) => {
               </svg>
             </div>
           </div>
+          )}
           <div className="grid grid-cols-2 gap-2 shrink-0">
             <div className="rounded-lg bg-bg-page p-2.5 min-w-0">
               <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-warning mb-1"><span>Improvement opportunity</span></div>
