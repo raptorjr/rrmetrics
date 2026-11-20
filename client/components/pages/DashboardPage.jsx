@@ -85,6 +85,15 @@ const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpe
       // Keep the setting usable for this session when browser storage is unavailable.
     }
   };
+  const handleEntryTimeModeChange = mode => {
+    const nextMode = mode === 'total' ? 'total' : 'avg';
+    setEntryTimeMode(nextMode);
+    try {
+      localStorage.setItem(ENTRY_TIME_MODE_STORAGE_KEY, nextMode);
+    } catch {
+      // Keep the setting usable for this session when browser storage is unavailable.
+    }
+  };
   const hasBrokers = brokerStatuses && brokerStatuses.length > 0;
 
   const handleSync = async () => {
