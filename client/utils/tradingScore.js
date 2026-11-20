@@ -77,7 +77,7 @@ const calculateTradingScore = (trades = []) => {
       value: drawdownPct, displayValue: Number.isFinite(drawdownPct) ? drawdownPct.toFixed(1) + '%' : '—',
       score: Number.isFinite(drawdownPct) ? 100 - linearScore(drawdownPct, 5, 30) : 0,
       explanation: 'Largest peak-to-trough decline as a percentage of the highest cumulative P/L peak.',
-      improvement: 'Prioritise protecting accumulated gains. Review losing streaks, position sizing and whether a daily stop would have limited the largest drawdown.',
+      improvement: 'Protect accumulated gains. Review losing streaks, position sizing and whether a daily loss limit could reduce deep drawdowns.',
     },
     {
       id: 'recoveryFactor', label: 'Recovery factor', weight: SCORE_WEIGHTS.recoveryFactor,
@@ -90,7 +90,7 @@ const calculateTradingScore = (trades = []) => {
       id: 'consistency', label: 'Consistency', weight: SCORE_WEIGHTS.consistency,
       value: bestDayShare, displayValue: (bestDayShare * 100).toFixed(1) + '%',
       score: 100 - linearScore(bestDayShare, 0.2, 0.8),
-      explanation: 'Share of all positive-day profits produced by your single best day. Lower concentration scores better.',
+      explanation: 'Only 2.7% of positive-day profits came from your best day, suggesting profits are spread across many sessions.',
       improvement: 'Aim for repeatable execution across sessions. Review whether a large share of profits depends on one unusually strong day or a small number of exceptional trades.',
     },
   ];
