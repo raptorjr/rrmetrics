@@ -250,6 +250,11 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     event.stopPropagation();
     const currentSize = layout.sizes[item.id] || getDefaultSize(item);
     const currentPosition = layout.positions[item.id] || { col: 1, row: 1 };
+    const tileElement = event.currentTarget.closest('[data-dashboard-tile]');
+    // Prevent the tile's native HTML drag operation from competing with resizing.
+    if (tileElement) tileElement.draggable = false;
+
+    const view = event.currentTarget.ownerDocument.defaultView;
     resizeRef.current = {
       id: item.id,
       corner,
@@ -261,8 +266,14 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       startCol: currentPosition.col,
       startRow: currentPosition.row,
       gridWidth: gridRef.current ? gridRef.current.clientWidth : 1200,
+      tileElement,
+      view,
     };
-    if (gridRef.current && gridRef.current.setPointerCapture) gridRef.current.setPointerCapture(event.pointerId);
+    // Listen on the window so movement remains available even if the pointer
+    // leaves the small corner handle or crosses another draggable tile.
+    view.addEventListener('pointermove', moveResize);
+    view.addEventListener('pointerup', stopResize);
+    view.addEventListener('pointercancel', stopResize);
   };
 
   const moveResize = (event) => {
@@ -306,9 +317,13 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   };
 
   const stopResize = (event) => {
-    if (resizeRef.current && resizeRef.current.pointerId === event.pointerId) {
-      resizeRef.current = null;
-    }
+    const active = resizeRef.current;
+    if (!active || (event.pointerId !== undefined && active.pointerId !== event.pointerId)) return;
+    active.view.removeEventListener('pointermove', moveResize);
+    active.view.removeEventListener('pointerup', stopResize);
+    active.view.removeEventListener('pointercancel', stopResize);
+    if (active.tileElement) active.tileElement.draggable = true;
+    resizeRef.current = null;
   };
 
   const getColumnSpan = size => Math.min(columns, Math.max(1, Math.round(size.w * columns / MAX_COLUMNS)));
@@ -567,10 +582,6 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
 
       <div
         ref={gridRef}
-        onPointerMove={moveResize}
-        onPointerUp={stopResize}
-        onPointerCancel={stopResize}
-        onLostPointerCapture={stopResize}
         onDragOver={editing ? event => {
           const targetTile = event.target.closest('[data-dashboard-tile]');
           if (!targetTile || targetTile.dataset.dashboardTile === draggedId) {
