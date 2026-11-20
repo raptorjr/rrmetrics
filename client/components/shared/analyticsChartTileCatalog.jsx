@@ -132,6 +132,58 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
   );
 };
 
+const PerformanceByDayTile = ({ trades }) => {
+  const [mode, setMode] = useState('avg');
+  const [showTable, setShowTable] = useState(false);
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const stats = useMemo(() => {
+    const days = dayNames.map((day, index) => ({ day, index, count: 0, wins: 0, losses: 0, breakevens: 0, totalPL: 0 }));
+    trades.forEach(trade => {
+      const est = toEST(trade.exitTime);
+      const day = days[new Date(est.year, est.month - 1, est.day).getDay()];
+      const pl = getTradePL(trade);
+      day.count++; day.totalPL += pl;
+      if (isBreakevenTrade(trade)) day.breakevens++;
+      else if (pl > 0) day.wins++; else day.losses++;
+    });
+    return days.map(day => ({ ...day, avgPL: day.count ? day.totalPL / day.count : 0, winRate: day.wins + day.losses ? day.wins / (day.wins + day.losses) * 100 : 0 }));
+  }, [trades]);
+  const values = stats.map(day => mode === 'avg' ? day.avgPL : day.totalPL);
+  const maxValue = Math.max(1, ...values.map(Math.abs));
+  const zeroY = 116, halfHeight = 76, left = 24, right = 616, gap = (right - left) / 7, barWidth = 25;
+  return <Panel title="Performance by Day">
+    <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 mb-1">
+      <div className="flex bg-bg-input rounded-lg p-0.5 text-xs">
+        <button onClick={() => setMode('avg')} className={'px-2.5 py-1 rounded-md ' + (mode === 'avg' ? 'bg-accent text-accent-text' : 'text-text-secondary')}>Avg P/L</button>
+        <button onClick={() => setMode('total')} className={'px-2.5 py-1 rounded-md ' + (mode === 'total' ? 'bg-accent text-accent-text' : 'text-text-secondary')}>Total P/L</button>
+      </div>
+      <span className="text-[10px] text-text-tertiary">By exit weekday</span>
+    </div>
+    <svg viewBox="0 0 640 230" role="img" aria-label={mode === 'avg' ? 'Average profit and loss by weekday' : 'Total profit and loss by weekday'} className="w-full flex-1 min-h-0">
+      <line x1={left} x2={right} y1={zeroY} y2={zeroY} stroke="rgb(var(--text-muted))" strokeDasharray="4 4" />
+      {stats.map((day, index) => {
+        const value = values[index], height = Math.abs(value) / maxValue * halfHeight;
+        const x = left + index * gap + (gap - barWidth) / 2, y = value >= 0 ? zeroY - height : zeroY;
+        return <g key={day.day}>
+          <rect x={x} y={y} width={barWidth} height={Math.max(1, height)} rx="3" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} />
+          <text x={x + barWidth / 2} y="210" textAnchor="middle" fill="rgb(var(--text-secondary))" fontSize="12">{day.day}</text>
+          {day.count > 0 && <title>{day.day}: {day.count} trades · {mode === 'avg' ? 'Average' : 'Total'} P/L \${value.toFixed(2)}</title>}
+        </g>;
+      })}
+    </svg>
+    <div className="flex shrink-0 items-center justify-between mt-1">
+      <span className="text-[10px] text-text-tertiary">{trades.length} trades in selected period</span>
+      <button onClick={() => setShowTable(value => !value)} className="text-xs text-text-secondary hover:text-text-primary underline">{showTable ? 'Hide details' : 'Show details'}</button>
+    </div>
+    {showTable && <div className="max-h-[260px] overflow-y-auto mt-2">
+      <table className="w-full text-xs">
+        <thead className="sticky top-0 bg-bg-surface"><tr className="border-b border-border"><th className="text-left py-2">Day</th><th className="text-right">Trades</th><th className="text-right">Wins</th><th className="text-right">Losses</th><th className="text-right">Win rate</th><th className="text-right">Total P/L</th><th className="text-right">Avg P/L</th></tr></thead>
+        <tbody>{stats.filter(day => day.count > 0).map(day => <tr key={day.day} className="border-b border-border/50"><td className="py-1.5">{day.day}</td><td className="text-right">{day.count}</td><td className="text-right">{day.wins}</td><td className="text-right">{day.losses}</td><td className="text-right">{day.winRate.toFixed(1)}%</td><td className={'text-right ' + (day.totalPL >= 0 ? 'text-positive' : 'text-negative')}>\${day.totalPL.toFixed(2)}</td><td className={'text-right ' + (day.avgPL >= 0 ? 'text-positive' : 'text-negative')}>\${day.avgPL.toFixed(2)}</td></tr>)}</tbody>
+      </table>
+    </div>}
+  </Panel>;
+};
+
 const MonteCarloTile = ({ trades, settings }) => {
   const results = useMemo(() => runMonteCarloSimulation(trades, settings), [trades, settings.profitTarget, settings.maxDrawdown]);
   if (results.insufficientTrades || !results.paths || results.paths.length === 0) {
@@ -199,11 +251,6 @@ const createAnalyticsChartTiles = (trades = [], options = {}) => {
     y: pad + ((max - value) / range) * (height - pad * 2),
   }));
   const path = points.map((point, index) => (index ? 'L' : 'M') + ' ' + point.x.toFixed(1) + ' ' + point.y.toFixed(1)).join(' ');
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const dayValues = Array(7).fill(0);
-  trades.forEach(trade => { const est = toEST(trade.exitTime); const day = new Date(est.year, est.month - 1, est.day).getDay(); dayValues[day] += getTradePL(trade); });
-  const dayMax = Math.max(1, ...dayValues.map(Math.abs));
-  const zeroY = 105;
   return [
     tile('equityCurve', () => <Panel title="Equity Curve">
       {trades.length ? <div className="w-full flex-1 min-h-0 min-w-0 overflow-hidden"><svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Cumulative profit and loss chart" className="w-full h-full min-h-0">
@@ -213,14 +260,7 @@ const createAnalyticsChartTiles = (trades = [], options = {}) => {
       </svg></div> : <p className="text-sm text-text-tertiary">No trades available</p>}
       <div className={'text-right text-sm font-semibold ' + (running >= 0 ? 'text-positive' : 'text-negative')}>{(running >= 0 ? '+' : '') + '$' + running.toFixed(2)} total P/L</div>
     </Panel>),
-    tile('performanceByDay', () => <Panel title="Performance by Day">
-      <div className="flex items-center justify-between text-[10px] text-text-tertiary mb-2"><span>Loss</span><span>Profit</span></div>
-      <svg viewBox="0 0 640 230" role="img" aria-label="Profit and loss by weekday" className="w-full flex-1 h-full min-h-0">
-        <line x1="24" x2="616" y1={zeroY} y2={zeroY} stroke="rgb(var(--border))" strokeDasharray="4 4" />
-        {dayValues.map((value, index) => { const barHeight = Math.abs(value) / dayMax * 78; const x = 48 + index * 84; return <g key={dayNames[index]}><rect x={x} y={value >= 0 ? zeroY - barHeight : zeroY} width="42" height={Math.max(1, barHeight)} rx="4" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} opacity="0.85" /><text x={x + 21} y="205" textAnchor="middle" fill="rgb(var(--text-tertiary))" fontSize="12">{dayNames[index]}</text><text x={x + 21} y={value >= 0 ? zeroY - barHeight - 7 : zeroY + barHeight + 15} textAnchor="middle" fill="rgb(var(--text-secondary))" fontSize="10">{value === 0 ? '' : Math.round(value)}</text></g>; })}
-      </svg>
-      <p className="text-[11px] text-text-tertiary text-right">Total P/L by exit weekday</p>
-    </Panel>),
+    tile('performanceByDay', () => <PerformanceByDayTile trades={trades} />),
     tile('performanceByEntryTime', () => <EntryTimeTile trades={trades} mode={entryTimeMode} onModeChange={onEntryTimeModeChange} />),
     {
       ...tile('monteCarloSimulation', () => <MonteCarloTile trades={trades} settings={monteCarloSettings} />),
