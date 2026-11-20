@@ -523,8 +523,6 @@
 
 /* Dashboard tile review refinements */
 .dashboard-ticker-list {
-  container-type: size;
-  container-name: ticker-tile;
   align-items: center;
 }
 .dashboard-ticker-item {
@@ -538,8 +536,6 @@
   white-space: nowrap;
 }
 .dashboard-long-short {
-  container-type: size;
-  container-name: long-short-tile;
   align-content: center;
 }
 .dashboard-long-short > div {
@@ -551,8 +547,7 @@
 }
 .dashboard-monte-layout,
 .dashboard-equity-layout {
-  container-type: size;
-  container-name: analytical-chart-tile;
+  min-height: 0;
 }
 .dashboard-monte-summary,
 .dashboard-equity-summary {
@@ -574,7 +569,7 @@
   transition: opacity 120ms ease;
 }
 
-@container ticker-tile (max-width: 320px) {
+@container dashboard-tile (max-width: 320px) {
   .dashboard-ticker-list {
     flex-direction: column;
     align-items: stretch;
@@ -595,7 +590,7 @@
   }
 }
 
-@container long-short-tile (min-height: 190px) {
+@container dashboard-tile (min-height: 190px) {
   .dashboard-long-short {
     align-content: space-evenly;
     gap: 1.5rem;
@@ -604,7 +599,7 @@
     padding-block: 0.75rem;
   }
 }
-@container long-short-tile (min-width: 420px) and (max-height: 190px) {
+@container dashboard-tile (min-width: 420px) and (max-height: 190px) {
   .dashboard-long-short {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-content: center;
@@ -613,7 +608,7 @@
   }
 }
 
-@container analytical-chart-tile (max-width: 520px) {
+@container dashboard-tile (max-width: 520px) {
   .dashboard-monte-layout,
   .dashboard-equity-layout {
     flex-direction: column;
