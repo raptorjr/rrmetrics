@@ -771,6 +771,7 @@
 /* Shared icon-button treatment for dashboard tile header actions. */
 .dashboard-tile-icon-button {
   display: inline-flex;
+  position: relative;
   width: 1.75rem;
   height: 1.75rem;
   flex: 0 0 auto;
@@ -780,8 +781,10 @@
   border-radius: 9999px;
   background: rgb(var(--bg-page));
   color: rgb(var(--text-secondary));
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   line-height: 1;
+  padding: 0;
+  vertical-align: middle;
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
   transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
 }
@@ -796,4 +799,10 @@
 }
 .dashboard-tile-icon-button::-webkit-details-marker {
   display: none;
+}
+
+.dashboard-tile-icon-button > * {
+  display: block;
+  flex: 0 0 auto;
+  line-height: 1;
 }
