@@ -4,9 +4,9 @@ const { isBreakevenTrade } = require('../../utils/tickValues');
 const { formatDuration } = require('../../utils/dateUtils');
 
 const TILE_DEFINITIONS = [
-  { id: 'longShortBreakdown', label: 'Long vs Short', category: 'Trade Analysis', minColumns: 2, minRows: 1, defaultColumns: 2, defaultRows: 1, description: "Compares trade count, win rate, average P/L and total P/L for long and short positions." },
-  { id: 'detailedStatistics', label: 'Detailed Statistics', category: 'Trade Analysis', minColumns: 1, minRows: 2, defaultColumns: 2, defaultRows: 2, description: "A compact breakdown of trade counts, win/loss results, streaks and average duration." },
-  { id: 'tickerPerformance', label: 'P/L by Ticker', category: 'Trade Analysis', minColumns: 1, minRows: 2, defaultColumns: 2, defaultRows: 2, description: "Compares results by ticker, including trade count, win rate and total P/L." },
+  { id: 'longShortBreakdown', label: 'Long vs Short', category: 'Trade Analysis', minColumns: 2, minRows: 1, defaultColumns: 4, defaultRows: 1, description: "Compares trade count, win rate, average P/L and total P/L for long and short positions." },
+  { id: 'detailedStatistics', label: 'Detailed Statistics', category: 'Trade Analysis', minColumns: 1, minRows: 2, defaultColumns: 4, defaultRows: 2, description: "A compact breakdown of trade counts, win/loss results, streaks and average duration." },
+  { id: 'tickerPerformance', label: 'P/L by Ticker', category: 'Trade Analysis', minColumns: 1, minRows: 2, defaultColumns: 4, defaultRows: 2, description: "Compares results by ticker, including trade count, win rate and total P/L." },
 ];
 
 const Preview = ({ item }) => (
