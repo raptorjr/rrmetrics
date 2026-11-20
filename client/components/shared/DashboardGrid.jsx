@@ -6,6 +6,8 @@ const {
   MAX_ROWS,
   clamp,
   getDefaultSize,
+  completePositions,
+  findAvailablePosition,
   normalizeLayout,
   readLayoutFromValue,
   createStarterLayout,
@@ -147,12 +149,16 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const visibleItems = orderedItems.filter(item => !layout.hidden.includes(item.id));
 
   const toggleItem = (id) => {
-    setLayout(current => ({
-      ...current,
-      hidden: current.hidden.includes(id)
+    setLayout(current => {
+      const hidden = current.hidden.includes(id)
         ? current.hidden.filter(value => value !== id)
-        : current.hidden.concat(id),
-    }));
+        : current.hidden.concat(id);
+      return {
+        ...current,
+        hidden,
+        positions: completePositions(current.order, hidden, current.sizes, current.positions),
+      };
+    });
   };
 
   const moveItem = (fromId, toId, position = 'before') => {
@@ -166,9 +172,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       const target = order.indexOf(toId);
       if (target < 0) return current;
       order.splice(target + (position === 'after' ? 1 : 0), 0, fromId);
-      const positions = { ...(current.positions || {}) };
-      delete positions[fromId];
-      return { ...current, order, positions };
+      return { ...current, order, positions: completePositions(order, current.hidden, current.sizes) };
     });
   };
 
@@ -289,6 +293,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     setLayout(current => ({
       ...current,
       sizes: { ...current.sizes, [start.id]: nextSize },
+      positions: completePositions(current.order, current.hidden, { ...current.sizes, [start.id]: nextSize }, current.positions),
     }));
   };
 
@@ -309,6 +314,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       return {
         ...current,
         sizes: { ...current.sizes, [item.id]: { ...size, [dimension]: nextValue } },
+        positions: completePositions(current.order, current.hidden, { ...current.sizes, [item.id]: { ...size, [dimension]: nextValue } }, current.positions),
       };
     });
   };
@@ -331,8 +337,19 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     if (!item) return;
     const size = layout.sizes[fromId] || getDefaultSize(item);
     const target = getEmptyDropPosition(event);
-    const col = clamp(target.col, 1, Math.max(1, MAX_COLUMNS - size.w + 1));
-    setLayout(current => ({ ...current, positions: { [fromId]: { col, row: target.row } } }));
+    setLayout(current => {
+      const remaining = { ...(current.positions || {}) };
+      delete remaining[fromId];
+      const occupied = current.order
+        .filter(id => id !== fromId && !current.hidden.includes(id))
+        .map(id => ({ ...(remaining[id] || { col: 1, row: 1 }), ...(current.sizes[id] || getDefaultSize(items.find(candidate => candidate.id === id))) }));
+      const preferred = {
+        col: clamp(target.col - Math.floor((size.w - 1) / 2), 1, Math.max(1, MAX_COLUMNS - size.w + 1)),
+        row: Math.max(1, target.row - Math.floor((size.h - 1) / 2)),
+      };
+      const position = findAvailablePosition(size, occupied, preferred);
+      return { ...current, positions: { ...remaining, [fromId]: position } };
+    });
     setDraggedId(null);
     setDropTarget(null);
   };
@@ -566,7 +583,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
         style={{
           gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
           gridAutoRows: `${ROW_UNIT - GRID_GAP}px`,
-          gridAutoFlow: 'row',
+          gridAutoFlow: 'none',
           backgroundImage: editing ? 'linear-gradient(to right, rgba(148,163,184,0.11) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.11) 1px, transparent 1px)' : 'none',
           backgroundSize: editing ? `calc((100% + ${GRID_GAP}px) / ${columns}) ${ROW_UNIT}px` : undefined,
           backgroundPosition: '0 0',
@@ -618,12 +635,8 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
               onDragEnd={editing ? () => { setDraggedId(null); setDropTarget(null); } : undefined}
               className={`relative min-w-0 h-full [&>*]:h-full ${editing ? `rounded-xl outline outline-1 outline-dashed outline-accent cursor-grab ${draggedId === item.id ? 'opacity-35' : ''} ${dropTarget && dropTarget.id === item.id ? 'bg-accent/10' : ''}` : ''}`}
               style={{
-                gridColumn: layout.positions && layout.positions[item.id]
-                  ? `${clamp(Math.floor((clamp(layout.positions[item.id].col, 1, Math.max(1, MAX_COLUMNS - size.w + 1)) - 1) * columns / MAX_COLUMNS) + 1, 1, Math.max(1, columns - getColumnSpan(size) + 1))} / span ${getColumnSpan(size)}`
-                  : `span ${getColumnSpan(size)} / span ${getColumnSpan(size)}`,
-                gridRow: layout.positions && layout.positions[item.id]
-                  ? `${layout.positions[item.id].row} / span ${size.h}`
-                  : `span ${size.h} / span ${size.h}`,
+                gridColumn: `${clamp(Math.floor(((layout.positions[item.id] || { col: 1 }).col - 1) * columns / MAX_COLUMNS) + 1, 1, Math.max(1, columns - getColumnSpan(size) + 1))} / span ${getColumnSpan(size)}`,
+                gridRow: `${(layout.positions[item.id] || { row: 1 }).row} / span ${size.h}`,
               }}
             >
               {editing && dropTarget && dropTarget.id === item.id && (
