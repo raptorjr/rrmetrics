@@ -33,19 +33,27 @@ const findAvailablePosition = (size, occupied, preferred = { col: 1, row: 1 }) =
 };
 
 const completePositions = (order, hidden, sizes, savedPositions = {}) => {
-  const hiddenSet = new Set(hidden);
+  const visible = order.filter(id => !hidden.includes(id));
   const positions = {};
   const occupied = [];
-  order.filter(id => !hiddenSet.has(id)).forEach(id => {
+  const reserve = id => {
     const size = sizes[id] || { w: 1, h: 1 };
     const saved = savedPositions[id];
-    const candidate = saved && {
+    if (!saved) return false;
+    const candidate = {
       col: clamp(Math.trunc(Number(saved.col) || 1), 1, Math.max(1, MAX_COLUMNS - size.w + 1)),
       row: Math.max(1, Math.trunc(Number(saved.row) || 1)),
     };
-    const position = candidate && !hasCollision(candidate, size, occupied)
-      ? candidate
-      : findAvailablePosition(size, occupied);
+    if (hasCollision(candidate, size, occupied)) return false;
+    positions[id] = candidate;
+    occupied.push({ ...candidate, w: size.w, h: size.h });
+    return true;
+  };
+  visible.forEach(reserve);
+  visible.forEach(id => {
+    if (positions[id]) return;
+    const size = sizes[id] || { w: 1, h: 1 };
+    const position = findAvailablePosition(size, occupied);
     positions[id] = position;
     occupied.push({ ...position, w: size.w, h: size.h });
   });
