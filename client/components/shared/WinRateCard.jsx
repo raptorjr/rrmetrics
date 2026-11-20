@@ -32,7 +32,7 @@ const WinRateCard = ({ wins, losses, breakevens = 0, total, change, tooltip = 'W
       <div className="flex min-h-0 min-w-0 flex-1 items-center justify-end self-stretch">
         <div
           className="win-rate-gauge flex max-w-full shrink-0 flex-col items-center gap-1"
-          style={{ width: 'clamp(96px, min(65cqw, 130cqh), 360px)' }}
+          style={{ width: 'clamp(96px, min(92cqw, 180cqh), 720px)' }}
         >
           <svg className="block h-auto w-full overflow-visible" viewBox="0 0 72 38" role="img" aria-label={`Trade distribution: ${wins} wins, ${neutral} breakeven, ${losses} losses`}>
             <circle cx={cx} cy={cy} r={r} fill="none"
@@ -59,9 +59,9 @@ const WinRateCard = ({ wins, losses, breakevens = 0, total, change, tooltip = 'W
             )}
           </svg>
           <div className="flex w-full justify-between gap-1">
-            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-positive/20 px-1 text-[9px] font-bold text-positive">{wins}</span>
-            {neutral > 0 && <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent/20 px-1 text-[9px] font-bold text-accent">{neutral}</span>}
-            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-negative/20 px-1 text-[9px] font-bold text-negative">{losses}</span>
+            <span className="inline-flex h-[clamp(20px,3cqw,30px)] min-w-[clamp(20px,3cqw,30px)] items-center justify-center rounded-full bg-positive/20 px-1 text-[clamp(9px,1.4cqw,14px)] font-bold text-positive">{wins}</span>
+            {neutral > 0 && <span className="inline-flex h-[clamp(20px,3cqw,30px)] min-w-[clamp(20px,3cqw,30px)] items-center justify-center rounded-full bg-accent/20 px-1 text-[clamp(9px,1.4cqw,14px)] font-bold text-accent">{neutral}</span>}
+            <span className="inline-flex h-[clamp(20px,3cqw,30px)] min-w-[clamp(20px,3cqw,30px)] items-center justify-center rounded-full bg-negative/20 px-1 text-[clamp(9px,1.4cqw,14px)] font-bold text-negative">{losses}</span>
           </div>
         </div>
       </div>
