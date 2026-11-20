@@ -75,6 +75,55 @@ const readLayout = (storageKey, defaultOrder, defaultVisible, items) => {
   }
 };
 
+// Starter layouts are deliberately separate from user-saved templates. Applying
+// one changes the active dashboard only; it never overwrites a saved template.
+const STARTER_LAYOUTS = [
+  {
+    id: 'trading-overview',
+    name: 'Trading Overview',
+    description: 'A balanced daily view with your key numbers, calendar and performance charts.',
+    visible: ['totalPL', 'winRate', 'totalTrades', 'avgWinLoss', 'tradingCalendar', 'equityCurve', 'performanceByDay'],
+    sizes: {
+      avgWinLoss: { w: 2, h: 1 },
+      tradingCalendar: { w: 4, h: 2 },
+      equityCurve: { w: 4, h: 2 },
+      performanceByDay: { w: 2, h: 2 },
+    },
+  },
+  {
+    id: 'performance-analysis',
+    name: 'Performance Analysis',
+    description: 'Focus on equity progression, expectancy and risk-adjusted performance.',
+    visible: ['totalPL', 'expectancy', 'profitFactor', 'maxDrawdown', 'sharpeRatio', 'sortinoRatio', 'equityCurve', 'performanceByDay', 'monteCarloSimulation'],
+    sizes: {
+      equityCurve: { w: 4, h: 3 },
+      performanceByDay: { w: 2, h: 2 },
+      monteCarloSimulation: { w: 4, h: 3 },
+    },
+  },
+  {
+    id: 'trade-analysis',
+    name: 'Trade Analysis',
+    description: 'Compare direction, instruments, execution times and detailed trade statistics.',
+    visible: ['longShortBreakdown', 'detailedStatistics', 'tickerPerformance', 'performanceByEntryTime', 'avgDuration', 'bestTrade', 'worstTrade'],
+    sizes: {
+      longShortBreakdown: { w: 4, h: 1 },
+      detailedStatistics: { w: 2, h: 3 },
+      tickerPerformance: { w: 2, h: 3 },
+      performanceByEntryTime: { w: 4, h: 3 },
+    },
+  },
+  {
+    id: 'minimal',
+    name: 'Minimal',
+    description: 'Just the essentials: a few key statistics and the equity curve.',
+    visible: ['totalPL', 'winRate', 'totalTrades', 'equityCurve'],
+    sizes: {
+      equityCurve: { w: 4, h: 3 },
+    },
+  },
+];
+
 const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defaultOrder }) => {
   const ids = useMemo(() => items.map(item => item.id), [items]);
   const [layout, setLayout] = useState(() => readLayout(storageKey, defaultOrder, defaultVisible, items));
@@ -85,6 +134,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const [templates, setTemplates] = useState(() => readTemplates(storageKey));
   const [templateName, setTemplateName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('');
+  const [selectedStarter, setSelectedStarter] = useState('');
   const [previewItemId, setPreviewItemId] = useState(null);
   const [storageWarning, setStorageWarning] = useState(null);
   const [catalogueQuery, setCatalogueQuery] = useState('');
@@ -250,6 +300,31 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     if (!template) return;
     const normalized = readLayoutFromValue(template.layout, defaultOrder, defaultVisible, items);
     setLayout(normalized);
+    setSelectedStarter('');
+  };
+
+  const applyStarterLayout = () => {
+    const starter = STARTER_LAYOUTS.find(candidate => candidate.id === selectedStarter);
+    if (!starter) return;
+    const visible = new Set(starter.visible.filter(id => ids.includes(id)));
+    const order = [
+      ...starter.visible.filter(id => ids.includes(id)),
+      ...layout.order.filter(id => !starter.visible.includes(id)),
+    ];
+    const sizes = Object.fromEntries(items.map(item => {
+      const fallback = getDefaultSize(item);
+      const preferred = starter.sizes[item.id] || {};
+      return [item.id, {
+        w: clamp(Math.trunc(Number(preferred.w) || fallback.w), Number(item.minColumns) || 1, MAX_COLUMNS),
+        h: clamp(Math.trunc(Number(preferred.h) || fallback.h), Number(item.minRows) || 1, MAX_ROWS),
+      }];
+    }));
+    setLayout({
+      order,
+      hidden: ids.filter(id => !visible.has(id)),
+      sizes,
+    });
+    setSelectedTemplate('');
   };
 
   const deleteTemplate = () => {
@@ -406,6 +481,13 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
           </div>
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-bg-page p-3">
             <div className="flex flex-1 min-w-[220px] items-center gap-2">
+              <select value={selectedStarter} onChange={event => setSelectedStarter(event.target.value)} aria-label="Starter dashboard layouts" className="min-w-0 flex-1 rounded-md border border-border bg-bg-surface px-3 py-2 text-xs text-text-primary">
+                <option value="">Choose a starter layout…</option>
+                {STARTER_LAYOUTS.map(starter => <option key={starter.id} value={starter.id}>{starter.name}</option>)}
+              </select>
+              <button type="button" onClick={applyStarterLayout} disabled={!selectedStarter} className="rounded-md border border-border px-3 py-2 text-xs text-text-primary disabled:opacity-40">Use</button>
+            </div>
+            <div className="flex flex-1 min-w-[220px] items-center gap-2">
               <input
                 value={templateName}
                 onChange={event => setTemplateName(event.target.value)}
@@ -426,6 +508,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
               <button type="button" onClick={deleteTemplate} disabled={!selectedTemplate} className="rounded-md border border-border px-3 py-2 text-xs text-text-secondary disabled:opacity-40">Delete</button>
             </div>
           </div>
+          <p className="text-[10px] text-text-tertiary">Starter layouts are starting points. Your saved layouts remain separate and are never overwritten when you apply one.</p>
           <p className="text-[10px] text-text-tertiary">Saved layouts are stored in this browser. Saving an existing name replaces that template.</p>
           {selectedTemplate && (
             <p className="text-xs text-text-secondary" role="status" aria-live="polite">
