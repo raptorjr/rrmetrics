@@ -58,13 +58,42 @@ test('tile default sizes respect each component minimum and the grid limits', ()
   }), { w: 8, h: 3 });
 });
 
+test('minimum tile area supports both horizontal and vertical minimum shapes', () => {
+  const item = { id: 'longShort', minColumns: 1, minRows: 1, minArea: 2, defaultColumns: 4, defaultRows: 1 };
+  assert.deepEqual(getDefaultSize(item), { w: 4, h: 1 });
+
+  const migrated = normalizeLayout({
+    gridVersion: 2,
+    order: ['longShort'],
+    hidden: [],
+    sizes: { longShort: { w: 1, h: 1 } },
+  }, ['longShort'], ['longShort'], [item]);
+  assert.deepEqual(migrated.sizes.longShort, { w: 1, h: 2 });
+
+  const resized = getResizedTileGeometry({
+    position: { col: 1, row: 1 },
+    size: { w: 2, h: 1 },
+    corner: 'se',
+    deltaX: -100,
+    deltaY: 0,
+    gridWidth: 800,
+    columns: 8,
+    minW: 1,
+    minH: 1,
+    minArea: 2,
+    maxW: 8,
+    maxH: 24,
+  });
+  assert.deepEqual(resized.size, { w: 1, h: 2 });
+});
+
 test('starter layouts only expose valid tiles and apply independent sizes', () => {
   const knownIds = new Set([
     'totalPL', 'winRate', 'totalTrades', 'avgDuration', 'avgWinLoss',
     'bestTrade', 'worstTrade', 'breakevenRate', 'profitFactor', 'expectancy',
     'maxDrawdown', 'sharpeRatio', 'sortinoRatio', 'kellyRisk',
     'tradingCalendar', 'longShortBreakdown', 'detailedStatistics',
-    'tickerPerformance', 'equityCurve', 'performanceByDay',
+    'tickerPerformance', 'dailyNetPL', 'equityCurve', 'performanceByDay',
     'performanceByEntryTime', 'monteCarloSimulation',
   ]);
 
