@@ -8,6 +8,7 @@ const {
   getDefaultSize,
   completePositions,
   placeTileAndDisplace,
+  getDropPositionFromGrab,
   normalizeLayout,
   readLayoutFromValue,
   createStarterLayout,
@@ -61,6 +62,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const [settingDrafts, setSettingDrafts] = useState({});
   const gridRef = useRef(null);
   const resizeRef = useRef(null);
+  const dragOffsetRef = useRef({ col: 0, row: 0 });
   const previewDialogRef = useRef(null);
 
   useEffect(() => {
@@ -322,14 +324,15 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
 
   const getColumnSpan = size => Math.min(columns, Math.max(1, Math.round(size.w * columns / MAX_COLUMNS)));
 
-  const getEmptyDropPosition = event => {
-    const bounds = gridRef.current.getBoundingClientRect();
-    const trackWidth = (bounds.width - GRID_GAP * (columns - 1)) / columns;
-    const actualColumn = clamp(Math.floor((event.clientX - bounds.left) / (trackWidth + GRID_GAP)), 0, columns - 1);
-    const logicalColumn = clamp(Math.floor(actualColumn * MAX_COLUMNS / columns) + 1, 1, MAX_COLUMNS);
-    const row = Math.max(1, Math.floor((event.clientY - bounds.top) / ROW_UNIT) + 1);
-    return { col: logicalColumn, row };
-  };
+  const getEmptyDropPosition = event => getDropPositionFromGrab({
+    clientX: event.clientX,
+    clientY: event.clientY,
+    bounds: gridRef.current.getBoundingClientRect(),
+    columns,
+    grabOffset: dragOffsetRef.current,
+    gap: GRID_GAP,
+    rowUnit: ROW_UNIT,
+  });
 
   const dropOnEmptySpace = event => {
     event.preventDefault();
@@ -340,8 +343,8 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     const target = getEmptyDropPosition(event);
     setLayout(current => {
       const preferred = {
-        col: clamp(target.col - Math.floor((size.w - 1) / 2), 1, Math.max(1, MAX_COLUMNS - size.w + 1)),
-        row: Math.max(1, target.row - Math.floor((size.h - 1) / 2)),
+        col: clamp(target.col, 1, Math.max(1, MAX_COLUMNS - size.w + 1)),
+        row: Math.max(1, target.row),
       };
       return {
         ...current,
@@ -610,6 +613,12 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                   event.preventDefault();
                   return;
                 }
+                const bounds = event.currentTarget.getBoundingClientRect();
+                const size = layout.sizes[item.id] || getDefaultSize(item);
+                dragOffsetRef.current = {
+                  col: clamp(Math.floor((event.clientX - bounds.left) / Math.max(1, bounds.width) * size.w), 0, size.w - 1),
+                  row: clamp(Math.floor((event.clientY - bounds.top) / Math.max(1, bounds.height) * size.h), 0, size.h - 1),
+                };
                 setDraggedId(item.id);
                 setDropTarget(null);
                 event.dataTransfer.effectAllowed = 'move';
