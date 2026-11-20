@@ -644,16 +644,8 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
               } : undefined}
               onDrop={editing ? event => {
                 event.preventDefault();
-                const fromId = event.dataTransfer.getData('text/plain') || draggedId;
-                if (fromId === item.id) {
-                  event.stopPropagation();
-                  dropOnEmptySpace(event);
-                  return;
-                }
-                const position = dropTarget && dropTarget.id === item.id ? dropTarget.position : 'before';
-                moveItem(fromId, item.id, position);
-                setDraggedId(null);
-                setDropTarget(null);
+                event.stopPropagation();
+                dropOnEmptySpace(event);
               } : undefined}
               onDragEnd={editing ? () => { setDraggedId(null); setDropTarget(null); } : undefined}
               className={`relative min-w-0 h-full [&>*]:h-full ${editing ? `rounded-xl outline outline-1 outline-dashed outline-accent cursor-grab ${draggedId === item.id ? 'opacity-35' : ''} ${dropTarget && dropTarget.id === item.id ? 'bg-accent/10' : ''}` : ''}`}
