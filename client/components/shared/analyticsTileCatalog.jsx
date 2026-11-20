@@ -56,10 +56,8 @@ const createAnalyticsTiles = (trades = []) => {
   const side = (label, stats, positive) => (
     <div className="min-w-0">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2"><span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase ${positive ? 'bg-positive/15 text-positive' : 'bg-negative/15 text-negative'}`}>{label}</span><span className="text-text-secondary text-sm">{stats.totalTrades} trades</span></div>
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
+      <div className="flex items-center justify-between gap-2 text-sm">
         <span className="text-text-secondary">Win Rate</span><span className="text-text-primary font-semibold">{stats.winRate.toFixed(1)}%</span>
-        <span className="text-text-secondary">Avg P/L</span><span className={`font-semibold ${stats.totalTrades && stats.totalPL / stats.totalTrades >= 0 ? 'text-positive' : 'text-negative'}`}>${stats.totalTrades ? (stats.totalPL / stats.totalTrades).toFixed(2) : '0.00'}</span>
-        <span className="text-text-secondary">Total P/L</span><span className={`font-semibold ${stats.totalPL >= 0 ? 'text-positive' : 'text-negative'}`}>${stats.totalPL.toFixed(2)}</span>
       </div>
     </div>
   );
