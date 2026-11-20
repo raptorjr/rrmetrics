@@ -359,7 +359,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       minH,
       minArea,
       maxW,
-      maxH: MAX_ROWS,
+      maxH: Number(item.maxRows) || MAX_ROWS,
     });
     setLayout(current => {
       const sizes = { ...current.sizes, [start.id]: geometry.size };
