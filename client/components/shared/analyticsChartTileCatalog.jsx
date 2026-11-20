@@ -345,7 +345,7 @@ const TradingScoreTile = ({ trades }) => {
     return { ...p, metric, anchor: p.x < center.x - 12 ? 'end' : p.x > center.x + 12 ? 'start' : 'middle' };
   });
   const scoreColor = result.score === null ? 'text-text-secondary' : result.score >= 70 ? 'text-positive' : result.score >= 45 ? 'text-warning' : 'text-negative';
-  const methodology = 'RR Trading Score is an educational self-review, not a prediction or a ranking. Weights: Profit factor 25%, Avg win/loss 20%, Drawdown control 20%, Win rate 15%, Recovery factor 10%, Consistency 10%. Scoring thresholds: Win rate 30–60%; Profit factor and avg win/loss 0.5–2.5; drawdown 5–30% of highest cumulative P/L peak; recovery factor 0.5–3.0; best positive day share 20–80%. At least 20 closed trades across 5 trading days are required.';
+  const methodology = 'A personal review tool, not a target to chase. Score based on the selected trades.\\n\\nRR Trading Score is an educational self-review, not a prediction or a ranking. Weights: Profit factor 25%, Avg win/loss 20%, Drawdown control 20%, Win rate 15%, Recovery factor 10%, Consistency 10%. Scoring thresholds: Win rate 30–60%; Profit factor and avg win/loss 0.5–2.5; drawdown 5–30% of highest cumulative P/L peak; recovery factor 0.5–3.0; best positive day share 20–80%. At least 20 closed trades across 5 trading days are required.';
   const insights = result.enoughData && result.weakest && result.strongest ? (
     <div className="flex flex-col gap-3 w-full max-w-3xl mx-auto">
       <div className="rounded-lg bg-bg-page p-4 min-w-0">
@@ -360,7 +360,7 @@ const TradingScoreTile = ({ trades }) => {
       </div>
     </div>
   ) : null;
-  return <Panel title={<span className="flex items-center gap-1">RR Trading Score <InfoTooltip text={methodology}/></span>}>
+  return <Panel title={<span className="flex items-center gap-1">RR Trading Score <InfoTooltip text={methodology}/></span>} actions={<div className="text-right"><div className="text-[10px] uppercase tracking-wider text-text-tertiary">Your score</div><div className={'text-2xl leading-none font-bold tabular-nums '+scoreColor}>{result.score === null ? '—' : result.score.toFixed(1)}</div></div>}>
     <div className="flex flex-col h-full min-h-0 gap-2 overflow-hidden">
 
       {!result.enoughData ? (
@@ -370,20 +370,14 @@ const TradingScoreTile = ({ trades }) => {
         </div>
       ) : (
         <>
-          <div className="flex items-center justify-between gap-3 shrink-0">
-            <div className="flex justify-start" role="group" aria-label="Trading score view">
-              <div className="inline-flex items-center gap-0.5 rounded-lg bg-bg-page p-0.5">
-                {['radar','insights','details'].map(option => (
-                  <button key={option} onClick={() => setView(option)} aria-pressed={view === option}
-                    className={'rounded-md px-3 py-1 text-[11px] font-medium capitalize transition-colors '+(view === option ? 'bg-accent text-black' : 'text-text-secondary hover:text-text-primary')}>
-                    {option === 'radar' ? 'Radar' : option === 'insights' ? 'Insights' : 'Details'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="text-right shrink-0">
-              <div className="text-[10px] uppercase tracking-wider text-text-tertiary">Your score</div>
-              <div className={'text-2xl leading-none font-bold tabular-nums '+scoreColor}>{result.score === null ? '—' : result.score.toFixed(1)}</div>
+          <div className="flex justify-start shrink-0" role="group" aria-label="Trading score view">
+            <div className="inline-flex items-center gap-0.5 rounded-lg bg-bg-page p-0.5">
+              {['radar','insights','details'].map(option => (
+                <button key={option} onClick={() => setView(option)} aria-pressed={view === option}
+                  className={'rounded-md px-3 py-1 text-[11px] font-medium capitalize transition-colors '+(view === option ? 'bg-accent text-black' : 'text-text-secondary hover:text-text-primary')}>
+                  {option === 'radar' ? 'Radar' : option === 'insights' ? 'Insights' : 'Details'}
+                </button>
+              ))}
             </div>
           </div>
           {view === 'radar' && (
@@ -436,9 +430,8 @@ const TradingScoreTile = ({ trades }) => {
               <div className="pt-2 text-[10px] text-text-tertiary">Scores are weighted to form your overall RR Trading Score.</div>
             </div>
           )}
-          <div className="flex items-end justify-between gap-3 shrink-0">
-            <div className="text-[10px] text-text-tertiary">A personal review tool, not a target to chase. Score based on the selected trades.</div>
-            <div className="text-right text-[10px] text-text-tertiary tabular-nums shrink-0">
+          <div className="flex justify-end shrink-0 text-right text-[10px] text-text-tertiary tabular-nums">
+            <div>
               <div>{result.totalTrades.toLocaleString()} trades</div>
               <div>{result.tradingDays.toLocaleString()} trading days</div>
             </div>
