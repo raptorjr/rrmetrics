@@ -852,3 +852,38 @@
   outline: 2px solid currentColor;
   outline-offset: 2px;
 }
+
+
+/* Let Avg Win / Loss fit a single-column dashboard tile without clipping. */
+.avg-win-loss-card {
+  container-type: inline-size;
+  container-name: avg-win-loss;
+}
+.avg-win-loss-ratio {
+  flex: 0 0 auto;
+}
+.avg-win-loss-breakdown {
+  margin-left: 0;
+  min-width: 0;
+}
+@container avg-win-loss (max-width: 280px) {
+  .avg-win-loss-card {
+    padding: 0.75rem;
+  }
+  .avg-win-loss-layout {
+    gap: 0.625rem;
+  }
+  .avg-win-loss-ratio .text-2xl {
+    font-size: 1.375rem;
+  }
+  .avg-win-loss-breakdown {
+    gap: 0.5rem;
+  }
+  .avg-win-loss-breakdown .flex {
+    gap: 0.35rem;
+  }
+  .avg-win-loss-breakdown span {
+    font-size: 0.6875rem;
+    white-space: nowrap;
+  }
+}
