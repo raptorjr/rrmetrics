@@ -8,7 +8,7 @@ const InfoTooltip = require('./InfoTooltip');
 const DEFINITIONS = [
   { id: 'dailyNetPL', label: 'Net Daily P/L', category: 'Charts', minColumns: 1, minRows: 1, defaultColumns: 6, defaultRows: 2, description: "Shows net profit and loss for each trading day over time." },
   { id: 'equityCurve', label: 'Equity Curve', category: 'Charts', minColumns: 1, minRows: 1, defaultColumns: 4, defaultRows: 2, description: "Tracks cumulative profit and loss in exit-time order across the selected trades." },
-  { id: 'performanceByDay', label: 'Performance by Day', category: 'Charts', minColumns: 1, minRows: 1, defaultColumns: 4, defaultRows: 2, description: "Shows total profit and loss grouped by weekday of trade exit." },
+  { id: 'performanceByDay', label: 'Performance by Day', category: 'Charts', minColumns: 1, minRows: 2, defaultColumns: 4, defaultRows: 2, description: "Shows total profit and loss grouped by weekday of trade exit." },
   { id: 'performanceByEntryTime', label: 'Performance by Entry Time', category: 'Charts', minColumns: 1, minRows: 1, defaultColumns: 6, defaultRows: 2, description: "Groups trades into 30-minute entry-time buckets and compares average or total P/L." },
   { id: 'monteCarloSimulation', label: 'Monte Carlo Simulation', category: 'Risk', minColumns: 1, minRows: 1, defaultColumns: 6, defaultRows: 2, description: "Runs repeated simulations of the observed trade outcomes to estimate evaluation pass probability and time to pass." },
 ];
@@ -160,7 +160,7 @@ const PerformanceByDayTile = ({ trades }) => {
   }, [trades]);
   const values = stats.map(day => mode === 'avg' ? day.avgPL : day.totalPL);
   const maxValue = Math.max(1, ...values.map(Math.abs));
-  const zeroY = 116, halfHeight = 76, left = 24, right = 616, gap = (right - left) / 7, barWidth = 25;
+  const zeroY = 116, halfHeight = 76, left = 24, right = 616, gap = (right - left) / 7, barWidth = gap * 0.58;
   return <Panel title="Performance by Day">
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 mb-1">
       <div className="flex bg-bg-input rounded-lg p-0.5 text-xs">
@@ -175,8 +175,8 @@ const PerformanceByDayTile = ({ trades }) => {
         const value = values[index], height = Math.abs(value) / maxValue * halfHeight;
         const x = left + index * gap + (gap - barWidth) / 2, y = value >= 0 ? zeroY - height : zeroY;
         return <g key={day.day}>
-          <rect x={x} y={y} width={barWidth} height={Math.max(1, height)} rx="3" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} />
-          <text x={x + barWidth / 2} y="210" textAnchor="middle" fill="rgb(var(--text-secondary))" fontSize="12">{day.day}</text>
+          <rect x={x} y={y} width={barWidth} height={Math.max(1, height)} rx="3" className="performance-day-bar" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} />
+          <text className="weekday-full" x={x + barWidth / 2} y="210" textAnchor="middle" fill="rgb(var(--text-primary))" fontSize="12">{day.day}</text><text className="weekday-short" x={x + barWidth / 2} y="210" textAnchor="middle" fill="rgb(var(--text-primary))" fontSize="12">{day.day[0]}</text>
           {day.count > 0 && <title>{day.day}: {day.count} trades · {mode === 'avg' ? 'Average' : 'Total'} P/L ${value.toFixed(2)}</title>}
         </g>;
       })}
@@ -295,9 +295,13 @@ const createAnalyticsChartTiles = (trades = [], options = {}) => {
   const highEquity = cumulative.length ? Math.max(...cumulative) : 0;
   const dateLabel = value => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, { month: '2-digit', day: '2-digit', year: '2-digit' }); };
   return [
+    tile('dailyNetPL', () => <DailyNetPLTile trades={trades} />),
     tile('equityCurve', () => <Panel title={<span className="flex items-center gap-2">Equity Curve <InfoTooltip text="Cumulative net trade P/L in exit-time order. The area is shaded around zero. Maximum drawdown measures the largest decline from a previous cumulative P/L peak." /></span>}>
-      {trades.length ? <>
-        <div className="w-full flex-1 min-h-0 min-w-0 overflow-hidden">
+      {trades.length ? <div className="dashboard-equity-layout flex flex-1 min-h-0 min-w-0 gap-3">
+        <div className="dashboard-equity-summary flex shrink-0 flex-col justify-center gap-2 w-28">
+          {[['Total P/L', '$'+running.toFixed(2), running>=0],['Highest equity', '$'+highEquity.toFixed(2), true],['Max drawdown', '$'+maxEquityDrawdown.toFixed(2), false],['Trades', String(trades.length), true]].map(([label,value,positive])=><div key={label} className="min-w-0 rounded bg-bg-page px-2 py-2"><div className="text-[9px] uppercase text-text-tertiary">{label}</div><div className={'text-xs font-semibold truncate '+(label==='Trades'?'text-text-primary':positive?'text-positive':'text-negative')}>{value}</div></div>)}
+        </div>
+        <div className="dashboard-equity-chart flex-1 min-h-0 min-w-0 overflow-hidden">
           <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Cumulative profit and loss with dates and zero reference" className="w-full h-full min-h-0">
             <defs><linearGradient id="equity-area-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="rgb(var(--positive))" stopOpacity="0.24"/><stop offset={((zeroY / height) * 100) + '%'} stopColor="rgb(var(--positive))" stopOpacity="0.03"/><stop offset={((zeroY / height) * 100) + '%'} stopColor="rgb(var(--negative))" stopOpacity="0.03"/><stop offset="100%" stopColor="rgb(var(--negative))" stopOpacity="0.24"/></linearGradient></defs>
             {[0,1,2,3,4].map(index => { const y=pad.top+index*chartHeight/4, value=max-index*range/4; return <g key={index}><line x1={pad.left} x2={width-pad.right} y1={y} y2={y} stroke="rgb(var(--border))"/><text x={pad.left-8} y={y+4} textAnchor="end" fill="rgb(var(--text-tertiary))" fontSize="11">{'$'+Math.round(value).toLocaleString()}</text></g>; })}
@@ -307,10 +311,7 @@ const createAnalyticsChartTiles = (trades = [], options = {}) => {
             {[0,1,2,3,4].map(index=>{const pointIndex=Math.round(index*(sorted.length-1)/4); return sorted[pointIndex] ? <text key={index} x={pad.left+index*chartWidth/4} y={height-8} textAnchor="middle" fill="rgb(var(--text-secondary))" fontSize="11">{dateLabel(sorted[pointIndex].exitTime)}</text> : null;})}
           </svg>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 shrink-0 mt-1">
-          {[['Total P/L', '$'+running.toFixed(2), running>=0],['Highest equity', '$'+highEquity.toFixed(2), true],['Max drawdown', '$'+maxEquityDrawdown.toFixed(2), false],['Trades', String(trades.length), true]].map(([label,value,positive])=><div key={label} className="min-w-0 rounded bg-bg-page px-2 py-1.5"><div className="text-[9px] uppercase text-text-tertiary">{label}</div><div className={'text-xs font-semibold truncate '+(label==='Trades'?'text-text-primary':positive?'text-positive':'text-negative')}>{value}</div></div>)}
-        </div>
-      </> : <p className="text-sm text-text-tertiary">No trades available</p>}
+      </div> : <p className="text-sm text-text-tertiary">No trades available</p>}
     </Panel>),
     tile('performanceByDay', () => <PerformanceByDayTile trades={trades} />),
     tile('performanceByEntryTime', () => <EntryTimeTile trades={trades} mode={entryTimeMode} onModeChange={onEntryTimeModeChange} />),
