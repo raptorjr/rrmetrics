@@ -4,6 +4,7 @@ const { getTradePL, runMonteCarloSimulation, groupTradesByDate } = require('../.
 const { isBreakevenTrade } = require('../../utils/tickValues');
 const { toEST, getDisplayTimeZone, formatDuration } = require('../../utils/dateUtils');
 const InfoTooltip = require('./InfoTooltip');
+const { calculateTradingScore } = require('../../utils/tradingScore');
 
 const DEFINITIONS = [
   { id: 'dailyNetPL', label: 'Net Daily P/L', category: 'Charts', minColumns: 2, minRows: 2, defaultColumns: 6, defaultRows: 2, description: "Shows net profit and loss for each trading day over time." },
@@ -11,6 +12,7 @@ const DEFINITIONS = [
   { id: 'performanceByDay', label: 'Performance by Day', category: 'Charts', minColumns: 1, minRows: 2, defaultColumns: 4, defaultRows: 2, description: "Shows total profit and loss grouped by weekday of trade exit." },
   { id: 'performanceByEntryTime', label: 'Performance by Entry Time', category: 'Charts', minColumns: 1, minRows: 2, defaultColumns: 6, defaultRows: 2, description: "Groups trades into 30-minute entry-time buckets and compares average or total P/L." },
   { id: 'monteCarloSimulation', label: 'Monte Carlo Simulation', category: 'Risk', minColumns: 2, minRows: 2, defaultColumns: 6, defaultRows: 2, description: "Runs repeated simulations of the observed trade outcomes to estimate evaluation pass probability and time to pass." },
+  { id: 'tradingScore', label: 'RR Trading Score', category: 'Performance', minColumns: 3, minRows: 3, defaultColumns: 6, defaultRows: 3, description: "A development-focused score across profitability, risk management, recovery and consistency, with insights into the biggest improvement opportunity." },
 ];
 
 
@@ -67,6 +69,14 @@ const Preview = ({ item }) => (
           return <rect key={index} x={5 + index * 21} y={value >= 0 ? 27 - height : 27} width="13" height={height} rx="2" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} opacity="0.8" />;
         })}
       </svg>
+    )}
+    {item.id === 'tradingScore' && (
+      <div className="flex items-center gap-3">
+        <div className="text-lg font-bold text-accent">72.4</div>
+        <div className="flex-1 grid grid-cols-3 gap-1">
+          {[76,82,71,38,69,54].map((value,index)=><div key={index} className="h-1.5 rounded-full bg-bg-input overflow-hidden"><div className="h-full rounded-full bg-accent" style={{width:value+'%'}}/></div>)}
+        </div>
+      </div>
     )}
     {item.id === 'monteCarloSimulation' && (
       <svg viewBox="0 0 240 52" className="w-full h-12" role="img" aria-label="Illustrative Monte Carlo simulation paths">
@@ -317,6 +327,89 @@ const MonteCarloTile = ({ trades, settings, settingsControl }) => {
   );
 };
 
+
+const TradingScoreTile = ({ trades }) => {
+  const result = useMemo(() => calculateTradingScore(trades), [trades]);
+  const center = { x: 160, y: 126 };
+  const radius = 82;
+  const polar = (value, index, scale = 1) => {
+    const angle = (-Math.PI / 2) + (index * Math.PI * 2 / result.metrics.length);
+    const distance = radius * scale * (value / 100);
+    return { x: center.x + Math.cos(angle) * distance, y: center.y + Math.sin(angle) * distance };
+  };
+  const radarPoints = result.metrics.map((metric, index) => polar(metric.score, index));
+  const polygon = radarPoints.map(point => point.x.toFixed(1) + ',' + point.y.toFixed(1)).join(' ');
+  const labelPoints = result.metrics.map((metric,index) => {
+    const p = polar(100,index,1.28);
+    return { ...p, metric, anchor: p.x < center.x - 12 ? 'end' : p.x > center.x + 12 ? 'start' : 'middle' };
+  });
+  const scoreColor = result.score === null ? 'text-text-secondary' : result.score >= 70 ? 'text-positive' : result.score >= 45 ? 'text-warning' : 'text-negative';
+  const formatMoney = value => (value < 0 ? '-$' : '$') + Math.abs(value).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const methodology = 'RR Trading Score is an educational self-review, not a prediction or a ranking. Weights: Profit factor 25%, Avg win/loss 20%, Drawdown control 20%, Win rate 15%, Recovery factor 10%, Consistency 10%. Scoring thresholds: Win rate 30–60%; Profit factor and avg win/loss 0.5–2.5; drawdown 5–30% of highest cumulative P/L peak; recovery factor 0.5–3.0; best positive day share 20–80%. At least 20 closed trades across 5 trading days are required.';
+  return <Panel title={<span className="flex items-center gap-1">RR Trading Score <InfoTooltip text={methodology}/></span>}>
+    <div className="flex flex-col h-full min-h-0 gap-2 overflow-y-auto pr-1">
+      <div className="flex items-center justify-between gap-3 shrink-0">
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-text-tertiary">Your score</div>
+          <div className={'text-3xl leading-none font-bold tabular-nums '+scoreColor}>{result.score === null ? '—' : result.score.toFixed(1)}</div>
+        </div>
+        <div className="text-right text-xs text-text-tertiary">
+          <div>{result.totalTrades.toLocaleString()} trades</div>
+          <div>{result.tradingDays.toLocaleString()} trading days</div>
+        </div>
+      </div>
+      {!result.enoughData ? (
+        <div className="flex-1 flex flex-col justify-center rounded-lg bg-bg-page p-4">
+          <div className="text-sm font-semibold text-text-primary mb-1">Building your baseline</div>
+          <p className="text-xs text-text-secondary">We need at least 20 closed trades across 5 trading days before showing a score. Your current sample has {result.totalTrades} trades across {result.tradingDays} trading days.</p>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center justify-center gap-3 min-h-0">
+            <div className="w-full max-w-[300px] shrink-0">
+              <svg viewBox="0 0 320 252" role="img" aria-label="Radar chart of six RR Trading Score dimensions" className="w-full h-auto">
+                {[20,40,60,80,100].map(level=>{
+                  const pts=result.metrics.map((metric,index)=>polar(level,index));
+                  return <polygon key={level} points={pts.map(p=>p.x+','+p.y).join(' ')} fill="none" stroke="rgb(var(--border))" strokeWidth="1"/>;
+                })}
+                {result.metrics.map((metric,index)=>{
+                  const p=polar(100,index);
+                  return <line key={metric.id} x1={center.x} y1={center.y} x2={p.x} y2={p.y} stroke="rgb(var(--border))" strokeWidth="1"/>;
+                })}
+                <polygon points={polygon} fill="rgb(var(--accent))" fillOpacity="0.22" stroke="rgb(var(--accent))" strokeWidth="2"/>
+                {radarPoints.map((p,index)=><circle key={result.metrics[index].id} cx={p.x} cy={p.y} r="3.5" fill="rgb(var(--accent))" stroke="rgb(var(--bg-surface))" strokeWidth="1.5"/>)}
+                {labelPoints.map(({x,y,metric,anchor})=><text key={metric.id} x={x} y={y+4} textAnchor={anchor} fill="rgb(var(--text-secondary))" fontSize="10">{metric.label}</text>)}
+              </svg>
+            </div>
+            <div className="flex-1 min-w-[210px] grid grid-cols-2 gap-x-3 gap-y-2">
+              {result.metrics.map(metric=><div key={metric.id} className="min-w-0 border-b border-border/60 pb-1">
+                <div className="text-[10px] text-text-tertiary truncate">{metric.label}</div>
+                <div className="flex items-baseline justify-between gap-1">
+                  <span className="text-sm font-semibold text-text-primary tabular-nums">{metric.displayValue}</span>
+                  <span className="text-[10px] text-text-secondary tabular-nums">{Math.round(metric.score)}/100</span>
+                </div>
+              </div>)}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 shrink-0">
+            <div className="rounded-lg bg-bg-page p-3 min-w-0">
+              <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-warning mb-1"><span>Improvement opportunity</span></div>
+              <div className="text-sm font-semibold text-text-primary">{result.weakest.label} · {Math.round(result.weakest.score)}/100</div>
+              <p className="text-xs text-text-secondary mt-1">{result.weakest.improvement}</p>
+            </div>
+            <div className="rounded-lg bg-bg-page p-3 min-w-0">
+              <div className="text-[10px] uppercase tracking-wider text-positive mb-1">Current strength</div>
+              <div className="text-sm font-semibold text-text-primary">{result.strongest.label} · {Math.round(result.strongest.score)}/100</div>
+              <p className="text-xs text-text-secondary mt-1">{result.strongest.explanation}</p>
+            </div>
+          </div>
+          <div className="text-[10px] text-text-tertiary shrink-0">A personal review tool, not a target to chase. Score based on the selected trades.</div>
+        </>
+      )}
+    </div>
+  </Panel>;
+};
+
 const createAnalyticsChartTiles = (trades = [], options = {}) => {
   const monteCarloSettings = options.monteCarloSettings || { profitTarget: 3000, maxDrawdown: 2000 };
   const onMonteCarloSettingsChange = options.onMonteCarloSettingsChange || (() => {});
@@ -344,6 +437,7 @@ const createAnalyticsChartTiles = (trades = [], options = {}) => {
   const highEquity = cumulative.length ? Math.max(...cumulative) : 0;
   const dateLabel = value => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, { month: '2-digit', day: '2-digit', year: '2-digit' }); };
   return [
+    tile('tradingScore', () => <TradingScoreTile trades={trades} />),
     tile('dailyNetPL', () => <DailyNetPLTile trades={trades} />),
     tile('equityCurve', () => <Panel title={<span className="flex items-center gap-2">Equity Curve <InfoTooltip text="Cumulative net trade P/L in exit-time order. The area is shaded around zero. Maximum drawdown measures the largest decline from a previous cumulative P/L peak." /></span>}>
       {trades.length ? <div className="dashboard-equity-layout flex flex-1 min-h-0 min-w-0 gap-3">
