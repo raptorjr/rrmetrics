@@ -116,7 +116,7 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
             const tooltip = stat.time + ' · ' + stat.count + ' trades · ' + stat.breakevens + ' breakeven · ' + stat.winRate.toFixed(1) + '% win rate · PF ' + pf + ' · Total $' + stat.totalPL.toFixed(2) + ' · Average $' + stat.avgPL.toFixed(2);
             return <g key={stat.time}>
               {stat.count > 0 && <rect x={x} y={y} width={barWidth} height={Math.max(1, barHeight)} rx="2" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} opacity="0.85"><title>{tooltip}</title></rect>}
-              {(index % 12 === 0 || index === timeStats.length - 1) && <text x={x + barWidth / 2} y="224" textAnchor="middle" className={`chart-axis-label chart-x-label chart-x-label-${Math.floor(index / 12)}`} fill="rgb(var(--text-primary))" fontSize="12">{stat.time}</text>}
+              {(index % 12 === 0 || index === timeStats.length - 1) && <text x={x + barWidth / 2} y="224" textAnchor="middle" className={`chart-axis-label chart-x-label chart-x-label-${index === timeStats.length - 1 ? 4 : Math.floor(index / 12)}`} fill="rgb(var(--text-primary))" fontSize="12">{stat.time}</text>}
             </g>;
           })}
         </svg>
