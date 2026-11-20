@@ -245,21 +245,37 @@ const createAnalyticsChartTiles = (trades = [], options = {}) => {
   const cumulative = [];
   let running = 0;
   sorted.forEach(trade => { running += getTradePL(trade); cumulative.push(running); });
-  const width = 640, height = 230, pad = 28;
+  const width = 900, height = 300, pad = { left: 62, right: 22, top: 24, bottom: 38 };
+  const chartWidth = width - pad.left - pad.right, chartHeight = height - pad.top - pad.bottom;
   const min = Math.min(0, ...cumulative), max = Math.max(0, ...cumulative), range = max - min || 1;
   const points = cumulative.map((value, index) => ({
-    x: pad + (cumulative.length <= 1 ? (width - pad * 2) / 2 : index * (width - pad * 2) / (cumulative.length - 1)),
-    y: pad + ((max - value) / range) * (height - pad * 2),
+    x: pad.left + (cumulative.length <= 1 ? chartWidth / 2 : index * chartWidth / (cumulative.length - 1)),
+    y: pad.top + ((max - value) / range) * chartHeight,
   }));
   const path = points.map((point, index) => (index ? 'L' : 'M') + ' ' + point.x.toFixed(1) + ' ' + point.y.toFixed(1)).join(' ');
+  const zeroY = pad.top + (max / range) * chartHeight;
+  const areaPath = points.length ? path + ' L ' + points[points.length - 1].x.toFixed(1) + ' ' + zeroY.toFixed(1) + ' L ' + points[0].x.toFixed(1) + ' ' + zeroY.toFixed(1) + ' Z' : '';
+  let equityPeak = 0, maxEquityDrawdown = 0;
+  cumulative.forEach(value => { equityPeak = Math.max(equityPeak, value); maxEquityDrawdown = Math.max(maxEquityDrawdown, equityPeak - value); });
+  const highEquity = cumulative.length ? Math.max(...cumulative) : 0;
+  const dateLabel = value => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, { month: '2-digit', day: '2-digit', year: '2-digit' }); };
   return [
-    tile('equityCurve', () => <Panel title="Equity Curve">
-      {trades.length ? <div className="w-full flex-1 min-h-0 min-w-0 overflow-hidden"><svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Cumulative profit and loss chart" className="w-full h-full min-h-0">
-        {[0, 1, 2, 3, 4].map(index => <line key={index} x1={pad} x2={width - pad} y1={pad + index * (height - pad * 2) / 4} y2={pad + index * (height - pad * 2) / 4} stroke="rgb(var(--border))" strokeWidth="1" />)}
-        {min < 0 && max > 0 && <line x1={pad} x2={width - pad} y1={pad + (max / range) * (height - pad * 2)} y2={pad + (max / range) * (height - pad * 2)} stroke="rgb(var(--text-muted))" strokeDasharray="4 4" />}
-        {points.length > 1 && <path d={path} fill="none" stroke={cumulative[cumulative.length - 1] >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
-      </svg></div> : <p className="text-sm text-text-tertiary">No trades available</p>}
-      <div className={'text-right text-sm font-semibold ' + (running >= 0 ? 'text-positive' : 'text-negative')}>{(running >= 0 ? '+' : '') + '$' + running.toFixed(2)} total P/L</div>
+    tile('equityCurve', () => <Panel title={<span className="flex items-center gap-2">Equity Curve <InfoTooltip text="Cumulative net trade P/L in exit-time order. The area is shaded around zero. Maximum drawdown measures the largest decline from a previous cumulative P/L peak." /></span>}>
+      {trades.length ? <>
+        <div className="w-full flex-1 min-h-0 min-w-0 overflow-hidden">
+          <svg viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Cumulative profit and loss with dates and zero reference" className="w-full h-full min-h-0">
+            <defs><linearGradient id="equity-area-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="rgb(var(--positive))" stopOpacity="0.24"/><stop offset={((zeroY / height) * 100) + '%'} stopColor="rgb(var(--positive))" stopOpacity="0.03"/><stop offset={((zeroY / height) * 100) + '%'} stopColor="rgb(var(--negative))" stopOpacity="0.03"/><stop offset="100%" stopColor="rgb(var(--negative))" stopOpacity="0.24"/></linearGradient></defs>
+            {[0,1,2,3,4].map(index => { const y=pad.top+index*chartHeight/4, value=max-index*range/4; return <g key={index}><line x1={pad.left} x2={width-pad.right} y1={y} y2={y} stroke="rgb(var(--border))"/><text x={pad.left-8} y={y+4} textAnchor="end" fill="rgb(var(--text-tertiary))" fontSize="11">{'$'+Math.round(value).toLocaleString()}</text></g>; })}
+            <line x1={pad.left} x2={width-pad.right} y1={zeroY} y2={zeroY} stroke="rgb(var(--text-secondary))" strokeDasharray="4 4"/>
+            {areaPath && <path d={areaPath} fill="url(#equity-area-gradient)"/>}
+            {points.length>1 && <path d={path} fill="none" stroke={running>=0?'rgb(var(--positive))':'rgb(var(--negative))'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>}
+            {[0,1,2,3,4].map(index=>{const pointIndex=Math.round(index*(sorted.length-1)/4); return sorted[pointIndex] ? <text key={index} x={pad.left+index*chartWidth/4} y={height-8} textAnchor="middle" fill="rgb(var(--text-secondary))" fontSize="11">{dateLabel(sorted[pointIndex].exitTime)}</text> : null;})}
+          </svg>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 shrink-0 mt-1">
+          {[['Total P/L', '$'+running.toFixed(2), running>=0],['Highest equity', '$'+highEquity.toFixed(2), true],['Max drawdown', '$'+maxEquityDrawdown.toFixed(2), false],['Trades', String(trades.length), true]].map(([label,value,positive])=><div key={label} className="min-w-0 rounded bg-bg-page px-2 py-1.5"><div className="text-[9px] uppercase text-text-tertiary">{label}</div><div className={'text-xs font-semibold truncate '+(label==='Trades'?'text-text-primary':positive?'text-positive':'text-negative')}>{value}</div></div>)}
+        </div>
+      </> : <p className="text-sm text-text-tertiary">No trades available</p>}
     </Panel>),
     tile('performanceByDay', () => <PerformanceByDayTile trades={trades} />),
     tile('performanceByEntryTime', () => <EntryTimeTile trades={trades} mode={entryTimeMode} onModeChange={onEntryTimeModeChange} />),
