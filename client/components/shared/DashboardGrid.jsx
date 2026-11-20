@@ -84,9 +84,9 @@ const STARTER_LAYOUTS = [
     description: 'A balanced daily view with your key numbers, calendar and performance charts.',
     visible: ['totalPL', 'winRate', 'totalTrades', 'avgWinLoss', 'tradingCalendar', 'equityCurve', 'performanceByDay'],
     sizes: {
-      avgWinLoss: { w: 2, h: 1 },
-      tradingCalendar: { w: 4, h: 2 },
-      equityCurve: { w: 4, h: 2 },
+      avgWinLoss: { w: 1, h: 1 },
+      tradingCalendar: { w: 2, h: 3 },
+      equityCurve: { w: 2, h: 3 },
       performanceByDay: { w: 2, h: 2 },
     },
   },
