@@ -55,7 +55,9 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const [templateName, setTemplateName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [selectedStarter, setSelectedStarter] = useState('');
-  const [previewItemId, setPreviewItemId] = useState(null);
+  const [addPickerPosition, setAddPickerPosition] = useState(null);
+  const [addPickerQuery, setAddPickerQuery] = useState('');
+  const [hoveredEmptyCell, setHoveredEmptyCell] = useState(null);
   const [storageWarning, setStorageWarning] = useState(null);
   const [catalogueQuery, setCatalogueQuery] = useState('');
   const [catalogueCategory, setCatalogueCategory] = useState('all');
@@ -67,7 +69,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const previewDialogRef = useRef(null);
 
   useEffect(() => {
-    if (!previewItemId) return undefined;
+    if (!addPickerPosition) return undefined;
     const previouslyFocused = document.activeElement;
     const dialog = previewDialogRef.current;
     if (dialog) dialog.focus();
@@ -75,7 +77,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     const onKeyDown = event => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        setPreviewItemId(null);
+        setAddPickerPosition(null);
         return;
       }
       if (event.key !== 'Tab' || !dialog) return;
@@ -103,7 +105,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       document.removeEventListener('keydown', onKeyDown);
       if (previouslyFocused && typeof previouslyFocused.focus === 'function') previouslyFocused.focus();
     };
-  }, [previewItemId]);
+  }, [addPickerPosition]);
 
   useEffect(() => {
     const element = gridRef.current;
@@ -183,6 +185,31 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     setLayout(readLayoutFromValue(null, defaultOrder, defaultVisible, items));
     setSelectedTemplate('');
     setSelectedStarter('');
+  };
+
+  const removeItem = id => {
+    setLayout(current => {
+      const hidden = current.hidden.includes(id) ? current.hidden : current.hidden.concat(id);
+      return { ...current, hidden };
+    });
+  };
+
+  const addItemAtPosition = id => {
+    if (!addPickerPosition) return;
+    const item = items.find(candidate => candidate.id === id);
+    if (!item) return;
+    const size = layout.sizes[id] || getDefaultSize(item);
+    setLayout(current => {
+      const hidden = current.hidden.filter(value => value !== id);
+      const sizes = { ...current.sizes, [id]: size };
+      return {
+        ...current,
+        hidden,
+        positions: placeTileAndDisplace(id, addPickerPosition, current.order, hidden, sizes, current.positions),
+      };
+    });
+    setAddPickerPosition(null);
+    setAddPickerQuery('');
   };
 
   const selectedTemplateData = templates.find(template => template.name === selectedTemplate);
@@ -368,21 +395,6 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     setDropTarget(null);
   };
 
-  const catalogueCategories = [...new Set(items.map(item => item.category || 'Metrics'))].sort((a, b) => a.localeCompare(b));
-  const normalizedQuery = catalogueQuery.trim().toLowerCase();
-  const catalogueItems = orderedItems.filter(item => {
-    const category = item.category || 'Metrics';
-    const matchesCategory = catalogueCategory === 'all' || category === catalogueCategory;
-    const isAdded = !layout.hidden.includes(item.id);
-    const matchesStatus = catalogueStatus === 'all'
-      || (catalogueStatus === 'added' && isAdded)
-      || (catalogueStatus === 'not-added' && !isAdded);
-    const matchesQuery = !normalizedQuery || [item.label, item.description, category]
-      .some(value => String(value || '').toLowerCase().includes(normalizedQuery));
-    return matchesCategory && matchesStatus && matchesQuery;
-  });
-  const addedCount = items.filter(item => !layout.hidden.includes(item.id)).length;
-
   const updateSettingDraft = (key, value) => {
     setSettingDrafts(current => ({ ...current, [key]: value }));
   };
@@ -424,172 +436,57 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       </div>
 
       {editing && (
-        <div className="bg-bg-surface border border-border rounded-xl p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 className="text-sm font-semibold text-text-primary">Dashboard tile catalogue</h3>
-              <p className="text-xs text-text-tertiary mt-1">Add or remove tiles, drag them to reorder, and resize them directly on the grid. Use the arrow and size controls for precise keyboard- and touch-friendly adjustments.</p>
-              <p className="text-xs text-text-secondary mt-2" aria-live="polite">{addedCount} of {items.length} tiles on dashboard · {catalogueItems.length} shown</p>
-            </div>
-            <button type="button" onClick={reset} className="text-xs text-text-secondary hover:text-text-primary underline">Reset layout</button>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-bg-page p-3">
-            <div className="flex flex-1 min-w-[220px] items-center gap-2">
-              <select value={selectedStarter} onChange={event => setSelectedStarter(event.target.value)} aria-label="Starter dashboard layouts" className="min-w-0 flex-1 rounded-md border border-border bg-bg-surface px-3 py-2 text-xs text-text-primary">
-                <option value="">Choose a starter layout…</option>
-                {STARTER_LAYOUTS.map(starter => <option key={starter.id} value={starter.id}>{starter.name}</option>)}
-              </select>
-              <button type="button" onClick={applyStarterLayout} disabled={!selectedStarter} className="rounded-md border border-border px-3 py-2 text-xs text-text-primary disabled:opacity-40">Use</button>
-            </div>
-            <div className="flex flex-1 min-w-[220px] items-center gap-2">
-              <input
-                value={templateName}
-                onChange={event => setTemplateName(event.target.value)}
-                onKeyDown={event => { if (event.key === 'Enter') saveTemplate(); }}
-                placeholder="Name this layout…"
-                aria-label="Layout template name"
-                className="min-w-0 flex-1 rounded-md border border-border bg-bg-surface px-3 py-2 text-xs text-text-primary"
-              />
-              <button type="button" onClick={saveTemplate} disabled={!templateName.trim()} className="rounded-md bg-accent px-3 py-2 text-xs font-semibold text-accent-text disabled:opacity-40">Save layout</button>
-            </div>
-            <div className="flex flex-1 min-w-[220px] items-center gap-2">
-              <select value={selectedTemplate} onChange={event => setSelectedTemplate(event.target.value)} aria-label="Saved layouts" className="min-w-0 flex-1 rounded-md border border-border bg-bg-surface px-3 py-2 text-xs text-text-primary">
-                <option value="">Choose saved layout…</option>
-                {templates.map(template => <option key={template.name} value={template.name}>{template.name}</option>)}
-              </select>
-              <button type="button" onClick={applyTemplate} disabled={!selectedTemplate} className="rounded-md border border-border px-3 py-2 text-xs text-text-primary disabled:opacity-40">Load</button>
-              <button type="button" onClick={updateSelectedTemplate} disabled={!selectedTemplateHasChanges} title={selectedTemplateHasChanges ? 'Save the current dashboard over the selected template' : 'No unsaved changes to this template'} className="rounded-md border border-border px-3 py-2 text-xs text-text-primary disabled:opacity-40">Update</button>
-              <button type="button" onClick={deleteTemplate} disabled={!selectedTemplate} className="rounded-md border border-border px-3 py-2 text-xs text-text-secondary disabled:opacity-40">Delete</button>
-            </div>
-          </div>
-          <p className="text-[10px] text-text-tertiary">Starter layouts are starting points. Your saved layouts remain separate and are never overwritten when you apply one.</p>
-          <p className="text-[10px] text-text-tertiary">Saved layouts are stored in this browser. Saving an existing name replaces that template.</p>
-          {selectedTemplate && (
-            <p className="text-xs text-text-secondary" role="status" aria-live="polite">
-              {selectedTemplateHasChanges
-                ? <><span className="font-semibold text-amber-600">Unsaved changes</span> — the dashboard differs from “{selectedTemplate}”. Select Update to save the current arrangement to this template.</>
-                : <>The current dashboard matches “{selectedTemplate}”.</>}
-            </p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            <input
-              type="search"
-              value={catalogueQuery}
-              onChange={event => setCatalogueQuery(event.target.value)}
-              placeholder="Search tiles…"
-              aria-label="Search dashboard tiles"
-              className="min-w-[180px] flex-1 rounded-md border border-border bg-bg-page px-3 py-2 text-xs text-text-primary"
-            />
-            <select
-              value={catalogueCategory}
-              onChange={event => setCatalogueCategory(event.target.value)}
-              aria-label="Filter tiles by category"
-              className="min-w-[150px] rounded-md border border-border bg-bg-page px-3 py-2 text-xs text-text-primary"
-            >
-              <option value="all">All categories</option>
-              {catalogueCategories.map(category => <option key={category} value={category}>{category}</option>)}
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-bg-surface p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={selectedStarter} onChange={event => setSelectedStarter(event.target.value)} aria-label="Starter dashboard layouts" className="rounded-md border border-border bg-bg-page px-3 py-2 text-xs text-text-primary">
+              <option value="">Choose a starter layout…</option>
+              {STARTER_LAYOUTS.map(starter => <option key={starter.id} value={starter.id}>{starter.name}</option>)}
             </select>
-            <select
-              value={catalogueStatus}
-              onChange={event => setCatalogueStatus(event.target.value)}
-              aria-label="Filter tiles by dashboard status"
-              className="min-w-[150px] rounded-md border border-border bg-bg-page px-3 py-2 text-xs text-text-primary"
-            >
-              <option value="all">All tiles</option>
-              <option value="added">On dashboard</option>
-              <option value="not-added">Not on dashboard</option>
+            <button type="button" onClick={applyStarterLayout} disabled={!selectedStarter} className="rounded-md border border-border px-3 py-2 text-xs text-text-primary disabled:opacity-40">Use layout</button>
+            <input value={templateName} onChange={event => setTemplateName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') saveTemplate(); }} placeholder="Name this layout…" aria-label="Layout template name" className="w-40 rounded-md border border-border bg-bg-page px-3 py-2 text-xs text-text-primary" />
+            <button type="button" onClick={saveTemplate} disabled={!templateName.trim()} className="rounded-md bg-accent px-3 py-2 text-xs font-semibold text-accent-text disabled:opacity-40">Save</button>
+            <select value={selectedTemplate} onChange={event => setSelectedTemplate(event.target.value)} aria-label="Saved layouts" className="rounded-md border border-border bg-bg-page px-3 py-2 text-xs text-text-primary">
+              <option value="">Saved layouts…</option>
+              {templates.map(template => <option key={template.name} value={template.name}>{template.name}</option>)}
             </select>
+            <button type="button" onClick={applyTemplate} disabled={!selectedTemplate} className="rounded-md border border-border px-3 py-2 text-xs text-text-primary disabled:opacity-40">Load</button>
+            <button type="button" onClick={updateSelectedTemplate} disabled={!selectedTemplateHasChanges} className="rounded-md border border-border px-3 py-2 text-xs text-text-primary disabled:opacity-40">Update</button>
+            <button type="button" onClick={deleteTemplate} disabled={!selectedTemplate} className="rounded-md border border-border px-3 py-2 text-xs text-text-secondary disabled:opacity-40">Delete</button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {catalogueItems.map(item => {
-              const added = !layout.hidden.includes(item.id);
-              const size = layout.sizes[item.id] || getDefaultSize(item);
-              return (
-                <div key={item.id} className="rounded-lg border border-border p-2.5 hover:border-accent/60 transition-colors">
-                  <button
-                    type="button"
-                    onClick={() => setPreviewItemId(item.id)}
-                    aria-label={`Preview ${item.label}`}
-                    className="block w-full text-left rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
-                  >
-                    {item.preview || <div className="h-[82px] rounded-md bg-bg-page border border-border flex items-center justify-center text-xs text-text-tertiary">{item.label}</div>}
-                    <span className="sr-only">Open larger preview</span>
-                  </button>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="flex-1 text-xs text-text-primary truncate">{item.label}</span>
-                    <span className="text-[10px] text-text-tertiary">{size.w}×{size.h}</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleItem(item.id)}
-                      className={`px-2.5 py-1 rounded-md text-[11px] font-semibold ${added ? 'bg-bg-input text-text-secondary' : 'bg-accent text-accent-text'}`}
-                    >
-                      {added ? 'Added' : 'Add'}
-                    </button>
-                  </div>
-                  <div className="text-[10px] text-text-tertiary mt-1">{item.category || 'Metrics'}</div>
-                </div>
-              );
-            })}
-            {catalogueItems.length === 0 && (
-              <div className="sm:col-span-2 xl:col-span-3 rounded-lg border border-dashed border-border p-6 text-center text-sm text-text-secondary">
-                No tiles match this search. Try another name or choose a different category.
-              </div>
-            )}
-          </div>
+          <button type="button" onClick={reset} className="text-xs text-text-secondary underline hover:text-text-primary">Reset layout</button>
         </div>
       )}
 
-      {previewItemId && (() => {
-        const item = items.find(candidate => candidate.id === previewItemId);
-        if (!item) return null;
-        const added = !layout.hidden.includes(item.id);
-        const size = layout.sizes[item.id] || getDefaultSize(item);
-        return (
-          <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 p-4"
-            role="presentation"
-            onMouseDown={event => { if (event.target === event.currentTarget) setPreviewItemId(null); }}
-          >
-            <div
-              ref={previewDialogRef}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="dashboard-tile-preview-title"
-              aria-describedby="dashboard-tile-preview-description"
-              tabIndex={-1}
-              className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-bg-surface p-5 shadow-2xl focus:outline-none"
-              onMouseDown={event => event.stopPropagation()}
-            >
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <div>
-                  <div className="text-[11px] uppercase tracking-wide text-text-tertiary">{item.category || 'Metrics'} · {size.w}×{size.h} grid units</div>
-                  <h2 id="dashboard-tile-preview-title" className="text-lg font-semibold text-text-primary mt-1">{item.label}</h2>
-                  <p id="dashboard-tile-preview-description" className="text-sm text-text-secondary mt-2">{item.description || 'A reusable dashboard component based on your selected trading data and period filters.'}</p>
-                </div>
-                <button type="button" onClick={() => setPreviewItemId(null)} aria-label="Close preview" className="shrink-0 rounded-lg border border-border px-3 py-2 text-sm text-text-secondary hover:text-text-primary">✕</button>
-              </div>
-              <div className="rounded-xl border border-border bg-bg-page p-3 sm:p-5 overflow-hidden">
-                <div className="min-h-[220px] [&>*]:!h-auto">
-                  {item.render()}
-                </div>
-              </div>
-              <div className="flex items-center justify-between gap-3 mt-4">
-                <span className="text-xs text-text-tertiary">This is a live preview using the current dashboard filters.</span>
-                <button
-                  type="button"
-                  onClick={() => { if (!added) toggleItem(item.id); setPreviewItemId(null); }}
-                  className={`rounded-lg px-4 py-2 text-sm font-semibold ${added ? 'border border-border text-text-secondary' : 'bg-accent text-accent-text'}`}
-                >
-                  {added ? 'Already on dashboard' : 'Add to dashboard'}
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
       <div
         ref={gridRef}
+        onMouseMove={editing ? event => {
+          if (event.target.closest('[data-dashboard-tile]')) {
+            setHoveredEmptyCell(null);
+            return;
+          }
+          const target = getDropPositionFromGrab({
+            clientX: event.clientX,
+            clientY: event.clientY,
+            bounds: gridRef.current.getBoundingClientRect(),
+            columns,
+            grabOffset: { col: 0, row: 0 },
+            gap: GRID_GAP,
+            rowUnit: ROW_UNIT,
+          });
+          const occupied = visibleItems.some(item => {
+            const position = layout.positions[item.id] || { col: 1, row: 1 };
+            const size = layout.sizes[item.id] || getDefaultSize(item);
+            return target.col >= position.col && target.col < position.col + size.w
+              && target.row >= position.row && target.row < position.row + size.h;
+          });
+          setHoveredEmptyCell(occupied ? null : { ...target, visualCol: clamp(Math.floor((event.clientX - gridRef.current.getBoundingClientRect().left) / (((gridRef.current.clientWidth - GRID_GAP * (columns - 1)) / columns) + GRID_GAP)), 0, columns - 1) });
+        } : undefined}
+        onMouseLeave={() => setHoveredEmptyCell(null)}
+        onClick={editing && hoveredEmptyCell ? event => {
+          if (event.target.closest('[data-dashboard-tile]')) return;
+          event.stopPropagation();
+          setAddPickerPosition({ col: hoveredEmptyCell.col, row: hoveredEmptyCell.row });
+        } : undefined}
         onDragOver={editing ? event => {
           const targetTile = event.target.closest('[data-dashboard-tile]');
           if (!targetTile || targetTile.dataset.dashboardTile === draggedId) {
@@ -603,10 +500,11 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
             dropOnEmptySpace(event);
           }
         } : undefined}
-        className="grid items-stretch gap-4"
+        className="relative grid items-stretch gap-4"
         style={{
           gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
           gridTemplateRows: `repeat(${gridRowCount}, ${ROW_UNIT - GRID_GAP}px)`,
+          gridAutoRows: `${ROW_UNIT - GRID_GAP}px`,
           gridAutoRows: `${ROW_UNIT - GRID_GAP}px`,
           gridAutoFlow: 'none',
           backgroundImage: editing ? 'linear-gradient(to right, rgba(148,163,184,0.11) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.11) 1px, transparent 1px)' : 'none',
@@ -614,6 +512,16 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
           backgroundPosition: '0 0',
         }}
       >
+        {editing && hoveredEmptyCell && (
+          <button
+            type="button"
+            onClick={event => { event.stopPropagation(); setAddPickerPosition({ col: hoveredEmptyCell.col, row: hoveredEmptyCell.row }); }}
+            style={{ gridColumn: `${hoveredEmptyCell.visualCol + 1} / span 1`, gridRow: hoveredEmptyCell.row }}
+            className="z-10 flex min-h-[112px] items-center justify-center rounded-xl border-2 border-dashed border-accent bg-accent/10 px-3 text-center text-sm font-semibold text-accent opacity-90 hover:bg-accent/20"
+          >
+            + Click to add a tile
+          </button>
+        )}
         {visibleItems.map((item, itemIndex) => {
           const size = layout.sizes[item.id] || getDefaultSize(item);
           return (
@@ -676,6 +584,13 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
               {editing && (
                 <div className="absolute z-20 top-2 right-2 flex items-center gap-1 rounded-md bg-bg-page/95 border border-border px-1.5 py-1 text-[10px] text-text-secondary">
                   <span className="select-none pointer-events-none">⠿ Move</span>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${item.label} from dashboard`}
+                    title="Remove tile"
+                    onClick={() => removeItem(item.id)}
+                    className="ml-1 flex h-5 w-5 items-center justify-center rounded text-sm font-bold text-text-secondary hover:bg-red-500/15 hover:text-red-500"
+                  >×</button>
                   <button
                     type="button"
                     disabled={itemIndex === 0}
@@ -751,8 +666,43 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
         })}
       </div>
 
-      {visibleItems.length === 0 && (
-        <div className="bg-bg-surface border border-border rounded-xl p-6 text-center text-sm text-text-secondary">No dashboard tiles selected. Choose Edit dashboard to add some.</div>
+      {editing && addPickerPosition && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 p-4" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setAddPickerPosition(null); }}>
+          <div ref={previewDialogRef} role="dialog" aria-modal="true" aria-labelledby="dashboard-add-tile-title" tabIndex={-1} onMouseDown={event => event.stopPropagation()} className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-bg-surface shadow-2xl focus:outline-none">
+            <div className="flex items-center justify-between gap-4 border-b border-border p-5">
+              <div>
+                <h2 id="dashboard-add-tile-title" className="text-lg font-semibold text-text-primary">Add a dashboard tile</h2>
+                <p className="mt-1 text-sm text-text-secondary">Choose a tile that is not already on your dashboard.</p>
+              </div>
+              <button type="button" onClick={() => setAddPickerPosition(null)} aria-label="Close tile picker" className="rounded-lg border border-border px-3 py-2 text-sm text-text-secondary hover:text-text-primary">✕</button>
+            </div>
+            <div className="border-b border-border p-4">
+              <input autoFocus type="search" value={addPickerQuery} onChange={event => setAddPickerQuery(event.target.value)} placeholder="Search available tiles…" aria-label="Search available tiles" className="w-full rounded-lg border border-border bg-bg-page px-3 py-2 text-sm text-text-primary" />
+            </div>
+            <div className="grid flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 md:grid-cols-2 xl:grid-cols-3">
+              {items.filter(item => layout.hidden.includes(item.id) && [item.label, item.description, item.category].some(value => String(value || '').toLowerCase().includes(addPickerQuery.trim().toLowerCase()))).map(item => (
+                <div key={item.id} className="flex min-w-0 flex-col rounded-xl border border-border bg-bg-page p-3 transition-colors hover:border-accent">
+                  <div className="flex min-h-[190px] items-center justify-center overflow-hidden rounded-lg border border-border bg-bg-surface p-3 [&>*]:max-w-full">
+                    {item.preview || <div className="flex h-40 w-full items-center justify-center text-sm text-text-tertiary">{item.label}</div>}
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="truncate text-sm font-semibold text-text-primary">{item.label}</h3>
+                      <p className="mt-1 text-xs text-text-tertiary">{item.category || 'Metrics'}</p>
+                    </div>
+                    <button type="button" onClick={() => addItemAtPosition(item.id)} className="shrink-0 rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-text">Add tile</button>
+                  </div>
+                </div>
+              ))}
+              {items.filter(item => layout.hidden.includes(item.id) && [item.label, item.description, item.category].some(value => String(value || '').toLowerCase().includes(addPickerQuery.trim().toLowerCase()))).length === 0 && (
+                <div className="col-span-full rounded-xl border border-dashed border-border p-8 text-center text-sm text-text-secondary">All available tiles have been added, or no tiles match your search.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {visibleItems.length === 0 && !editing && (
+        <div className="bg-bg-surface border border-border rounded-xl p-6 text-center text-sm text-text-secondary">No dashboard tiles selected.</div>
       )}
     </div>
   );
