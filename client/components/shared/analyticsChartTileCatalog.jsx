@@ -196,7 +196,7 @@ const DailyNetPLTile = ({ trades }) => {
   const values = daily.map(([, day]) => day.totalPL);
   const maxValue = Math.max(1, ...values.map(Math.abs));
   const width = 900, height = 300, pad = { left: 58, right: 18, top: 18, bottom: 36 };
-  const chartWidth = width - pad.left - pad.right, zeroY = height / 2;
+  const chartWidth = width - pad.left - pad.right, zeroY = pad.top + (height - pad.top - pad.bottom) / 2;
   const gap = daily.length ? chartWidth / daily.length : chartWidth;
   const barWidth = Math.max(1, Math.min(8, gap * 0.72));
   const dateLabel = value => { const [year,month,day] = value.split('-'); return month + '/' + day + '/' + year.slice(2); };
@@ -234,7 +234,7 @@ const MonteCarloTile = ({ trades, settings }) => {
   const toY = value => padding.top + ((maxValue - value) / range) * chartHeight;
 
   return (
-    <Panel title="Monte Carlo Eval Simulation">
+    <Panel title={<span className="flex items-center gap-2">Monte Carlo Eval Simulation <InfoTooltip text="Historical trade P/L is sampled with replacement at the rounded average trades-per-day rate. Drawdown is checked at the end of each simulated day. Results are illustrative, not a prediction." /></span>}>
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 text-[10px] text-text-tertiary mb-1">
         <span>{results.totalSimulations.toLocaleString()} simulations · ${results.profitTarget.toLocaleString()} target · ${results.maxDrawdown.toLocaleString()} EOD drawdown</span><button type="button" onClick={() => setRunVersion(value => value + 1)} className="shrink-0 rounded border border-border px-2 py-1 text-text-secondary hover:text-text-primary">↻ Recalculate</button>
       </div>
