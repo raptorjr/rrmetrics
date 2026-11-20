@@ -132,10 +132,10 @@ const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpe
     id: 'tradingCalendar',
     label: 'Trading Calendar',
     category: 'Calendar',
-    minColumns: 2,
-    minRows: 2,
+    minColumns: 4,
+    minRows: 4,
     defaultColumns: 4,
-    defaultRows: 2,
+    defaultRows: 4,
     preview: <div className="h-[82px] rounded-md border border-border bg-bg-page p-2 flex flex-col justify-between"><div className="flex items-center justify-between"><span className="text-[10px] font-semibold text-text-secondary">Trading Calendar</span><span className="text-[9px] text-text-tertiary">Monthly</span></div><div className="grid grid-cols-7 gap-1">{Array.from({ length: 21 }, (_, index) => <span key={index} className={`h-2 rounded-[2px] ${[2, 5, 9, 12, 16, 19].includes(index) ? 'bg-positive/70' : [7, 14].includes(index) ? 'bg-negative/70' : 'bg-bg-input'}`} />)}</div></div>,
     render: () => <CalendarView trades={baseTrades} dailyNotes={dailyNotes} onSaveNote={onSaveNote} onDeleteNote={onDeleteNote} tags={tags} strategyRules={strategyRules} onOpenAddTrade={onOpenAddTrade} onEditTrade={onEditTrade} sidebarCollapsed={sidebarCollapsed} />,
   }]).concat(createAnalyticsTiles(filteredTrades), createAnalyticsChartTiles(filteredTrades, {
