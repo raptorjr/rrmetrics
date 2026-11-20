@@ -582,15 +582,15 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                   className={`pointer-events-none absolute z-40 left-1 right-1 ${dropTarget.position === 'before' ? 'top-0' : 'bottom-0'} h-1.5 rounded-full bg-accent shadow-[0_0_0_3px_rgba(99,102,241,0.18)]`}
                 />
               )}
-              {editing && (
+              {(editing || (Array.isArray(item.settings) && item.settings.length > 0)) && (
                 <div className="absolute z-40 top-2 right-2 flex items-center gap-1">
-                  <button
+                  {editing && <button
                     type="button"
                     aria-label={`Remove ${item.label} from dashboard`}
                     title="Remove tile"
                     onClick={() => removeItem(item.id)}
                     className="flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg-page/95 text-base font-semibold text-text-secondary shadow-sm hover:border-red-500/40 hover:bg-red-500/15 hover:text-red-500"
-                  >×</button>
+                  >×</button>}
                   {Array.isArray(item.settings) && item.settings.length > 0 && (
                     <details className="relative">
                       <summary className="list-none cursor-pointer flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg-page/95 text-xs text-text-secondary shadow-sm hover:bg-bg-input" aria-label={`Configure ${item.label}`} title={`Configure ${item.label}`}>⚙</summary>
