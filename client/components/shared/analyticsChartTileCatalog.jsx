@@ -379,13 +379,15 @@ const TradingScoreTile = ({ trades }) => {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-1 rounded-lg bg-bg-page p-1 shrink-0" role="group" aria-label="Trading score view">
-            {['radar','insights','details'].map(option => (
-              <button key={option} onClick={() => setView(option)} aria-pressed={view === option}
-                className={'rounded-md px-2 py-1.5 text-xs font-medium capitalize transition-colors '+(view === option ? 'bg-accent text-on-accent' : 'text-text-secondary hover:text-text-primary')}>
-                {option === 'radar' ? 'Radar' : option === 'insights' ? 'Insights' : 'Details'}
-              </button>
-            ))}
+          <div className="flex justify-start shrink-0" role="group" aria-label="Trading score view">
+            <div className="inline-flex items-center gap-0.5 rounded-lg bg-bg-page p-0.5">
+              {['radar','insights','details'].map(option => (
+                <button key={option} onClick={() => setView(option)} aria-pressed={view === option}
+                  className={'rounded-md px-3 py-1 text-[11px] font-medium capitalize transition-colors '+(view === option ? 'bg-accent text-on-accent' : 'text-text-secondary hover:text-text-primary')}>
+                  {option === 'radar' ? 'Radar' : option === 'insights' ? 'Insights' : 'Details'}
+                </button>
+              ))}
+            </div>
           </div>
           {view === 'radar' && (
             <div className="flex-1 min-h-0 min-w-0 flex items-center justify-center overflow-hidden">
