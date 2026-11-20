@@ -21,7 +21,7 @@ const AvgWinLossCard = ({ avgWin, avgLoss, tooltip = 'Compares the average size 
             style={{ gridTemplateColumns: winPct + 'fr ' + (100 - winPct) + 'fr' }}
           >
             <div className="bg-positive min-w-0" />
-            <div className="bg-negative min-w-0" />
+            <div className="avg-win-loss-negative bg-negative min-w-0" />
           </div>
           <div className="avg-win-loss-values flex justify-between text-[12px] font-mono gap-2">
             <span className="text-positive">{'$'}{avgWin.toFixed(0)}</span>
