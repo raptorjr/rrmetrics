@@ -416,11 +416,13 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   };
 
 
-  const gridRowCount = visibleItems.reduce((lastRow, item) => {
+  const lastOccupiedRow = visibleItems.reduce((lastRow, item) => {
     const position = layout.positions[item.id] || { row: 1 };
     const size = layout.sizes[item.id] || getDefaultSize(item);
     return Math.max(lastRow, position.row + size.h - 1);
-  }, 0) + 2;
+  }, 0);
+  // Keep spare rows available while editing, but collapse unused space in view mode.
+  const gridRowCount = lastOccupiedRow + (editing ? 2 : 0);
 
   return (
     <div className="space-y-3">
