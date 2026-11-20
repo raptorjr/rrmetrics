@@ -5,7 +5,7 @@ const InfoTooltip = ({ text }) => {
   if (!text) return null;
   return (
     <span className="relative inline-flex items-center">
-      <button type="button" className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-text-tertiary/50 text-text-tertiary text-[9px] font-semibold leading-none hover:border-accent hover:text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+      <button type="button" className="dashboard-tile-icon-button shrink-0"
         aria-label="Metric information" aria-expanded={open}
         onClick={event => { event.stopPropagation(); setOpen(value => !value); }}
         onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}
