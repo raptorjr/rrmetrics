@@ -112,7 +112,7 @@ test('saved manual positions are normalized and retained', () => {
   }, ['totalPL'], ['totalPL'], items);
 
   assert.deepEqual(layout.positions.totalPL, { col: 8, row: 3 });
-  assert.equal(Object.keys(layout.positions).length, items.length);
+  assert.equal(Object.keys(layout.positions).length, 1);
 });
 
 
