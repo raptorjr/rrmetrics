@@ -416,7 +416,7 @@ const TradingScoreTile = ({ trades }) => {
               <div className="shrink-0 grid grid-cols-[minmax(0,1.5fr)_minmax(76px,0.8fr)_minmax(64px,0.6fr)_minmax(54px,0.5fr)] gap-x-3 border-b border-border/70 py-2 text-[10px] uppercase tracking-wide text-text-tertiary">
                 <span>Dimension</span><span className="text-right">Actual</span><span className="text-right">Score</span><span className="text-right">Weight</span>
               </div>
-              <div className="flex-1 min-h-0 overflow-y-auto">
+              <div className="flex-1 min-h-0 overflow-y-auto pr-3">
                 {result.metrics.map(metric => (
                   <div key={metric.id} className="grid grid-cols-[minmax(0,1.5fr)_minmax(76px,0.8fr)_minmax(64px,0.6fr)_minmax(54px,0.5fr)] gap-x-3 border-b border-border/40 py-2 last:border-0">
                     <div className="min-w-0">
