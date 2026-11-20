@@ -7,6 +7,7 @@ const {
   completePositions,
   findAvailablePosition,
   getDropPositionFromGrab,
+  getResizedTileGeometry,
   placeTileAndDisplace,
   createStarterLayout,
   STARTER_LAYOUTS,
@@ -283,4 +284,76 @@ test('dropping a tile onto an occupied area gives it priority and displaces ever
     ), false, `Unexpected overlap for ${id}`);
     occupied.push({ ...position, ...size });
   }
+});
+
+
+test('resizing from each corner keeps the opposite corner anchored', () => {
+  const base = {
+    position: { col: 3, row: 4 },
+    size: { w: 2, h: 2 },
+    deltaX: 100,
+    deltaY: 128,
+    gridWidth: 800,
+    columns: 8,
+    gap: 16,
+    rowUnit: 128,
+    minW: 1,
+    minH: 1,
+    maxW: 8,
+    maxH: 24,
+  };
+  const cases = [
+    { corner: 'nw', deltaX: -100, deltaY: -128, expectedPosition: { col: 2, row: 3 } },
+    { corner: 'ne', deltaX: 100, deltaY: -128, expectedPosition: { col: 3, row: 3 } },
+    { corner: 'sw', deltaX: -100, deltaY: 128, expectedPosition: { col: 2, row: 4 } },
+    { corner: 'se', deltaX: 100, deltaY: 128, expectedPosition: { col: 3, row: 4 } },
+  ];
+
+  for (const testCase of cases) {
+    const result = getResizedTileGeometry({ ...base, ...testCase });
+    assert.deepEqual(result.size, { w: 3, h: 3 }, testCase.corner);
+    assert.deepEqual(result.position, testCase.expectedPosition, testCase.corner);
+  }
+});
+
+test('resizing from top and left respects minimum size and grid boundaries', () => {
+  const result = getResizedTileGeometry({
+    position: { col: 1, row: 1 },
+    size: { w: 2, h: 2 },
+    corner: 'nw',
+    deltaX: 1000,
+    deltaY: 1000,
+    gridWidth: 800,
+    columns: 8,
+    gap: 16,
+    rowUnit: 128,
+    minW: 2,
+    minH: 2,
+    maxW: 8,
+    maxH: 24,
+  });
+
+  assert.deepEqual(result.size, { w: 2, h: 2 });
+  assert.deepEqual(result.position, { col: 1, row: 1 });
+});
+
+test('resizing from right and bottom cannot exceed the grid limits', () => {
+  const result = getResizedTileGeometry({
+    position: { col: 7, row: 23 },
+    size: { w: 2, h: 2 },
+    corner: 'se',
+    deltaX: 1000,
+    deltaY: 1000,
+    gridWidth: 800,
+    columns: 8,
+    gap: 16,
+    rowUnit: 128,
+    minW: 1,
+    minH: 1,
+    maxW: 8,
+    maxH: 24,
+  });
+
+  assert.deepEqual(result.size, { w: 2, h: 2 });
+  assert.deepEqual(result.position, { col: 7, row: 23 });
 });
