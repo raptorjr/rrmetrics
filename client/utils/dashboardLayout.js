@@ -12,7 +12,7 @@ const enforceMinArea = (size, item) => {
 
 const getDefaultSize = (item) => enforceMinArea({
   w: clamp(Math.trunc(Number(item.defaultColumns) || 1), Number(item.minColumns) || 1, MAX_COLUMNS),
-  h: clamp(Math.trunc(Number(item.defaultRows) || 1), Number(item.minRows) || 1, MAX_ROWS),
+  h: clamp(Math.trunc(Number(item.defaultRows) || 1), Number(item.minRows) || 1, Number(item.maxRows) || MAX_ROWS),
 }, item);
 
 const hasCollision = (candidate, size, occupied) => occupied.some(entry =>
@@ -183,7 +183,7 @@ const normalizeLayout = (saved, defaultOrder, defaultVisible, items) => {
     return [item.id, {
       ...enforceMinArea({
         w: clamp(Math.trunc(migratedWidth || fallback.w), Number(item.minColumns) || 1, MAX_COLUMNS),
-        h: clamp(Math.trunc(Number(savedSize && savedSize.h) || fallback.h), Number(item.minRows) || 1, MAX_ROWS),
+        h: clamp(Math.trunc(Number(savedSize && savedSize.h) || fallback.h), Number(item.minRows) || 1, Number(item.maxRows) || MAX_ROWS),
       }, item),
     }];
   }));
@@ -266,7 +266,7 @@ const createStarterLayout = (starter, items, currentOrder = []) => {
     return [item.id, {
       ...enforceMinArea({
         w: clamp(Math.trunc(Number(preferred.w) || fallback.w), Number(item.minColumns) || 1, MAX_COLUMNS),
-        h: clamp(Math.trunc(Number(preferred.h) || fallback.h), Number(item.minRows) || 1, MAX_ROWS),
+        h: clamp(Math.trunc(Number(preferred.h) || fallback.h), Number(item.minRows) || 1, Number(item.maxRows) || MAX_ROWS),
       }, item),
     }];
   }));
