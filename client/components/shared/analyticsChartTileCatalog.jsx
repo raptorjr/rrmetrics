@@ -79,12 +79,9 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
       else if (pl > 0) { buckets[key].wins++; buckets[key].winPL += pl; }
       else { buckets[key].losses++; buckets[key].lossPL += Math.abs(pl); }
     });
-    const hours = [];
-    for (let hour = 18; hour <= 23; hour++) hours.push(hour);
-    for (let hour = 0; hour <= 16; hour++) hours.push(hour);
+    const hours = Array.from({ length: 24 }, (_, hour) => hour);
     const result = [];
     hours.forEach(hour => [0, 30].forEach(minute => {
-      if (hour === 16 && minute === 30) return;
       const time = String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0');
       const data = buckets[time] || { totalPL: 0, wins: 0, losses: 0, breakevens: 0, count: 0, winPL: 0, lossPL: 0, grossWinPL: 0, grossLossPL: 0 };
       result.push({ time, ...data, winRate: data.wins + data.losses > 0 ? (data.wins / (data.wins + data.losses)) * 100 : 0, avgPL: data.count ? data.totalPL / data.count : 0 });
