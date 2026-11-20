@@ -808,41 +808,46 @@
 }
 
 
-/* Corner-bracket resize handles, matching the dashboard edit-mode mockup. */
+/* Corner-bracket resize handles: fixed-size hit target with two rounded strokes. */
 .dashboard-resize-handle {
-  width: 26px;
-  height: 26px;
-  min-width: 26px;
-  min-height: 26px;
+  position: absolute;
+  display: block;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
   flex: none;
-  color: rgb(var(--accent));
-  background: transparent;
-  border-width: 0;
-  border-style: solid;
-  border-color: currentColor;
+  border: 0;
   border-radius: 0;
+  background: transparent;
+  color: rgb(var(--accent));
   filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.35));
 }
-.dashboard-resize-handle-nw {
-  border-top-width: 7px;
-  border-left-width: 7px;
-  border-top-left-radius: 12px;
+.dashboard-resize-handle::before,
+.dashboard-resize-handle::after {
+  content: "";
+  position: absolute;
+  display: block;
+  background: currentColor;
+  border-radius: 999px;
 }
-.dashboard-resize-handle-ne {
-  border-top-width: 7px;
-  border-right-width: 7px;
-  border-top-right-radius: 12px;
+.dashboard-resize-handle::before {
+  width: 18px;
+  height: 7px;
 }
-.dashboard-resize-handle-sw {
-  border-bottom-width: 7px;
-  border-left-width: 7px;
-  border-bottom-left-radius: 12px;
+.dashboard-resize-handle::after {
+  width: 7px;
+  height: 18px;
 }
-.dashboard-resize-handle-se {
-  border-bottom-width: 7px;
-  border-right-width: 7px;
-  border-bottom-right-radius: 12px;
-}
+.dashboard-resize-handle-nw::before { top: 2px; left: 2px; }
+.dashboard-resize-handle-nw::after { top: 2px; left: 2px; }
+.dashboard-resize-handle-ne::before { top: 2px; right: 2px; }
+.dashboard-resize-handle-ne::after { top: 2px; right: 2px; }
+.dashboard-resize-handle-sw::before { bottom: 2px; left: 2px; }
+.dashboard-resize-handle-sw::after { bottom: 2px; left: 2px; }
+.dashboard-resize-handle-se::before { bottom: 2px; right: 2px; }
+.dashboard-resize-handle-se::after { bottom: 2px; right: 2px; }
 .dashboard-resize-handle:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 2px;
