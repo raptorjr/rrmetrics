@@ -10,53 +10,59 @@ const WinRateCard = ({ wins, losses, breakevens = 0, total, change, tooltip = 'W
   // rotate(180) moves start to 9-o'clock; CW from there traces 9→12→3 = top semicircle.
   const cx = 36, cy = 32, r = 28, sw = 6;
   const C = 2 * Math.PI * r;
-  const half = Math.PI * r; // gauge arc length = half circumference
+  const half = Math.PI * r;
   const winsLen = total > 0 ? (wins / total) * half : 0;
-  const neuLen  = total > 0 ? (neutral / total) * half : 0;
-  const losLen  = total > 0 ? (losses / total) * half : 0;
-  // Each segment rotates to its starting position (CW degrees from 3-o'clock)
+  const neuLen = total > 0 ? (neutral / total) * half : 0;
+  const losLen = total > 0 ? (losses / total) * half : 0;
   const neuStartDeg = 180 + (total > 0 ? (wins / total) * 180 : 0);
   const losStartDeg = 180 + (total > 0 ? ((wins + neutral) / total) * 180 : 0);
+
   return (
-    <div className="bg-bg-surface border border-border rounded-xl p-5 relative">
-      <div className="text-text-secondary text-xs font-medium uppercase tracking-wider mb-2 flex items-center gap-1.5">Win Rate <InfoTooltip text={tooltip} /></div>
-      <div className="flex items-baseline gap-2">
-        <div className="font-mono text-2xl font-bold text-text-primary">{winRate.toFixed(1)}%</div>
-        {change !== null && change !== undefined && <ChangeIndicator value={change} />}
+    <div className="win-rate-card relative flex h-full min-h-0 min-w-0 items-start gap-3 overflow-hidden rounded-xl border border-border bg-bg-surface p-5 [container-type:size]">
+      <div className="relative z-10 min-w-0 shrink-0">
+        <div className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary">
+          Win Rate <InfoTooltip text={tooltip} />
+        </div>
+        <div className="flex items-baseline gap-2">
+          <div className="font-mono text-2xl font-bold text-text-primary">{winRate.toFixed(1)}%</div>
+          {change !== null && change !== undefined && <ChangeIndicator value={change} />}
+        </div>
       </div>
-      <div className="absolute right-4 top-4 flex flex-col items-center gap-1">
-        <svg width={96} height={50} viewBox="0 0 72 38">
-          {/* Background track */}
-          <circle cx={cx} cy={cy} r={r} fill="none"
-            stroke="rgb(var(--border))" strokeWidth={sw} strokeLinecap="butt"
-            strokeDasharray={`${half} ${C - half}`}
-            transform={`rotate(180, ${cx}, ${cy})`} />
-          {/* Wins */}
-          {winsLen > 0.01 && (
+
+      <div className="flex min-h-0 min-w-0 flex-1 items-center justify-end self-stretch">
+        <div
+          className="win-rate-gauge flex max-w-full shrink-0 flex-col items-center gap-1"
+          style={{ width: 'clamp(96px, min(65cqw, 130cqh), 360px)' }}
+        >
+          <svg className="block h-auto w-full overflow-visible" viewBox="0 0 72 38" role="img" aria-label={`Trade distribution: ${wins} wins, ${neutral} breakeven, ${losses} losses`}>
             <circle cx={cx} cy={cy} r={r} fill="none"
-              stroke="rgb(var(--positive))" strokeWidth={sw} strokeLinecap="butt"
-              strokeDasharray={`${winsLen} ${C - winsLen}`}
+              stroke="rgb(var(--border))" strokeWidth={sw} strokeLinecap="butt"
+              strokeDasharray={`${half} ${C - half}`}
               transform={`rotate(180, ${cx}, ${cy})`} />
-          )}
-          {/* Neutral */}
-          {neuLen > 0.01 && (
-            <circle cx={cx} cy={cy} r={r} fill="none"
-              stroke="rgb(var(--accent))" strokeWidth={sw} strokeLinecap="butt"
-              strokeDasharray={`${neuLen} ${C - neuLen}`}
-              transform={`rotate(${neuStartDeg}, ${cx}, ${cy})`} />
-          )}
-          {/* Losses */}
-          {losLen > 0.01 && (
-            <circle cx={cx} cy={cy} r={r} fill="none"
-              stroke="rgb(var(--negative))" strokeWidth={sw} strokeLinecap="butt"
-              strokeDasharray={`${losLen} ${C - losLen}`}
-              transform={`rotate(${losStartDeg}, ${cx}, ${cy})`} />
-          )}
-        </svg>
-        <div className="flex justify-between" style={{ width: 96 }}>
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-positive/20 text-positive text-[9px] font-bold">{wins}</span>
-          {neutral > 0 && <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-accent/20 text-accent text-[9px] font-bold">{neutral}</span>}
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-negative/20 text-negative text-[9px] font-bold">{losses}</span>
+            {winsLen > 0.01 && (
+              <circle cx={cx} cy={cy} r={r} fill="none"
+                stroke="rgb(var(--positive))" strokeWidth={sw} strokeLinecap="butt"
+                strokeDasharray={`${winsLen} ${C - winsLen}`}
+                transform={`rotate(180, ${cx}, ${cy})`} />
+            )}
+            {neuLen > 0.01 && (
+              <circle cx={cx} cy={cy} r={r} fill="none"
+                stroke="rgb(var(--accent))" strokeWidth={sw} strokeLinecap="butt"
+                strokeDasharray={`${neuLen} ${C - neuLen}`}
+                transform={`rotate(${neuStartDeg}, ${cx}, ${cy})`} />
+            )}
+            {losLen > 0.01 && (
+              <circle cx={cx} cy={cy} r={r} fill="none"
+                stroke="rgb(var(--negative))" strokeWidth={sw} strokeLinecap="butt"
+                strokeDasharray={`${losLen} ${C - losLen}`}
+                transform={`rotate(${losStartDeg}, ${cx}, ${cy})`} />
+            )}
+          </svg>
+          <div className="flex w-full justify-between gap-1">
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-positive/20 px-1 text-[9px] font-bold text-positive">{wins}</span>
+            {neutral > 0 && <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent/20 px-1 text-[9px] font-bold text-accent">{neutral}</span>}
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-negative/20 px-1 text-[9px] font-bold text-negative">{losses}</span>
+          </div>
         </div>
       </div>
     </div>
