@@ -99,7 +99,7 @@ test('legacy four-column layouts migrate to eight-column widths without enlargin
   assert.equal(layout.gridVersion, 2);
   assert.deepEqual(layout.sizes.totalPL, { w: 1, h: 1 });
   assert.deepEqual(layout.sizes.equityCurve, { w: 4, h: 2 });
-  assert.deepEqual(layout.sizes.tradingCalendar, { w: 4, h: 4 });
+  assert.deepEqual(layout.sizes.tradingCalendar, { w: 4, h: 5 });
 });
 
 test('saved manual positions are normalized and retained', () => {
