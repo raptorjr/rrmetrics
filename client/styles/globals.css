@@ -583,9 +583,13 @@
     flex: none;
     width: 100%;
     min-width: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
     border-right: 0;
     border-bottom: 1px solid rgb(var(--border));
     padding: 0.35rem 0;
+  }
+  .dashboard-ticker-item > span:nth-child(2) {
+    text-align: right;
   }
   .dashboard-ticker-item:last-child {
     border-bottom: 0;
