@@ -7,10 +7,10 @@ const InfoTooltip = require('./InfoTooltip');
 
 const DEFINITIONS = [
   { id: 'dailyNetPL', label: 'Net Daily P/L', category: 'Charts', minColumns: 1, minRows: 1, defaultColumns: 6, defaultRows: 2, description: "Shows net profit and loss for each trading day over time." },
-  { id: 'equityCurve', label: 'Equity Curve', category: 'Charts', minColumns: 1, minRows: 1, defaultColumns: 4, defaultRows: 2, description: "Tracks cumulative profit and loss in exit-time order across the selected trades." },
+  { id: 'equityCurve', label: 'Equity Curve', category: 'Charts', minColumns: 2, minRows: 1, defaultColumns: 4, defaultRows: 2, description: "Tracks cumulative profit and loss in exit-time order across the selected trades." },
   { id: 'performanceByDay', label: 'Performance by Day', category: 'Charts', minColumns: 1, minRows: 2, defaultColumns: 4, defaultRows: 2, description: "Shows total profit and loss grouped by weekday of trade exit." },
   { id: 'performanceByEntryTime', label: 'Performance by Entry Time', category: 'Charts', minColumns: 1, minRows: 2, defaultColumns: 6, defaultRows: 2, description: "Groups trades into 30-minute entry-time buckets and compares average or total P/L." },
-  { id: 'monteCarloSimulation', label: 'Monte Carlo Simulation', category: 'Risk', minColumns: 1, minRows: 1, defaultColumns: 6, defaultRows: 2, description: "Runs repeated simulations of the observed trade outcomes to estimate evaluation pass probability and time to pass." },
+  { id: 'monteCarloSimulation', label: 'Monte Carlo Simulation', category: 'Risk', minColumns: 2, minRows: 2, defaultColumns: 6, defaultRows: 2, description: "Runs repeated simulations of the observed trade outcomes to estimate evaluation pass probability and time to pass." },
 ];
 
 const Panel = ({ title, children, actions }) => <div className="dashboard-tile-panel h-full min-h-0 min-w-0 overflow-hidden flex flex-col bg-bg-surface border border-border rounded-xl p-3 md:p-4"><div className="shrink-0 flex items-center justify-between gap-2 mb-2"><h3 className="min-w-0 text-text-primary font-semibold text-sm">{title}</h3>{actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}</div><div className="flex-1 min-h-0 min-w-0 flex flex-col">{children}</div></div>;
