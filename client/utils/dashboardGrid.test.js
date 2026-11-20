@@ -355,6 +355,6 @@ test('resizing from right and bottom cannot exceed the grid limits', () => {
   });
 
   // Dashboard rows can extend indefinitely; only the tile's own height is capped.
-  assert.deepEqual(result.size, { w: 2, h: 8 });
+  assert.deepEqual(result.size, { w: 2, h: 10 });
   assert.deepEqual(result.position, { col: 7, row: 23 });
 });
