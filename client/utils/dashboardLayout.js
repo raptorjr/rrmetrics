@@ -3,10 +3,17 @@ const MAX_ROWS = 8;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-const getDefaultSize = (item) => ({
+const enforceMinArea = (size, item) => {
+  const minArea = Math.max(1, Number(item.minArea) || 1);
+  if (size.w * size.h >= minArea) return size;
+  if (size.w === 1) return { ...size, h: Math.min(MAX_ROWS, Math.ceil(minArea / size.w)) };
+  return { ...size, w: Math.min(MAX_COLUMNS, Math.ceil(minArea / size.h)) };
+};
+
+const getDefaultSize = (item) => enforceMinArea({
   w: clamp(Math.trunc(Number(item.defaultColumns) || 1), Number(item.minColumns) || 1, MAX_COLUMNS),
   h: clamp(Math.trunc(Number(item.defaultRows) || 1), Number(item.minRows) || 1, MAX_ROWS),
-});
+}, item);
 
 const hasCollision = (candidate, size, occupied) => occupied.some(entry =>
   candidate.col < entry.col + entry.w
@@ -69,8 +76,14 @@ const getResizedTileGeometry = ({
   const widthLimit = west ? position.col + size.w - 1 : MAX_COLUMNS - position.col + 1;
   // Rows are unbounded in the dashboard; only tile height has a maximum.
   const heightLimit = north ? position.row + size.h - 1 : maxH;
-  const nextW = clamp(size.w + widthDelta, minW, Math.min(maxW, widthLimit));
-  const nextH = clamp(size.h + heightDelta, minH, Math.min(maxH, heightLimit));
+  let nextW = clamp(size.w + widthDelta, minW, Math.min(maxW, widthLimit));
+  let nextH = clamp(size.h + heightDelta, minH, Math.min(maxH, heightLimit));
+  if (nextW * nextH < minArea) {
+    if (widthDelta < 0 && nextH < maxH) nextH = Math.min(maxH, Math.ceil(minArea / nextW));
+    else if (heightDelta < 0 && nextW < maxW) nextW = Math.min(maxW, Math.ceil(minArea / nextH));
+    else if (nextW < maxW) nextW = Math.min(maxW, Math.ceil(minArea / nextH));
+    else nextH = Math.min(maxH, Math.ceil(minArea / nextW));
+  }
 
   return {
     size: { w: nextW, h: nextH },
@@ -167,8 +180,10 @@ const normalizeLayout = (saved, defaultOrder, defaultVisible, items) => {
     const rawWidth = Number(savedSize && savedSize.w);
     const migratedWidth = legacy && rawWidth > 1 ? rawWidth * 2 : rawWidth;
     return [item.id, {
-      w: clamp(Math.trunc(migratedWidth || fallback.w), Number(item.minColumns) || 1, MAX_COLUMNS),
-      h: clamp(Math.trunc(Number(savedSize && savedSize.h) || fallback.h), Number(item.minRows) || 1, MAX_ROWS),
+      ...enforceMinArea({
+        w: clamp(Math.trunc(migratedWidth || fallback.w), Number(item.minColumns) || 1, MAX_COLUMNS),
+        h: clamp(Math.trunc(Number(savedSize && savedSize.h) || fallback.h), Number(item.minRows) || 1, MAX_ROWS),
+      }, item),
     }];
   }));
   const positions = Object.fromEntries(Object.entries(saved.positions || {}).filter(([id, point]) =>
@@ -248,8 +263,10 @@ const createStarterLayout = (starter, items, currentOrder = []) => {
     const fallback = getDefaultSize(item);
     const preferred = starter.sizes[item.id] || {};
     return [item.id, {
-      w: clamp(Math.trunc(Number(preferred.w) || fallback.w), Number(item.minColumns) || 1, MAX_COLUMNS),
-      h: clamp(Math.trunc(Number(preferred.h) || fallback.h), Number(item.minRows) || 1, MAX_ROWS),
+      ...enforceMinArea({
+        w: clamp(Math.trunc(Number(preferred.w) || fallback.w), Number(item.minColumns) || 1, MAX_COLUMNS),
+        h: clamp(Math.trunc(Number(preferred.h) || fallback.h), Number(item.minRows) || 1, MAX_ROWS),
+      }, item),
     }];
   }));
   const hidden = ids.filter(id => !visible.has(id));
