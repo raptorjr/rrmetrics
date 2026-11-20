@@ -119,7 +119,7 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
   const barWidth = Math.max(2, barGap * 0.62);
 
   return (
-    <Panel title={<span className="flex items-center gap-1">Performance by Entry Time <InfoTooltip text="Groups trades by their local entry time in 30-minute buckets. Avg P/L is the average result per trade in each bucket; Total P/L is the combined result. The table also shows trade count, breakeven trades, win rate and profit/loss values." /></span>}>
+    <Panel title={<span className="flex items-center gap-1">Performance by Entry Time <InfoTooltip text="Groups trades by their local entry time in 30-minute buckets. Avg P/L is the average result per trade in each bucket; Total P/L is the combined result. The table also shows trade count, win rate and profit/loss values." /></span>}>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="flex bg-bg-input rounded-lg p-0.5 text-xs">
           <button onClick={() => onModeChange('avg')} className={'px-2.5 py-1 rounded-md ' + (mode === 'avg' ? 'bg-accent text-accent-text' : 'text-text-secondary')}>Avg P/L</button>
@@ -150,9 +150,9 @@ const EntryTimeTile = ({ trades, mode, onModeChange }) => {
       </div>
       {showTable && <div className="max-h-[260px] overflow-y-auto mt-3 pr-2">
         <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-bg-surface"><tr className="border-b border-border"><th className="text-left py-2">Time</th><th className="text-right py-2">Trades</th><th className="text-right py-2">BE</th><th className="text-right py-2">Win rate</th><th className="text-right py-2">Total P/L</th><th className="text-right py-2">Avg P/L</th></tr></thead>
+          <thead className="sticky top-0 bg-bg-surface"><tr className="border-b border-border"><th className="text-left py-2">Time</th><th className="text-right py-2">Trades</th><th className="text-right py-2">Win rate</th><th className="text-right py-2">Total P/L</th><th className="text-right py-2">Avg P/L</th></tr></thead>
           <tbody>{timeStats.filter(stat => stat.count > 0).map(stat => <tr key={stat.time} className="border-b border-border/50">
-            <td className="py-1.5">{stat.time}</td><td className="text-right">{stat.count}</td><td className="text-right">{stat.breakevens}</td><td className="text-right">{stat.winRate.toFixed(1)}%</td>
+            <td className="py-1.5">{stat.time}</td><td className="text-right">{stat.count}</td><td className="text-right">{stat.winRate.toFixed(1)}%</td>
             <td className={'text-right ' + (stat.totalPL >= 0 ? 'text-positive' : 'text-negative')}>{(stat.totalPL >= 0 ? '+' : '') + '$' + stat.totalPL.toFixed(2)}</td>
             <td className={'text-right ' + (stat.avgPL >= 0 ? 'text-positive' : 'text-negative')}>{(stat.avgPL >= 0 ? '+' : '') + '$' + stat.avgPL.toFixed(2)}</td>
           </tr>)}</tbody>
