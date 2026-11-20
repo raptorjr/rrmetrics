@@ -238,8 +238,8 @@ const MonteCarloTile = ({ trades, settings, settingsControl }) => {
 
   return (
     <Panel
-      title={<span className="flex items-center gap-2">Monte Carlo Eval Simulation <InfoTooltip text="Historical trade P/L is sampled with replacement at the rounded average trades-per-day rate. Drawdown is checked at the end of each simulated day. Results are illustrative, not a prediction." /></span>}
-      actions={<>{settingsControl}<button type="button" onClick={() => setRunVersion(value => value + 1)} title="Recalculate simulation" aria-label="Recalculate simulation" className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-sm text-text-secondary hover:text-text-primary">↻</button></>}
+      title={<span className="flex items-center gap-2">Monte Carlo Eval Simulation <InfoTooltip text="Historical trade P/L is sampled with replacement at the rounded average trades-per-day rate. Drawdown is checked at the end of each simulated day. Results are illustrative, not a prediction." />{settingsControl}</span>}
+      actions={<button type="button" onClick={() => setRunVersion(value => value + 1)} title="Recalculate simulation" aria-label="Recalculate simulation" className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-sm text-text-secondary hover:text-text-primary">↻</button>}
     >
       <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 text-[10px] text-text-tertiary mb-1">
         <span>{results.totalSimulations.toLocaleString()} simulations · ${results.profitTarget.toLocaleString()} target · ${results.maxDrawdown.toLocaleString()} EOD drawdown</span>
