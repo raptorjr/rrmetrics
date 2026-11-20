@@ -18,7 +18,7 @@ const WinRateCard = ({ wins, losses, breakevens = 0, total, change, tooltip = 'W
   const losStartDeg = 180 + (total > 0 ? ((wins + neutral) / total) * 180 : 0);
 
   return (
-    <div className="win-rate-card relative flex h-full min-h-0 min-w-0 items-start gap-3 overflow-hidden rounded-xl border border-border bg-bg-surface p-5 [container-type:size]">
+    <div className="win-rate-card relative flex h-full min-h-0 min-w-0 flex-col gap-2 overflow-hidden rounded-xl border border-border bg-bg-surface p-5 [container-type:size]">
       <div className="relative z-10 min-w-0 shrink-0">
         <div className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-text-secondary">
           Win Rate <InfoTooltip text={tooltip} />
@@ -29,10 +29,10 @@ const WinRateCard = ({ wins, losses, breakevens = 0, total, change, tooltip = 'W
         </div>
       </div>
 
-      <div className="flex min-h-0 min-w-0 flex-1 items-center justify-end self-stretch">
+      <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center self-stretch">
         <div
-          className="win-rate-gauge flex max-w-full shrink-0 flex-col items-center gap-1"
-          style={{ width: 'clamp(96px, min(92cqw, 180cqh), 720px)' }}
+          className="win-rate-gauge flex w-full max-w-full min-w-0 flex-col items-center gap-1"
+          style={{ width: 'min(100%, 180cqh, 720px)' }}
         >
           <svg className="block h-auto w-full overflow-visible" viewBox="0 0 72 38" role="img" aria-label={`Trade distribution: ${wins} wins, ${neutral} breakeven, ${losses} losses`}>
             <circle cx={cx} cy={cy} r={r} fill="none"
