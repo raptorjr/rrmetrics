@@ -585,7 +585,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                 />
               )}
               {(editing || (Array.isArray(item.settings) && item.settings.length > 0)) && (
-                <div className="absolute z-40 top-3 right-3 flex items-center gap-1">
+                <div className="absolute z-40 flex items-center gap-1" style={{ top: 12, right: 48 }}>
                   {editing && <button
                     type="button"
                     aria-label={`Remove ${item.label} from dashboard`}
