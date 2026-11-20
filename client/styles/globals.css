@@ -901,3 +901,10 @@
     display: none;
   }
 }
+
+/* Keep narrow Equity Curve date labels evenly spaced: four labels across the timeline. */
+@container dashboard-tile (max-width: 400px) {
+  .dashboard-equity-responsive-chart .chart-x-label-5 {
+    display: none;
+  }
+}
