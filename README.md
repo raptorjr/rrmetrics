@@ -182,6 +182,10 @@ data/
 - **Client:** React 19, Tailwind CSS, Framer Motion, bundled by webpack to `public/assets`
 - **Auth:** none — single-user, local-only
 
+## AI-assisted development
+
+This fork maintains shared instructions for AI coding agents. Start with [AGENTS.md](AGENTS.md), then read the [AI Development Guide](docs/AI-DEVELOPMENT-GUIDE.md). When opening a new ChatGPT development thread, use the [AI Session Start prompt](docs/AI-SESSION-START.md) so the assistant checks the repository's current state and follows the established workflow.
+
 ## Contributing
 
 This is a young open-source project and contributions of every size are welcome — bug reports, docs fixes, new broker integrations, features. See [CONTRIBUTING.md](CONTRIBUTING.md) for dev setup, project layout, and the broker-integration guide.
