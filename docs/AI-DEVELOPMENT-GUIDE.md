@@ -61,24 +61,31 @@ Established direction:
 The implementation has already evolved beyond the earliest design discussions. Verify the current code and latest development commits before treating any feature in this list as implemented or unfinished. For detailed visual decisions, use the current design reference documentation and recent design discussions; do not invent a new visual direction.
 
 
-### Trading Trend tile — agreed design direction
+### Trading Trend tile — agreed design and implementation scope
 
-The proposed Trading Trend tile should present two distinct perspectives side by side or as clearly separated sections:
+The Trading Trend tile is designed with two distinct views:
 
-1. **Performance trend:** whether recent financial results are improving, stable, or declining.
-2. **Trading quality trend:** whether the trader's execution and adherence to their approach are improving, stable, or declining, independently of whether the recent period is profitable.
+1. **Financial Performance** — the first view to design and implement. It assesses whether recent financial results are improving, stable, or declining using the trade data already available in RR Metrics, including Topstep imports.
+2. **Trading Quality** — a reserved future view in the same tile. Its purpose is to assess execution quality and adherence to the trader's plan independently of financial outcomes.
 
-The purpose is to make shorter-term changes visible when long-run aggregate statistics react too slowly. The two perspectives must not be collapsed into a single judgement: a profitable period with poor execution and a losing period with disciplined execution should be distinguishable.
+The tile's structure and view navigation should accommodate both perspectives from the outset. The Trading Quality view is a planned extension, not part of the initial implementation: do not invent a score, infer discipline from P/L, or present unsupported conclusions. It should be clearly identified as coming later or otherwise kept unavailable until the required data model and workflows exist.
 
-Initial concept for evaluation (not yet a finalized calculation specification):
-- Compare a recent rolling sample with the immediately preceding sample of closed trades.
-- Twenty trades per sample is the initial proposed starting point, not a statistically guaranteed minimum or a locked requirement.
-- Consider expectancy, profit factor, average win/loss, and drawdown for the performance perspective; win rate is supporting context, not a standalone success measure.
-- Trading quality requires suitable structured execution data and should not be inferred from P/L alone. The exact inputs, sample sufficiency rules, weighting, and neutral/stable thresholds remain to be designed.
-- The tile should communicate Improving, Stable, Declining, or Insufficient Data only when the evidence supports that interpretation. Avoid overreacting to small or noisy differences.
+#### Initial Financial Performance direction
 
-This direction is agreed for exploration. It does not authorize implementation or settle the detailed methodology; refine the design with the user before coding.
+- Focus the initial implementation exclusively on financial performance, using existing, trustworthy trade fields.
+- Compare a recent rolling sample with the immediately preceding sample of closed trades. Twenty trades per sample is the initial proposal, subject to validation and refinement; it is not a statistically guaranteed minimum or a locked requirement.
+- Candidate measures include expectancy, profit factor, average win/loss, and drawdown. Win rate may provide supporting context but must not be treated as a standalone measure of improvement.
+- Present an understandable overall assessment such as Improving, Stable, Declining, or Insufficient Data, supported by visible component metrics and a clear comparison window.
+- Avoid overstating small or noisy differences. Define sample sufficiency, metric normalization, neutral thresholds, and aggregation methodology before implementation.
+- Respect existing data integrity rules, including currency handling, fees/commissions, closed-trade selection, and the application's established P/L calculations.
 
+#### Future Trading Quality direction
+
+Trading Quality remains explicitly out of scope for the first release. Topstep trade imports alone do not provide enough information to reliably assess whether a trader followed their plan, respected intended stops, or executed according to their rules. A meaningful quality assessment will require a broader discussion and supporting product capabilities, potentially including structured trade plans, setup/strategy definitions, and post-trade reviews.
+
+Do not calculate or display Trading Quality based only on imported outcomes. Revisit this view when the necessary data collection and workflows have been designed.
+
+The two perspectives must remain separate: profitable results do not prove good execution, and a losing period does not necessarily indicate poor execution.
 ### Trading data and metric integrity
 
 - Correctness of imported trade history and calculated metrics is more important than making a dashboard look complete.
