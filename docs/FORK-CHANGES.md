@@ -33,6 +33,8 @@ cd rrmetrics
 - Per-contract normalization does not by itself make different instruments directly comparable. A common risk-based measure such as R-multiples should be evaluated before cross-instrument comparisons are finalized.
 - Exact calculation rules, sample sufficiency, thresholds, and aggregation remain to be designed. No Trading Trend implementation is included in this documentation change.
 
+
+- Corrected the metric grid to use the tile's available width rather than viewport breakpoints. It now auto-fits as many metric cards as the tile can accommodate (minimum card width 220px), so a narrow tile on a large desktop no longer forces four cramped columns. Cards expand into available height without an internal vertical scrollbar.
 ### Trading Trend tile — initial scope clarified
 
 - Defined the tile structure to accommodate two separate views: **Financial Performance** and **Trading Quality**.
