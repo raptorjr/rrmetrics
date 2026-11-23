@@ -11,6 +11,13 @@ cd rrmetrics
 
 ## 2026-11-23
 
+### Trading Trend tile — adaptive sampling and daily weighting
+
+- Rejected a fixed 20-trade comparison sample as the sole sizing method. Estimate typical trading frequency from the average number of trades across the latest 3–4 active trading days, excluding zero-trade days from that frequency calculation.
+- Use the estimated average to derive an adaptive trade sample; the 3–4 days are a frequency-calibration window, not a fixed trend-measurement window.
+- Prevent a high-volume scalping day from dominating the result: calculate normalized performance at the active-day level and give active days equal influence in the period comparison, rather than allowing days with more trades to receive more weight simply due to volume.
+- A minimum trade sample is required before assigning a trend status. The minimum, target-equivalent duration, exact comparison-window construction, and treatment of days with very few trades remain open design details.
+
 ### Trading Trend tile — normalized performance direction
 
 - Confirmed that the initial Financial Performance view will use normalized performance as its trend basis, rather than raw monetary P/L or a separate raw-financial-results view.
