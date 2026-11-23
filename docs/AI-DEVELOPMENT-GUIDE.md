@@ -79,7 +79,7 @@ Use the earlier Trading Trend tile concept as the starting point for visual expl
 - A simple, restrained visual comparison of the previous and recent periods, using available tile space without adding clutter.
 - Keep the tile's existing shared view-selector pattern for switching between Financial Performance and the future Trading Quality view.
 
-The earlier visual mock-up is illustrative only. It does not establish actual metric values, final layout dimensions, colours, thresholds, or calculation rules. Preserve the design intent—at-a-glance direction with enough supporting detail to understand why—while refining it against the established RR Metrics tile design system.
+The earlier visual mock-up is illustrative only. A first UI prototype is now registered as an optional Dashboard/Analytics tile so the owner can inspect the layout. Its sample status and metric values are explicitly illustrative, not calculated from live trades. It does not establish final layout dimensions, colours, thresholds, or calculation rules. Preserve the design intent—at-a-glance direction with enough supporting detail to understand why—while refining it against the established RR Metrics tile design system. The prototype is UI-only; do not describe it as a functioning trend calculation.
 
 #### Initial Financial Performance direction
 
