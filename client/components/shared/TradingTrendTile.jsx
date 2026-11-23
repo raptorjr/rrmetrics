@@ -84,7 +84,11 @@ const formatChange = (recent, previous, lowerIsBetter = false) => {
   const percent = Math.abs(previous) > 0.000001 ? (delta / Math.abs(previous)) * 100 : null;
   const improved = lowerIsBetter ? delta < 0 : delta > 0;
   const sign = delta > 0 ? '+' : delta < 0 ? '−' : '';
-  return { text: percent === null ? sign + Math.abs(delta).toFixed(2) : sign + Math.abs(percent).toFixed(0) + '%', improved, neutral: Math.abs(delta) < 0.000001 };
+  const crossedZero = recent * previous < 0;
+  const text = percent === null || crossedZero
+    ? sign + Math.abs(delta).toFixed(2)
+    : sign + Math.abs(percent).toFixed(0) + '%';
+  return { text, improved, neutral: Math.abs(delta) < 0.000001 };
 };
 
 const TradingTrendTile = ({ trades = [] }) => {
@@ -158,7 +162,7 @@ const TradingTrendTile = ({ trades = [] }) => {
             <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-wide text-text-tertiary">Trend assessment</div>
-                <div className="text-lg leading-tight font-bold text-text-primary">{result.enoughData ? 'Assessment pending' : 'Building baseline'}</div>
+                <div className="text-lg leading-tight font-bold text-text-primary">{result.enoughData ? 'Not classified yet' : 'Building baseline'}</div>
               </div>
               <div className="text-right">
                 <div className="text-[10px] text-text-tertiary">Recent vs previous</div>
@@ -173,15 +177,15 @@ const TradingTrendTile = ({ trades = [] }) => {
 
             {result.enoughData ? (
               <>
-                <div className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-2 gap-2 auto-rows-fr overflow-y-auto">
+                <div className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 auto-rows-fr overflow-y-auto">
                   {metricRows.map(metric => (
                     <div key={metric.key} className="min-w-0 rounded-lg bg-bg-page px-3 py-2.5 flex flex-col justify-between">
                       <div className="text-[10px] text-text-secondary">{metric.label}</div>
                       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 mt-1">
-                        <span className="text-base font-semibold text-text-primary tabular-nums">{formatValue(metric.recent, metric.suffix)}</span>
-                        <span className={'text-[11px] font-semibold tabular-nums ' + (metric.change && metric.change.improved ? 'text-positive' : metric.change && !metric.change.neutral ? 'text-negative' : 'text-text-secondary')}>
+                        <span className={'text-lg leading-tight font-bold tabular-nums ' + (metric.change && metric.change.improved ? 'text-positive' : metric.change && !metric.change.neutral ? 'text-negative' : 'text-text-secondary')}>
                           {metric.change && metric.change.text}
                         </span>
+                        <span className="text-xs font-medium text-text-primary tabular-nums">{formatValue(metric.recent, metric.suffix)}</span>
                       </div>
                       <div className="text-[10px] text-text-tertiary tabular-nums mt-1">Previous {formatValue(metric.previous, metric.suffix)}</div>
                     </div>
