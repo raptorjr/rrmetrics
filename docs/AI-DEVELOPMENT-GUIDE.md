@@ -60,6 +60,25 @@ Established direction:
 
 The implementation has already evolved beyond the earliest design discussions. Verify the current code and latest development commits before treating any feature in this list as implemented or unfinished. For detailed visual decisions, use the current design reference documentation and recent design discussions; do not invent a new visual direction.
 
+
+### Trading Trend tile — agreed design direction
+
+The proposed Trading Trend tile should present two distinct perspectives side by side or as clearly separated sections:
+
+1. **Performance trend:** whether recent financial results are improving, stable, or declining.
+2. **Trading quality trend:** whether the trader's execution and adherence to their approach are improving, stable, or declining, independently of whether the recent period is profitable.
+
+The purpose is to make shorter-term changes visible when long-run aggregate statistics react too slowly. The two perspectives must not be collapsed into a single judgement: a profitable period with poor execution and a losing period with disciplined execution should be distinguishable.
+
+Initial concept for evaluation (not yet a finalized calculation specification):
+- Compare a recent rolling sample with the immediately preceding sample of closed trades.
+- Twenty trades per sample is the initial proposed starting point, not a statistically guaranteed minimum or a locked requirement.
+- Consider expectancy, profit factor, average win/loss, and drawdown for the performance perspective; win rate is supporting context, not a standalone success measure.
+- Trading quality requires suitable structured execution data and should not be inferred from P/L alone. The exact inputs, sample sufficiency rules, weighting, and neutral/stable thresholds remain to be designed.
+- The tile should communicate Improving, Stable, Declining, or Insufficient Data only when the evidence supports that interpretation. Avoid overreacting to small or noisy differences.
+
+This direction is agreed for exploration. It does not authorize implementation or settle the detailed methodology; refine the design with the user before coding.
+
 ### Trading data and metric integrity
 
 - Correctness of imported trade history and calculated metrics is more important than making a dashboard look complete.
