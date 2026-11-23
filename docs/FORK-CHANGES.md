@@ -18,6 +18,7 @@ cd rrmetrics
 - Trading Quality is reserved as a future view in the same tile. It is not to be inferred from Topstep P/L or execution imports; meaningful assessment requires additional structured data and product workflows such as trade plans, strategy/setup definitions, and reviews.
 - The two perspectives must remain distinct. Financial trend calculations, thresholds, and aggregation rules still require design before implementation.
 - The tile must use the same view-selector control pattern already used by other RR Metrics tiles, rather than introducing a new navigation style.
+- Recorded the earlier visual concept as the starting point: a clear overall trend status, visible comparison window, individual metric direction indicators, and a restrained period-comparison visual. Exact layout and styling remain open to refinement.
 
 
 ### RR Trading Score tooltip formatting
