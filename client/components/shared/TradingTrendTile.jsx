@@ -16,7 +16,7 @@ const METHODOLOGY = [
   '',
   'Daily results use capped weighting: each active day receives a weight equal to its trade count, capped at five. This gives a one-trade day less influence while preventing very busy days from dominating. Metrics shown are weighted daily expectancy, profit factor, average win and average loss.',
   '',
-  'The overall assessment groups expectancy and profit factor as one profitability dimension, supported by average win and average loss. Candidate neutral ranges are: expectancy ±$15/unit, profit factor ±0.36, average win ±$21/unit, and average loss ±$19/unit. These are initial conservative thresholds based on the available historical sample and may be refined as more data accumulates.',
+  'The overall assessment groups expectancy and profit factor as one profitability dimension, supported by average win and average loss. Neutral ranges are instrument-aware: expectancy ±15 ticks, average win ±21 ticks, and average loss ±19 ticks, converted into per-unit currency using the instrument tick size and point value. Profit factor uses a neutral range of ±0.36. The tick-based ranges are provisional and were initially calibrated against the available MGC history; they are scaled for contract specifications, not validated for every market.',
   '',
   'Improving or Declining requires profitability and at least one supporting metric to agree, with no meaningful deterioration in the opposite direction. Stable means all three dimensions are within their neutral ranges. Conflicting or insufficiently supported movements are Mixed. Missing or incomplete comparisons, or comparisons containing multiple instruments, are Insufficient data.',
   '',
@@ -122,7 +122,7 @@ const TradingTrendTile = ({ trades = [] }) => {
       ? { status: 'Insufficient data', reason: 'Two complete comparison windows with at least 30 trades each are required.' }
       : comparisonTickers.size !== 1
         ? { status: 'Insufficient data', reason: 'The comparison contains multiple instruments. Cross-instrument normalization is not yet supported.' }
-        : classifyTradingTrend(previousMetrics, recentMetrics);
+        : classifyTradingTrend(previousMetrics, recentMetrics, Array.from(comparisonTickers)[0]);
     return {
       enoughData, daysAvailable: days.length, recent, previous, recentMetrics, previousMetrics, assessment,
     };
