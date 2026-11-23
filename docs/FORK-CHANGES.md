@@ -1,5 +1,16 @@
 # Fork changes
 
+## 2026-11-24
+
+### Trading Trend — conservative overall assessment
+
+- Added an overall Financial Performance assessment with five possible states: Improving, Stable, Declining, Mixed, and Insufficient data.
+- Grouped Expectancy and Profit Factor into one profitability dimension so correlated metrics do not count as separate votes. Average win and average loss provide supporting evidence.
+- Added provisional neutral ranges: expectancy ±$15/unit, profit factor ±0.36, average win ±$21/unit, and average loss ±$19/unit. These are initial guardrails based on the available MGC history, not universal or statistically proven thresholds.
+- Improving/Declining requires profitability and at least one supporting metric to agree, without meaningful opposing deterioration/improvement. Stable requires all dimensions to be neutral; conflicting or insufficiently corroborated movements are Mixed.
+- Suppressed the overall classification for comparison windows containing multiple instruments because per-unit P/L is not cross-instrument normalization. Metric comparisons remain visible.
+- Added scenario tests for improving, declining, stable, mixed, conflicting metrics, missing data, and the latest observed pattern.
+
 This file records changes maintained in the `raptorjr/rrmetrics` fork. It is not the upstream project's changelog.
 
 The fork keeps `main` aligned with upstream and develops additional work on `development`. To use the fork-specific features, clone that branch:
