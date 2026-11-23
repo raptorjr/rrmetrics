@@ -5,6 +5,7 @@ const { isBreakevenTrade } = require('../../utils/tickValues');
 const { toEST, getDisplayTimeZone, formatDuration } = require('../../utils/dateUtils');
 const InfoTooltip = require('./InfoTooltip');
 const { calculateTradingScore } = require('../../utils/tradingScore');
+const TradingTrendTile = require('./TradingTrendTile');
 
 const DEFINITIONS = [
   { id: 'dailyNetPL', label: 'Net Daily P/L', category: 'Charts', minColumns: 2, minRows: 2, defaultColumns: 6, defaultRows: 2, description: "Shows net profit and loss for each trading day over time." },
@@ -13,6 +14,7 @@ const DEFINITIONS = [
   { id: 'performanceByEntryTime', label: 'Performance by Entry Time', category: 'Charts', minColumns: 1, minRows: 2, defaultColumns: 6, defaultRows: 2, description: "Groups trades into 30-minute entry-time buckets and compares average or total P/L." },
   { id: 'monteCarloSimulation', label: 'Monte Carlo Simulation', category: 'Risk', minColumns: 2, minRows: 2, defaultColumns: 6, defaultRows: 2, description: "Runs repeated simulations of the observed trade outcomes to estimate evaluation pass probability and time to pass." },
   { id: 'tradingScore', label: 'RR Trading Score', category: 'Performance', minColumns: 1, minRows: 2, defaultColumns: 6, defaultRows: 3, description: "A development-focused score across profitability, risk management, recovery and consistency, with insights into the biggest improvement opportunity." },
+  { id: 'tradingTrend', label: 'Trading Trend', category: 'Performance', minColumns: 2, minRows: 2, defaultColumns: 6, defaultRows: 3, description: "A visual prototype for comparing normalized trading performance over adaptive, equally weighted active-day samples." },
 ];
 
 
@@ -69,6 +71,13 @@ const Preview = ({ item }) => (
           return <rect key={index} x={5 + index * 21} y={value >= 0 ? 27 - height : 27} width="13" height={height} rx="2" fill={value >= 0 ? 'rgb(var(--positive))' : 'rgb(var(--negative))'} opacity="0.8" />;
         })}
       </svg>
+    )}
+    {item.id === 'tradingTrend' && (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between"><span className="text-sm font-bold text-positive">Improving</span><span className="text-[9px] text-text-tertiary">38 vs 38 trades</span></div>
+        <div className="grid grid-cols-4 gap-1">{[72,68,78,62].map((value,index)=><div key={index} className="h-1.5 rounded-full bg-bg-input overflow-hidden"><div className="h-full rounded-full bg-positive" style={{width:value+'%'}}/></div>)}</div>
+        <span className="text-[9px] text-text-tertiary">Normalized · equal daily weighting</span>
+      </div>
     )}
     {item.id === 'tradingScore' && (
       <div className="flex items-center gap-3">
@@ -470,6 +479,7 @@ const createAnalyticsChartTiles = (trades = [], options = {}) => {
   const highEquity = cumulative.length ? Math.max(...cumulative) : 0;
   const dateLabel = value => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, { month: '2-digit', day: '2-digit', year: '2-digit' }); };
   return [
+    tile('tradingTrend', () => <TradingTrendTile />),
     tile('tradingScore', () => <TradingScoreTile trades={trades} />),
     tile('dailyNetPL', () => <DailyNetPLTile trades={trades} />),
     tile('equityCurve', () => <Panel title={<span className="flex items-center gap-2">Equity Curve <InfoTooltip text="Cumulative net trade P/L in exit-time order. The area is shaded around zero. Maximum drawdown measures the largest decline from a previous cumulative P/L peak." /></span>}>
