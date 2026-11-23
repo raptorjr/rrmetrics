@@ -3,7 +3,7 @@ const { useMemo, useState } = React;
 const InfoTooltip = require('./InfoTooltip');
 const { getTradePL } = require('../../utils/analytics');
 const { toEST } = require('../../utils/dateUtils');
-const { classifyTradingTrend, NEUTRAL_THRESHOLDS } = require('../../utils/tradingTrendAssessment');
+const { classifyTradingTrend } = require('../../utils/tradingTrendAssessment');
 
 const MIN_PERIOD_TRADES = 30;
 const COMPARISON_ACTIVE_DAYS = 8;
@@ -116,9 +116,13 @@ const TradingTrendTile = ({ trades = [] }) => {
       && recent.count >= MIN_PERIOD_TRADES && previous.count >= MIN_PERIOD_TRADES;
     const recentMetrics = enoughData ? getPeriodMetrics(recent.days) : null;
     const previousMetrics = enoughData ? getPeriodMetrics(previous.days) : null;
-    const assessment = enoughData
-      ? classifyTradingTrend(previousMetrics, recentMetrics)
-      : { status: 'Insufficient data', reason: 'Two complete comparison windows with at least 30 trades each are required.' };
+    const comparisonTickers = new Set([...previous.days, ...recent.days]
+      .flatMap(day => day.trades.map(trade => trade.ticker).filter(Boolean)));
+    const assessment = !enoughData
+      ? { status: 'Insufficient data', reason: 'Two complete comparison windows with at least 30 trades each are required.' }
+      : comparisonTickers.size > 1
+        ? { status: 'Insufficient data', reason: 'The comparison contains multiple instruments. Cross-instrument normalization is not yet supported.' }
+        : classifyTradingTrend(previousMetrics, recentMetrics);
     return {
       enoughData, daysAvailable: days.length, recent, previous, recentMetrics, previousMetrics, assessment,
     };
@@ -164,7 +168,7 @@ const TradingTrendTile = ({ trades = [] }) => {
             <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-wide text-text-tertiary">Trend assessment</div>
-                <div className="text-lg leading-tight font-bold text-text-primary">{result.assessment.status}</div>
+                <div className={'text-lg leading-tight font-bold ' + (result.assessment.status === 'Improving' ? 'text-positive' : result.assessment.status === 'Declining' ? 'text-negative' : 'text-text-primary')}>{result.assessment.status}</div>
               </div>
               <div className="text-right">
                 <div className="text-[10px] text-text-tertiary">Recent vs previous</div>
