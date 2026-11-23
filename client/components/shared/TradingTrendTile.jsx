@@ -18,7 +18,7 @@ const METHODOLOGY = [
   '',
   'The overall assessment groups expectancy and profit factor as one profitability dimension, supported by average win and average loss. Candidate neutral ranges are: expectancy ±$15/unit, profit factor ±0.36, average win ±$21/unit, and average loss ±$19/unit. These are initial conservative thresholds based on the available historical sample and may be refined as more data accumulates.',
   '',
-  'Improving or Declining requires profitability and at least one supporting metric to agree, with no meaningful deterioration in the opposite direction. Stable means all three dimensions are within their neutral ranges. Conflicting or insufficiently supported movements are Mixed. Missing or incomplete comparisons are Insufficient data.',
+  'Improving or Declining requires profitability and at least one supporting metric to agree, with no meaningful deterioration in the opposite direction. Stable means all three dimensions are within their neutral ranges. Conflicting or insufficiently supported movements are Mixed. Missing or incomplete comparisons, or comparisons containing multiple instruments, are Insufficient data.',
   '',
   'Trading Quality is a separate future view and must not be inferred from financial results.',
 ];
@@ -120,7 +120,7 @@ const TradingTrendTile = ({ trades = [] }) => {
       .flatMap(day => day.trades.map(trade => trade.ticker).filter(Boolean)));
     const assessment = !enoughData
       ? { status: 'Insufficient data', reason: 'Two complete comparison windows with at least 30 trades each are required.' }
-      : comparisonTickers.size > 1
+      : comparisonTickers.size !== 1
         ? { status: 'Insufficient data', reason: 'The comparison contains multiple instruments. Cross-instrument normalization is not yet supported.' }
         : classifyTradingTrend(previousMetrics, recentMetrics);
     return {
@@ -169,6 +169,7 @@ const TradingTrendTile = ({ trades = [] }) => {
               <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-wide text-text-tertiary">Trend assessment</div>
                 <div className={'text-lg leading-tight font-bold ' + (result.assessment.status === 'Improving' ? 'text-positive' : result.assessment.status === 'Declining' ? 'text-negative' : 'text-text-primary')}>{result.assessment.status}</div>
+                <div className="text-[10px] text-text-secondary mt-1 max-w-[340px]">{result.assessment.reason}</div>
               </div>
               <div className="text-right">
                 <div className="text-[10px] text-text-tertiary">Recent vs previous</div>
