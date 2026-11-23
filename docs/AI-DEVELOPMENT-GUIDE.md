@@ -74,7 +74,7 @@ The tile's structure and view navigation should accommodate both perspectives fr
 
 Use the earlier Trading Trend tile concept as the starting point for visual exploration, while treating the exact layout and styling as refinable:
 - A clear overall status near the top (for example, Improving, Stable, Declining, or Insufficient Data).
-- A concise subtitle that states the comparison window, initially proposed as the latest 20 closed trades versus the preceding 20.
+- A concise subtitle that states the adaptive comparison window, expressed in active trading days and/or its resulting trade sample size.
 - A compact set of individual metric comparisons with directional change indicators, so the overall status is explainable rather than a black-box judgement.
 - A simple, restrained visual comparison of the previous and recent periods, using available tile space without adding clutter.
 - Keep the tile's existing shared view-selector pattern for switching between Financial Performance and the future Trading Quality view.
@@ -84,13 +84,15 @@ The earlier visual mock-up is illustrative only. It does not establish actual me
 #### Initial Financial Performance direction
 
 - Focus the initial implementation exclusively on financial performance, using existing, trustworthy trade fields.
-- Compare a recent rolling sample with the immediately preceding sample of closed trades. Twenty trades per sample is the initial proposal, subject to validation and refinement; it is not a statistically guaranteed minimum or a locked requirement.
+- Do not use a fixed trade count such as 20 as the sole basis for the comparison. Estimate normal trading frequency from the average number of trades across the most recent 3–4 active trading days; days with zero trades are excluded from this frequency calculation. Use that average to derive an adaptive trade sample size rather than treating 3–4 days as a fixed trend window. The exact target-equivalent duration and comparison-window construction remain to be decided.
 - Candidate measures include expectancy, profit factor, average win/loss, and drawdown. Win rate may provide supporting context but must not be treated as a standalone measure of improvement.
 - Present an understandable overall assessment such as Improving, Stable, Declining, or Insufficient Data, supported by visible component metrics and a clear comparison window.
 - Base the trend assessment on normalized performance, not raw monetary P/L. The purpose is to compare trading performance without contract size alone making a larger-position period appear better. Do not add a separate raw-financial-performance view to this tile; the calendar and other existing views already provide financial-result context.
 - Normalize using execution-level trade data and instrument-specific tick/point values where required. Do not assume that simply dividing a trade's P/L by its contract count is always correct, especially with partial exits or changing position sizes.
 - The normalization method must also account for differences between instruments if multiple instruments are compared. Per-contract normalization alone does not make unlike instruments directly comparable; evaluate a common risk-based measure such as R-multiples before finalizing cross-instrument calculations.
-- Avoid overstating small or noisy differences. Define sample sufficiency, the precise normalization method, neutral thresholds, and aggregation methodology before implementation.
+- Prevent unusually busy days (for example, a scalping-heavy day) from dominating the trend simply because they contain more trades. Calculate normalized performance at the active-day level and give active days equal influence in the period-level comparison, rather than blindly pooling every trade with equal weight. Define how daily metrics with very few trades are handled.
+- Establish a minimum trade sample before issuing a trend assessment. The minimum count, target-equivalent duration, precise normalization method, neutral thresholds, and detailed aggregation methodology remain to be decided. If the minimum is not met, report insufficient data rather than forcing a conclusion.
+- Avoid overstating small or noisy differences.
 - Respect existing data integrity rules, including currency handling, fees/commissions, closed-trade selection, and the application's established P/L calculations.
 
 #### Future Trading Quality direction
