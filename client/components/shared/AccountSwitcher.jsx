@@ -1,4 +1,4 @@
-const React = require('react);
+const React = require('react');
 const { useState, useMemo } = React;
 const { Popover, PopoverTrigger, PopoverContent } = require('../ui/popover');
 const { Avatar, AvatarFallback } = require('../ui/avatar');
