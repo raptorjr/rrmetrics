@@ -2,6 +2,14 @@
 
 ## 2026-11-24
 
+### Dashboard selector and management
+
+- Replaced the single Edit dashboard control with a named dashboard selector and popup list.
+- Added per-dashboard actions for renaming, editing tiles, and deleting dashboards, with confirmation before deletion and protection against deleting the final dashboard.
+- Added dashboard creation from a starter layout, a blank layout, or a copy of the current dashboard.
+- Each dashboard now stores its own tile layout. Existing single-dashboard layouts are retained, and legacy saved layout templates are migrated into separate dashboards on first load.
+
+
 ### Trading Trend — conservative overall assessment
 
 - Added an overall Financial Performance assessment with five possible states: Improving, Stable, Declining, Mixed, and Insufficient data.
