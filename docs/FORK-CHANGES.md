@@ -17,7 +17,8 @@ cd rrmetrics
 - When all accounts are selected, clicking **All Accounts** deselects every account.
 - When any subset or no accounts are selected, clicking **All Accounts** selects every account.
 - The existing **No Accounts** state is used when all accounts are deselected, preserving the distinction between no filter (all accounts) and an explicit empty selection.
-- The selector closes after the toggle, matching the existing selection interaction.
+- The selector remains open after clicking **All Accounts**, matching individual account and broker-group selection.
+- The **Clear filter** action continues to close the selector.
 
 ## 2026-11-19
 
