@@ -68,7 +68,7 @@ The Trading Trend tile is designed with two distinct views:
 1. **Financial Performance** — the first view to design and implement. It assesses whether recent financial results are improving, stable, or declining using the trade data already available in RR Metrics, including Topstep imports.
 2. **Trading Quality** — a reserved future view in the same tile. Its purpose is to assess execution quality and adherence to the trader's plan independently of financial outcomes.
 
-The tile's structure and view navigation should accommodate both perspectives from the outset. The Trading Quality view is a planned extension, not part of the initial implementation: do not invent a score, infer discipline from P/L, or present unsupported conclusions. It should be clearly identified as coming later or otherwise kept unavailable until the required data model and workflows exist.
+The tile's structure and view navigation should accommodate both perspectives from the outset. Use the same view-selector control pattern already established in other RR Metrics tiles; do not introduce a bespoke tab, dropdown, or navigation treatment for Trading Trend. Financial Performance is the initially available view, while Trading Quality is reserved for a future release. The Trading Quality view is a planned extension, not part of the initial implementation: do not invent a score, infer discipline from P/L, or present unsupported conclusions. It should be clearly identified as coming later or otherwise kept unavailable until the required data model and workflows exist.
 
 #### Initial Financial Performance direction
 
