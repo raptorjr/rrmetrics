@@ -15,7 +15,7 @@ test('uses conservative neutral thresholds', () => {
   assert.equal(getDirection(10, 24, 15), 'neutral');
   assert.equal(getDirection(1, 1.35, 0.36), 'neutral');
   assert.equal(getDirection(50, 71, 21), 'neutral');
-  assert.equal(getDirection(30, 10, 19, true), 'declining');
+  assert.equal(getDirection(30, 50, 19, true), 'declining');
 });
 
 test('classifies aligned improvement', () => {
