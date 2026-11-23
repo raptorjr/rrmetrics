@@ -87,6 +87,19 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const resizeRef = useRef(null);
   const dragOffsetRef = useRef({ col: 0, row: 0 });
   const previewDialogRef = useRef(null);
+  const dashboardMenuRef = useRef(null);
+
+  useEffect(() => {
+    if (!dashboardMenuOpen) return undefined;
+    const closeOnOutsidePointer = event => {
+      if (dashboardMenuRef.current && !dashboardMenuRef.current.contains(event.target)) {
+        setDashboardMenuOpen(false);
+        setActionMenuId(null);
+      }
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
+  }, [dashboardMenuOpen]);
 
   useEffect(() => {
     if (!addPickerPosition) return undefined;
@@ -440,7 +453,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       {storageWarning && <p className="text-xs text-amber-600" role="alert">{storageWarning.message}</p>}
       <div className="flex items-center justify-between gap-3">
         {editing && <button type="button" onClick={() => setEditing(false)} className="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-text">Done editing</button>}
-        <div className="relative ml-auto">
+        <div ref={dashboardMenuRef} className="relative ml-auto">
           <button type="button" aria-haspopup="true" aria-expanded={dashboardMenuOpen} onClick={() => setDashboardMenuOpen(v => !v)} className="flex items-center gap-3 rounded-lg border border-border bg-bg-surface px-4 py-2.5 text-sm font-semibold text-text-primary hover:border-accent">
             {activeDashboard ? activeDashboard.name : "Dashboard"} <span className="text-text-tertiary">▾</span>
           </button>
