@@ -11,6 +11,11 @@ cd rrmetrics
 
 ## 2026-11-23
 
+### Trading Trend tile — remove redundant instrument label
+
+- Removed the ticker label from the tile footer. Instrument selection belongs in the shared filtering experience rather than being displayed as passive metadata.
+- Added a follow-up backlog item to support ticker/instrument filtering in the shared Dashboard and Analytics filters; the current filter only supports dates.
+
 ### Trading Trend — fixed comparison windows and capped daily weighting
 
 - Replaced adaptive trade-count windows with two consecutive fixed windows of eight active trading days: the eight most recent active days and the eight immediately preceding active days.
