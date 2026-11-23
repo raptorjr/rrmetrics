@@ -6,7 +6,8 @@
 
 - Added an overall Financial Performance assessment with five possible states: Improving, Stable, Declining, Mixed, and Insufficient data.
 - Grouped Expectancy and Profit Factor into one profitability dimension so correlated metrics do not count as separate votes. Average win and average loss provide supporting evidence.
-- Added provisional neutral ranges: expectancy ±$15/unit, profit factor ±0.36, average win ±$21/unit, and average loss ±$19/unit. These are initial guardrails based on the available MGC history, not universal or statistically proven thresholds.
+- Replaced fixed dollar neutral ranges with instrument-aware thresholds. Reference ranges are expectancy ±15 ticks, profit factor ±0.36, average win ±21 ticks, and average loss ±19 ticks; monetary thresholds are scaled using the selected instrument's tick size and point value. The reference tick ranges were initially calibrated against available MGC history and remain provisional, not statistically validated for every instrument or asset class.
+- Withhold the overall assessment when an instrument lacks a supported tick-size/point-value specification, as well as when comparison windows contain multiple instruments.
 - Improving/Declining requires profitability and at least one supporting metric to agree, without meaningful opposing deterioration/improvement. Stable requires all dimensions to be neutral; conflicting or insufficiently corroborated movements are Mixed.
 - Suppressed the overall classification for comparison windows containing multiple instruments because per-unit P/L is not cross-instrument normalization. Metric comparisons remain visible.
 - Added scenario tests for improving, declining, stable, mixed, conflicting metrics, missing data, and the latest observed pattern.
