@@ -11,6 +11,10 @@ cd rrmetrics
 
 ## 2026-11-23
 
+### RR Trading Score tooltip formatting
+
+- Fixed the RR Trading Score information tooltip so the intended paragraph break renders as a real line break instead of displaying the literal `\n\n` characters.
+
 ### Account selector all-or-none toggle
 
 - Changed the **All Accounts** row in the account selector to act as a toggle.
