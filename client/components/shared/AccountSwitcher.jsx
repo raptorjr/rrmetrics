@@ -1,4 +1,4 @@
-const React = require('react');
+const React = require('react);
 const { useState, useMemo } = React;
 const { Popover, PopoverTrigger, PopoverContent } = require('../ui/popover');
 const { Avatar, AvatarFallback } = require('../ui/avatar');
@@ -44,8 +44,8 @@ const AccountSwitcher = ({ trades, selectedAccounts, setSelectedAccounts, collap
   const isNoneSelected = selectedAccounts.includes(NO_ACCOUNTS);
   const selectedSet = new Set(isAllSelected ? accounts.map(account => account.key) : selectedAccounts.filter(a => a !== NO_ACCOUNTS));
 
-  const selectAll = () => {
-    setSelectedAccounts([]);
+  const toggleAll = () => {
+    setSelectedAccounts(isAllSelected ? [NO_ACCOUNTS] : []);
     setOpen(false);
   };
 
@@ -86,7 +86,7 @@ const AccountSwitcher = ({ trades, selectedAccounts, setSelectedAccounts, collap
         <div className="border-b border-border px-3 py-2"><p className="text-text-secondary text-xs font-medium uppercase tracking-wider">Accounts</p></div>
         {accounts.length >= 5 && <div className="border-b border-border px-3 py-2"><input type="text" placeholder="Search accounts..." value={search} onChange={e => setSearch(e.target.value)} className="w-full bg-transparent text-sm text-text-primary placeholder:text-text-tertiary outline-none" /></div>}
         <div className="max-h-[340px] overflow-y-auto p-1">
-          <button onClick={selectAll} className={cn('flex items-center gap-2 w-full px-2 py-2 rounded text-sm text-left transition-colors hover:bg-bg-input', isAllSelected && 'bg-bg-input text-accent')}>
+          <button onClick={toggleAll} className={cn('flex items-center gap-2 w-full px-2 py-2 rounded text-sm text-left transition-colors hover:bg-bg-input', isAllSelected && 'bg-bg-input text-accent')}>
             <Avatar className="h-5 w-5 flex-shrink-0"><AvatarFallback className="text-[9px] font-bold bg-accent/15 text-accent">A</AvatarFallback></Avatar>
             <span className="flex-1 truncate font-medium">All Accounts</span>
             {isAllSelected && <Check className="w-3.5 h-3.5 text-accent flex-shrink-0" />}
@@ -118,7 +118,7 @@ const AccountSwitcher = ({ trades, selectedAccounts, setSelectedAccounts, collap
             );
           })}
         </div>
-        {!isAllSelected && <div className="border-t border-border p-1"><button onClick={selectAll} className="w-full px-2 py-1.5 text-xs text-accent hover:bg-bg-input rounded transition-colors">Clear filter</button></div>}
+        {!isAllSelected && <div className="border-t border-border p-1"><button onClick={toggleAll} className="w-full px-2 py-1.5 text-xs text-accent hover:bg-bg-input rounded transition-colors">Clear filter</button></div>}
       </PopoverContent>
     </Popover>
   );
