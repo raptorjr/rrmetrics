@@ -11,6 +11,14 @@ cd rrmetrics
 
 ## 2026-11-23
 
+### Trading Trend tile — normalized performance direction
+
+- Confirmed that the initial Financial Performance view will use normalized performance as its trend basis, rather than raw monetary P/L or a separate raw-financial-results view.
+- The purpose is to compare trading performance without contract size alone making a larger-position period appear better. The calendar and existing financial views already provide context about actual monetary results over recent days and weeks.
+- Normalization must be based on reliable execution-level data and account for partial exits, changing position sizes, and instrument-specific tick/point values where applicable. Simple division by contract count must not be assumed to be sufficient.
+- Per-contract normalization does not by itself make different instruments directly comparable. A common risk-based measure such as R-multiples should be evaluated before cross-instrument comparisons are finalized.
+- Exact calculation rules, sample sufficiency, thresholds, and aggregation remain to be designed. No Trading Trend implementation is included in this documentation change.
+
 ### Trading Trend tile — initial scope clarified
 
 - Defined the tile structure to accommodate two separate views: **Financial Performance** and **Trading Quality**.
