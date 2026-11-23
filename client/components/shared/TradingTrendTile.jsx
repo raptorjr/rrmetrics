@@ -85,7 +85,10 @@ const formatChange = (recent, previous, lowerIsBetter = false) => {
   const improved = lowerIsBetter ? delta < 0 : delta > 0;
   const sign = delta > 0 ? '+' : delta < 0 ? '−' : '';
   const crossedZero = recent * previous < 0;
-  const text = percent === null || crossedZero
+  // Large relative changes are unstable when the previous value is near zero.
+  // Show the absolute delta instead once the relative change reaches 100%.
+  const useAbsoluteDelta = percent === null || crossedZero || Math.abs(percent) >= 100;
+  const text = useAbsoluteDelta
     ? sign + Math.abs(delta).toFixed(2)
     : sign + Math.abs(percent).toFixed(0) + '%';
   return { text, improved, neutral: Math.abs(delta) < 0.000001 };
