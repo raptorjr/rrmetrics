@@ -11,12 +11,12 @@ cd rrmetrics
 
 ## 2026-11-23
 
-### Trading Trend tile design direction
+### Trading Trend tile — initial scope clarified
 
-- Recorded the agreed direction to explore a two-part Trading Trend tile: a short-term financial performance trend and a separate trading-quality / execution trend.
-- The initial comparison concept is 20 recent closed trades versus the preceding 20, explicitly provisional pending methodology and sample-sufficiency design.
-- Performance and execution quality must remain distinguishable; P/L alone must not be used as a proxy for disciplined execution.
-- Calculation details, quality inputs, thresholds, and implementation remain open design work.
+- Defined the tile structure to accommodate two separate views: **Financial Performance** and **Trading Quality**.
+- The initial release will implement Financial Performance only, using existing reliable trade data. Its proposed comparison is 20 recent closed trades versus the preceding 20, pending validation of methodology and sample sufficiency.
+- Trading Quality is reserved as a future view in the same tile. It is not to be inferred from Topstep P/L or execution imports; meaningful assessment requires additional structured data and product workflows such as trade plans, strategy/setup definitions, and reviews.
+- The two perspectives must remain distinct. Financial trend calculations, thresholds, and aggregation rules still require design before implementation.
 
 
 ### RR Trading Score tooltip formatting
