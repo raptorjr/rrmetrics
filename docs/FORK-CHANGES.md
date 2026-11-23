@@ -11,6 +11,13 @@ cd rrmetrics
 
 ## 2026-11-23
 
+### Trading Trend tile — first visual prototype
+
+- Added an optional Trading Trend tile to the shared analytics chart tile catalogue, with the established shared tile panel and view-selector styling.
+- The prototype shows the agreed visual hierarchy: overall trend status, adaptive comparison sample context, normalized metric comparisons, and compact previous/recent indicators.
+- Includes the reserved Trading Quality view as a disabled future option and an expandable methodology explanation.
+- All displayed trend values are clearly marked illustrative sample content. The tile is a UI prototype only; no live trend calculations, normalization, sample selection, or trend classification have been implemented.
+
 ### Trading Trend tile — adaptive sampling and daily weighting
 
 - Rejected a fixed 20-trade comparison sample as the sole sizing method. Estimate typical trading frequency from the average number of trades across the latest 3–4 active trading days, excluding zero-trade days from that frequency calculation.
