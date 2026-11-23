@@ -9,6 +9,16 @@ git clone --branch development https://github.com/raptorjr/rrmetrics.git
 cd rrmetrics
 ```
 
+## 2026-11-23
+
+### Account selector all-or-none toggle
+
+- Changed the **All Accounts** row in the account selector to act as a toggle.
+- When all accounts are selected, clicking **All Accounts** deselects every account.
+- When any subset or no accounts are selected, clicking **All Accounts** selects every account.
+- The existing **No Accounts** state is used when all accounts are deselected, preserving the distinction between no filter (all accounts) and an explicit empty selection.
+- The selector closes after the toggle, matching the existing selection interaction.
+
 ## 2026-11-19
 
 ### Topstep historical account integrity
@@ -86,7 +96,6 @@ cd rrmetrics
 - Added year totals and clickable month cells that open the selected month in Daily view.
 - Monthly and yearly statistics use the calendar's existing trade-date grouping. Win rate excludes breakeven trades and is calculated from decisive trades.
 - The Yearly view's GitHub Actions CI run passed; interactive verification in the Babylon self-hosted installation is still pending.
-
 
 ### Consistent metric tiles and explanations
 
