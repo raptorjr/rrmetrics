@@ -11,6 +11,13 @@ cd rrmetrics
 
 ## 2026-11-23
 
+### Trading Trend — fixed comparison windows and capped daily weighting
+
+- Replaced adaptive trade-count windows with two consecutive fixed windows of eight active trading days: the eight most recent active days and the eight immediately preceding active days.
+- Require at least 30 trades in each eight-day period before displaying metric comparisons.
+- Replaced equal daily weighting with capped daily weighting. Each day is weighted by its trade count, capped at five, so low-volume days contribute less while high-volume days cannot dominate.
+- Apply the weighting consistently to daily expectancy, profit factor, average win, and average loss. Actual trade counts remain visible.
+
 ### Trading Trend tile — simplified visual prototype
 
 - Simplified the tile to an at-a-glance overall trend and comparison sample, followed by compact metric summaries showing recent value, change, and previous value.
