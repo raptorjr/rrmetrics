@@ -479,7 +479,7 @@ const createAnalyticsChartTiles = (trades = [], options = {}) => {
   const highEquity = cumulative.length ? Math.max(...cumulative) : 0;
   const dateLabel = value => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, { month: '2-digit', day: '2-digit', year: '2-digit' }); };
   return [
-    tile('tradingTrend', () => <TradingTrendTile />),
+    tile('tradingTrend', () => <TradingTrendTile trades={trades} />),
     tile('tradingScore', () => <TradingScoreTile trades={trades} />),
     tile('dailyNetPL', () => <DailyNetPLTile trades={trades} />),
     tile('equityCurve', () => <Panel title={<span className="flex items-center gap-2">Equity Curve <InfoTooltip text="Cumulative net trade P/L in exit-time order. The area is shaded around zero. Maximum drawdown measures the largest decline from a previous cumulative P/L peak." /></span>}>
