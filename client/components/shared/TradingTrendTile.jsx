@@ -113,10 +113,8 @@ const TradingTrendTile = ({ trades = [] }) => {
       && recent.count >= MIN_PERIOD_TRADES && previous.count >= MIN_PERIOD_TRADES;
     const recentMetrics = enoughData ? getPeriodMetrics(recent.days) : null;
     const previousMetrics = enoughData ? getPeriodMetrics(previous.days) : null;
-    const tickers = new Set([...recent.days, ...previous.days].flatMap(day => day.trades.map(trade => (trade.ticker || '').toUpperCase()).filter(Boolean)));
     return {
       enoughData, daysAvailable: days.length, recent, previous, recentMetrics, previousMetrics,
-      tickers: Array.from(tickers),
     };
   }, [trades]);
 
@@ -192,13 +190,9 @@ const TradingTrendTile = ({ trades = [] }) => {
                     </div>
                   ))}
                 </div>
-                <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 text-[10px] text-text-tertiary">
-                  <span>Per-unit results · daily weight capped at 5 trades</span>
-                  <span>{result.tickers.length > 1 ? 'Multiple instruments' : result.tickers[0] || 'No ticker data'}</span>
+                <div className="shrink-0 text-[10px] text-text-tertiary">
+                  Per-unit results · daily weight capped at 5 trades
                 </div>
-                {result.tickers.length > 1 && (
-                  <div className="shrink-0 text-[10px] text-text-secondary">Cross-instrument normalization is not yet established; interpret combined values cautiously.</div>
-                )}
               </>
             ) : (
               <div className="flex-1 min-h-0 flex flex-col justify-center rounded-lg bg-bg-page p-4">
