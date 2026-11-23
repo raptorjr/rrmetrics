@@ -56,6 +56,7 @@ Established direction:
 - Components should adapt their content to the space available rather than forcing unnecessarily large tiles.
 - Minimum dimensions should be based on real usability and verified behaviour, not arbitrary restrictions.
 - Layouts/templates should remain independent; switching layouts must not overwrite another saved layout.
+- Dashboards are independent named layouts with their own tile order, visibility, sizes, and positions. The dashboard selector switches the active dashboard; its per-dashboard action menu provides Rename dashboard, Edit tiles, and Delete dashboard. Creating a dashboard offers starter layouts, a blank dashboard, or a copy of the current dashboard. The dashboard collection is stored separately from the legacy single-layout key, and existing saved layout templates are migrated into independent dashboards on first load.
 - Preserve existing Analytics and other page workflows while making components available for reuse.
 
 The implementation has already evolved beyond the earliest design discussions. Verify the current code and latest development commits before treating any feature in this list as implemented or unfinished. For detailed visual decisions, use the current design reference documentation and recent design discussions; do not invent a new visual direction.
