@@ -46,6 +46,10 @@ const AccountSwitcher = ({ trades, selectedAccounts, setSelectedAccounts, collap
 
   const toggleAll = () => {
     setSelectedAccounts(isAllSelected ? [NO_ACCOUNTS] : []);
+  };
+
+  const selectAllAndClose = () => {
+    setSelectedAccounts([]);
     setOpen(false);
   };
 
@@ -118,7 +122,7 @@ const AccountSwitcher = ({ trades, selectedAccounts, setSelectedAccounts, collap
             );
           })}
         </div>
-        {!isAllSelected && <div className="border-t border-border p-1"><button onClick={toggleAll} className="w-full px-2 py-1.5 text-xs text-accent hover:bg-bg-input rounded transition-colors">Clear filter</button></div>}
+        {!isAllSelected && <div className="border-t border-border p-1"><button onClick={selectAllAndClose} className="w-full px-2 py-1.5 text-xs text-accent hover:bg-bg-input rounded transition-colors">Clear filter</button></div>}
       </PopoverContent>
     </Popover>
   );
