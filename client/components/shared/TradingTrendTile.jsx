@@ -177,7 +177,10 @@ const TradingTrendTile = ({ trades = [] }) => {
 
             {result.enoughData ? (
               <>
-                <div className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 auto-rows-fr overflow-y-auto">
+                <div
+                  className="flex-1 min-h-0 grid gap-2 auto-rows-fr overflow-hidden"
+                  style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))' }}
+                >
                   {metricRows.map(metric => (
                     <div key={metric.key} className="min-w-0 rounded-lg bg-bg-page px-3 py-2.5 flex flex-col justify-between">
                       <div className="text-[10px] text-text-secondary">{metric.label}</div>
