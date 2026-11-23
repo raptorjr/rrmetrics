@@ -244,8 +244,6 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
 
   const reset = () => {
     setLayout(readLayoutFromValue(null, defaultOrder, defaultVisible, items));
-    setSelectedTemplate('');
-    setSelectedStarter('');
   };
 
   const removeItem = id => {
