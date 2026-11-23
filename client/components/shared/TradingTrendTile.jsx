@@ -57,7 +57,7 @@ const getPeriodMetrics = days => {
     expectancy: mean('expectancy'),
     profitFactor: grossLosses > 0 ? grossWins / grossLosses : grossWins > 0 ? Infinity : null,
     avgWin: mean('avgWin'),
-    avgLoss: mean('avgLoss'),
+    avgLoss: mean('avgLoss') === null ? null : Math.abs(mean('avgLoss')),
     tradeCount: days.reduce((sum, day) => sum + day.trades.length, 0),
     dayCount: days.length,
   };
