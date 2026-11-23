@@ -44,17 +44,37 @@ const readLayout = (storageKey, defaultOrder, defaultVisible, items) => {
   }
 };
 
+const makeDashboardId = () => 'dashboard-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+const cloneLayout = value => JSON.parse(JSON.stringify(value));
+const readDashboardCollection = (storageKey, defaultOrder, defaultVisible, items) => {
+  const base = readLayout(storageKey, defaultOrder, defaultVisible, items);
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey + '_dashboards') || 'null');
+    if (saved && Array.isArray(saved.items) && saved.items.length) return saved.items.map(d => ({...d, layout: readLayoutFromValue(d.layout, defaultOrder, defaultVisible, items)}));
+  } catch {}
+  const migrated = [{id: makeDashboardId(), name: 'My Dashboard', layout: base}];
+  readTemplates(storageKey).forEach(t => migrated.push({id: makeDashboardId(), name: t.name, layout: readLayoutFromValue(t.layout, defaultOrder, defaultVisible, items)}));
+  return migrated;
+}
+
 const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defaultOrder }) => {
   const ids = useMemo(() => items.map(item => item.id), [items]);
-  const [layout, setLayout] = useState(() => readLayout(storageKey, defaultOrder, defaultVisible, items));
+  const [dashboards, setDashboards] = useState(() => readDashboardCollection(storageKey, defaultOrder, defaultVisible, items));
+  const [activeDashboardId, setActiveDashboardId] = useState(() => { try { return localStorage.getItem(storageKey + '_active_dashboard'); } catch { return null; } });
+  const [layout, setLayout] = useState(() => { const ds = readDashboardCollection(storageKey, defaultOrder, defaultVisible, items); return (ds.find(d => d.id === (localStorage.getItem(storageKey + '_active_dashboard'))) || ds[0]).layout; });
   const [editing, setEditing] = useState(false);
+  const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
+  const [actionMenuId, setActionMenuId] = useState(null);
+  const [renameId, setRenameId] = useState(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [deleteId, setDeleteId] = useState(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newMode, setNewMode] = useState('starter');
+  const [newStarter, setNewStarter] = useState('trading-overview');
   const [draggedId, setDraggedId] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
   const [columns, setColumns] = useState(2);
-  const [templates, setTemplates] = useState(() => readTemplates(storageKey));
-  const [templateName, setTemplateName] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState('');
-  const [selectedStarter, setSelectedStarter] = useState('');
   const [addPickerPosition, setAddPickerPosition] = useState(null);
   const [addPickerQuery, setAddPickerQuery] = useState('');
   const [hoveredEmptyCell, setHoveredEmptyCell] = useState(null);
@@ -125,9 +145,11 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   }, []);
 
   useEffect(() => {
-    setLayout(readLayout(storageKey, defaultOrder, defaultVisible, items));
-    setTemplates(readTemplates(storageKey));
-    setSelectedTemplate('');
+    const ds = readDashboardCollection(storageKey, defaultOrder, defaultVisible, items);
+    setDashboards(ds);
+    const active = ds.find(d => d.id === activeDashboardId) || ds[0];
+    setActiveDashboardId(active.id);
+    setLayout(active.layout);
   }, [storageKey, ids.join('|')]);
 
   const persistValue = (key, value) => {
@@ -145,8 +167,16 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   };
 
   useEffect(() => {
-    persistValue(storageKey, layout);
-  }, [storageKey, layout]);
+    setDashboards(current => current.map(d => d.id === activeDashboardId ? {...d, layout} : d));
+  }, [layout, activeDashboardId]);
+
+  useEffect(() => {
+    persistValue(storageKey + '_dashboards', {version: 1, items: dashboards});
+  }, [storageKey, dashboards]);
+
+  useEffect(() => {
+    if (activeDashboardId) { try { localStorage.setItem(storageKey + '_active_dashboard', activeDashboardId); } catch {} }
+  }, [storageKey, activeDashboardId]);
 
   const orderedItems = layout.order
     .map(id => items.find(item => item.id === id))
@@ -243,67 +273,17 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     setAddPickerQuery('');
   };
 
-  const selectedTemplateData = templates.find(template => template.name === selectedTemplate);
-  const selectedTemplateLayout = selectedTemplateData
-    ? readLayoutFromValue(selectedTemplateData.layout, defaultOrder, defaultVisible, items)
-    : null;
-  const selectedTemplateHasChanges = Boolean(selectedTemplateLayout && (
-    JSON.stringify(selectedTemplateLayout.order) !== JSON.stringify(layout.order)
-    || JSON.stringify(selectedTemplateLayout.hidden) !== JSON.stringify(layout.hidden)
-    || JSON.stringify(selectedTemplateLayout.positions) !== JSON.stringify(layout.positions)
-    || items.some(item => {
-      const savedSize = selectedTemplateLayout.sizes[item.id];
-      const currentSize = layout.sizes[item.id];
-      return !savedSize || !currentSize || savedSize.w !== currentSize.w || savedSize.h !== currentSize.h;
-    })
-  ));
-
-  const updateSelectedTemplate = () => {
-    if (!selectedTemplate || !selectedTemplateHasChanges) return;
-    const next = templates.map(template => template.name === selectedTemplate
-      ? { ...template, layout: JSON.parse(JSON.stringify(layout)) }
-      : template);
-    setTemplates(next);
-    persistValue(`${storageKey}_templates`, next);
+  const activeDashboard = dashboards.find(d => d.id === activeDashboardId) || dashboards[0];
+  const switchDashboard = dashboard => { setLayout(dashboard.layout); setActiveDashboardId(dashboard.id); setEditing(false); setDashboardMenuOpen(false); setActionMenuId(null); };
+  const saveRename = () => { const name = renameValue.trim(); if (!name || !renameId) return; setDashboards(ds => ds.map(d => d.id === renameId ? {...d, name} : d)); setRenameId(null); setRenameValue(''); };
+  const createDashboard = () => {
+    const name = newName.trim(); if (!name) return;
+    const starter = STARTER_LAYOUTS.find(x => x.id === newStarter) || STARTER_LAYOUTS[0];
+    const nextLayout = newMode === 'blank' ? readLayoutFromValue({order: defaultOrder, hidden: defaultOrder, sizes: {}, positions: {}}, defaultOrder, [], items) : newMode === 'copy' ? cloneLayout(layout) : createStarterLayout(starter, items, layout.order);
+    const d = {id: makeDashboardId(), name, layout: nextLayout};
+    setDashboards(ds => [...ds, d]); setActiveDashboardId(d.id); setLayout(nextLayout); setEditing(false); setCreateOpen(false); setDashboardMenuOpen(false); setNewName(''); setNewMode('starter');
   };
-
-  const saveTemplate = () => {
-    const name = templateName.trim();
-    if (!name) return;
-    const next = [...templates.filter(template => template.name.toLowerCase() !== name.toLowerCase()), {
-      name,
-      layout: JSON.parse(JSON.stringify(layout)),
-    }];
-    setTemplates(next);
-    persistValue(`${storageKey}_templates`, next);
-    setSelectedTemplate(name);
-    setTemplateName('');
-  };
-
-  const applyTemplate = () => {
-    const template = templates.find(candidate => candidate.name === selectedTemplate);
-    if (!template) return;
-    const normalized = readLayoutFromValue(template.layout, defaultOrder, defaultVisible, items);
-    setLayout(normalized);
-    setSelectedStarter('');
-  };
-
-  const applyStarterLayout = () => {
-    const starter = STARTER_LAYOUTS.find(candidate => candidate.id === selectedStarter);
-    if (!starter) return;
-    setLayout(createStarterLayout(starter, items, layout.order));
-    setSelectedTemplate('');
-    setSelectedStarter('');
-  };
-
-  const deleteTemplate = () => {
-    if (!selectedTemplate) return;
-    const next = templates.filter(template => template.name !== selectedTemplate);
-    setTemplates(next);
-    persistValue(`${storageKey}_templates`, next);
-    setSelectedTemplate('');
-  };
-
+  const confirmDelete = () => { if (!deleteId || dashboards.length < 2) return; const ds = dashboards.filter(d => d.id !== deleteId); setDashboards(ds); if (deleteId === activeDashboardId) { setActiveDashboardId(ds[0].id); setLayout(ds[0].layout); setEditing(false); } setDeleteId(null); };
   const startResize = (event, item, corner) => {
     event.preventDefault();
     event.stopPropagation();
@@ -460,37 +440,36 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   return (
     <div className="space-y-3">
       {storageWarning && <p className="text-xs text-amber-600" role="alert">{storageWarning.message}</p>}
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => setEditing(value => !value)}
-          className={`flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg border transition-colors ${editing ? 'bg-accent text-accent-text border-accent' : 'bg-bg-surface border-border text-text-secondary hover:text-text-primary hover:border-accent'}`}
-        >
-          {editing ? 'Done' : 'Edit dashboard'}
-        </button>
-      </div>
-
-      {editing && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-bg-surface p-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <select value={selectedStarter} onChange={event => setSelectedStarter(event.target.value)} aria-label="Starter dashboard layouts" className="rounded-md border border-border bg-bg-page px-3 py-2 text-xs text-text-primary">
-              <option value="">Choose a starter layout…</option>
-              {STARTER_LAYOUTS.map(starter => <option key={starter.id} value={starter.id}>{starter.name}</option>)}
-            </select>
-            <button type="button" onClick={applyStarterLayout} disabled={!selectedStarter} className="rounded-md border border-border px-3 py-2 text-xs text-text-primary disabled:opacity-40">Use layout</button>
-            <input value={templateName} onChange={event => setTemplateName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') saveTemplate(); }} placeholder="Name this layout…" aria-label="Layout template name" className="w-40 rounded-md border border-border bg-bg-page px-3 py-2 text-xs text-text-primary" />
-            <button type="button" onClick={saveTemplate} disabled={!templateName.trim()} className="rounded-md bg-accent px-3 py-2 text-xs font-semibold text-accent-text disabled:opacity-40">Save</button>
-            <select value={selectedTemplate} onChange={event => setSelectedTemplate(event.target.value)} aria-label="Saved layouts" className="rounded-md border border-border bg-bg-page px-3 py-2 text-xs text-text-primary">
-              <option value="">Saved layouts…</option>
-              {templates.map(template => <option key={template.name} value={template.name}>{template.name}</option>)}
-            </select>
-            <button type="button" onClick={applyTemplate} disabled={!selectedTemplate} className="rounded-md border border-border px-3 py-2 text-xs text-text-primary disabled:opacity-40">Load</button>
-            <button type="button" onClick={updateSelectedTemplate} disabled={!selectedTemplateHasChanges} className="rounded-md border border-border px-3 py-2 text-xs text-text-primary disabled:opacity-40">Update</button>
-            <button type="button" onClick={deleteTemplate} disabled={!selectedTemplate} className="rounded-md border border-border px-3 py-2 text-xs text-text-secondary disabled:opacity-40">Delete</button>
-          </div>
-          <button type="button" onClick={reset} className="text-xs text-text-secondary underline hover:text-text-primary">Reset layout</button>
+      <div className="flex items-center justify-between gap-3">
+        <div className="relative">
+          <button type="button" aria-haspopup="true" aria-expanded={dashboardMenuOpen} onClick={() => setDashboardMenuOpen(v => !v)} className="flex items-center gap-3 rounded-lg border border-border bg-bg-surface px-4 py-2.5 text-sm font-semibold text-text-primary hover:border-accent">
+            {activeDashboard ? activeDashboard.name : "Dashboard"} <span className="text-text-tertiary">▾</span>
+          </button>
+          {dashboardMenuOpen && <div className="absolute left-0 top-full z-[90] mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-bg-surface p-2 shadow-2xl">
+            <div className="px-2 py-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">Your dashboards</div>
+            {dashboards.map(d => <div key={d.id} className={"flex items-center gap-2 rounded-lg px-2 py-2 " + (d.id === activeDashboardId ? "bg-bg-input" : "hover:bg-bg-input/70")}>
+              <button type="button" onClick={() => switchDashboard(d)} className="min-w-0 flex-1 text-left"><span className="block truncate text-sm font-medium text-text-primary">{d.name}</span>{d.id === activeDashboardId && <span className="text-[10px] text-accent">Currently active</span>}</button>
+              <div className="relative"><button type="button" aria-label={"Actions for " + d.name} onClick={() => setActionMenuId(v => v === d.id ? null : d.id)} className="rounded-md px-2 py-1 text-lg text-text-secondary hover:bg-bg-page">•••</button>
+                {actionMenuId === d.id && <div className="absolute right-0 top-full z-[95] mt-1 w-44 rounded-lg border border-border bg-bg-page p-1 shadow-xl">
+                  <button type="button" onClick={() => {setRenameId(d.id); setRenameValue(d.name); setActionMenuId(null);}} className="block w-full rounded-md px-3 py-2 text-left text-xs text-text-primary hover:bg-bg-input">Rename dashboard</button>
+                  <button type="button" onClick={() => {switchDashboard(d); setEditing(true);}} className="block w-full rounded-md px-3 py-2 text-left text-xs text-text-primary hover:bg-bg-input">Edit tiles</button>
+                  <button type="button" disabled={dashboards.length < 2} onClick={() => {setDeleteId(d.id); setActionMenuId(null);}} className="block w-full rounded-md px-3 py-2 text-left text-xs text-red-500 hover:bg-bg-input disabled:opacity-40">Delete dashboard</button>
+                </div>}
+              </div>
+            </div>)}
+            <div className="my-2 border-t border-border" />
+            <button type="button" onClick={() => {setCreateOpen(true); setDashboardMenuOpen(false);}} className="w-full rounded-lg bg-accent px-3 py-3 text-sm font-semibold text-accent-text">＋ Create new dashboard</button>
+          </div>}
         </div>
-      )}
+        {editing && <button type="button" onClick={() => setEditing(false)} className="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-text">Done editing</button>}
+      </div>
+      {editing && <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-surface p-3"><p className="text-xs text-text-secondary">Drag, resize, add or remove tiles to customise this dashboard.</p><button type="button" onClick={reset} className="text-xs text-text-secondary underline">Reset layout</button></div>}
+      {renameId && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/65 p-4"><div role="dialog" aria-modal="true" aria-label="Rename dashboard" className="w-full max-w-sm rounded-xl border border-border bg-bg-surface p-5 shadow-2xl"><h2 className="text-base font-semibold text-text-primary">Rename dashboard</h2><input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)} onKeyDown={e => {if(e.key==="Enter")saveRename(); if(e.key==="Escape")setRenameId(null);}} className="mt-4 w-full rounded-lg border border-border bg-bg-page px-3 py-2 text-sm text-text-primary" maxLength={48}/><div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setRenameId(null)} className="rounded-lg border border-border px-3 py-2 text-xs">Cancel</button><button type="button" disabled={!renameValue.trim()} onClick={saveRename} className="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-text disabled:opacity-40">Save name</button></div></div></div>}
+      {deleteId && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/65 p-4"><div role="dialog" aria-modal="true" aria-label="Delete dashboard" className="w-full max-w-sm rounded-xl border border-border bg-bg-surface p-5 shadow-2xl"><h2 className="text-base font-semibold text-text-primary">Delete dashboard?</h2><p className="mt-2 text-sm text-text-secondary">This will permanently delete “{dashboards.find(d => d.id === deleteId)?.name}”.</p><div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setDeleteId(null)} className="rounded-lg border border-border px-3 py-2 text-xs">Cancel</button><button type="button" onClick={confirmDelete} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white">Delete dashboard</button></div></div></div>}
+      {createOpen && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/65 p-4"><div role="dialog" aria-modal="true" aria-label="Create dashboard" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-bg-surface p-5 shadow-2xl"><h2 className="text-lg font-semibold text-text-primary">Create new dashboard</h2><label className="mt-4 block text-xs text-text-secondary">Dashboard name</label><input autoFocus value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. My trading dashboard" maxLength={48} className="mt-1 w-full rounded-lg border border-border bg-bg-page px-3 py-2 text-sm text-text-primary"/>
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">{[["starter","Starter layout"],["blank","Blank"],["copy","Copy current"]].map(([id,label]) => <button key={id} type="button" onClick={() => setNewMode(id)} className={"rounded-lg border p-3 text-left text-sm " + (newMode===id ? "border-accent bg-accent/10" : "border-border")}>{label}</button>)}</div>
+        {newMode === "starter" && <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">{STARTER_LAYOUTS.map(st => <button key={st.id} type="button" onClick={() => setNewStarter(st.id)} className={"rounded-lg border p-3 text-left " + (newStarter===st.id ? "border-accent bg-accent/10" : "border-border")}><span className="block text-sm font-semibold text-text-primary">{st.name}</span><span className="mt-1 block text-xs text-text-secondary">{st.description}</span></button>)}</div>}
+        <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setCreateOpen(false)} className="rounded-lg border border-border px-3 py-2 text-xs">Cancel</button><button type="button" disabled={!newName.trim()} onClick={createDashboard} className="rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-accent-text disabled:opacity-40">Create dashboard</button></div></div></div>}
 
       <div
         ref={gridRef}
