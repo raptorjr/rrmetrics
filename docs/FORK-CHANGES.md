@@ -11,6 +11,14 @@ cd rrmetrics
 
 ## 2026-11-23
 
+### Trading Trend tile design direction
+
+- Recorded the agreed direction to explore a two-part Trading Trend tile: a short-term financial performance trend and a separate trading-quality / execution trend.
+- The initial comparison concept is 20 recent closed trades versus the preceding 20, explicitly provisional pending methodology and sample-sufficiency design.
+- Performance and execution quality must remain distinguishable; P/L alone must not be used as a proxy for disciplined execution.
+- Calculation details, quality inputs, thresholds, and implementation remain open design work.
+
+
 ### RR Trading Score tooltip formatting
 
 - Fixed the RR Trading Score information tooltip so the intended paragraph break renders as a real line break instead of displaying the literal `\n\n` characters.
