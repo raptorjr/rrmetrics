@@ -102,6 +102,10 @@ Trading Quality remains explicitly out of scope for the first release. Topstep t
 Do not calculate or display Trading Quality based only on imported outcomes. Revisit this view when the necessary data collection and workflows have been designed.
 
 The two perspectives must remain separate: profitable results do not prove good execution, and a losing period does not necessarily indicate poor execution.
+#### Follow-up backlog
+
+- Add ticker/instrument filtering to the shared Dashboard and Analytics filter system. The current filter supports dates but not tickers; users should be able to select one or more instruments so Trading Trend and other affected analytics can be scoped to the selected ticker(s). Keep this as a product backlog item until the shared filter UX and data-flow implications have been designed.
+
 ### Trading data and metric integrity
 
 - Correctness of imported trade history and calculated metrics is more important than making a dashboard look complete.
