@@ -3,6 +3,7 @@ const { useMemo, useState } = React;
 const InfoTooltip = require('./InfoTooltip');
 const { getTradePL } = require('../../utils/analytics');
 const { toEST } = require('../../utils/dateUtils');
+const { classifyTradingTrend, NEUTRAL_THRESHOLDS } = require('../../utils/tradingTrendAssessment');
 
 const MIN_PERIOD_TRADES = 30;
 const COMPARISON_ACTIVE_DAYS = 8;
@@ -15,7 +16,9 @@ const METHODOLOGY = [
   '',
   'Daily results use capped weighting: each active day receives a weight equal to its trade count, capped at five. This gives a one-trade day less influence while preventing very busy days from dominating. Metrics shown are weighted daily expectancy, profit factor, average win and average loss.',
   '',
-  'Cross-instrument normalization, minimum-data safeguards and neutral thresholds for an overall Improving/Stable/Declining classification still need validation. Until those are settled, the tile shows the measured comparison but does not claim an overall trend direction.',
+  'The overall assessment groups expectancy and profit factor as one profitability dimension, supported by average win and average loss. Candidate neutral ranges are: expectancy ±$15/unit, profit factor ±0.36, average win ±$21/unit, and average loss ±$19/unit. These are initial conservative thresholds based on the available historical sample and may be refined as more data accumulates.',
+  '',
+  'Improving or Declining requires profitability and at least one supporting metric to agree, with no meaningful deterioration in the opposite direction. Stable means all three dimensions are within their neutral ranges. Conflicting or insufficiently supported movements are Mixed. Missing or incomplete comparisons are Insufficient data.',
   '',
   'Trading Quality is a separate future view and must not be inferred from financial results.',
 ];
@@ -113,8 +116,11 @@ const TradingTrendTile = ({ trades = [] }) => {
       && recent.count >= MIN_PERIOD_TRADES && previous.count >= MIN_PERIOD_TRADES;
     const recentMetrics = enoughData ? getPeriodMetrics(recent.days) : null;
     const previousMetrics = enoughData ? getPeriodMetrics(previous.days) : null;
+    const assessment = enoughData
+      ? classifyTradingTrend(previousMetrics, recentMetrics)
+      : { status: 'Insufficient data', reason: 'Two complete comparison windows with at least 30 trades each are required.' };
     return {
-      enoughData, daysAvailable: days.length, recent, previous, recentMetrics, previousMetrics,
+      enoughData, daysAvailable: days.length, recent, previous, recentMetrics, previousMetrics, assessment,
     };
   }, [trades]);
 
@@ -158,7 +164,7 @@ const TradingTrendTile = ({ trades = [] }) => {
             <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-wide text-text-tertiary">Trend assessment</div>
-                <div className="text-lg leading-tight font-bold text-text-primary">{result.enoughData ? 'Not classified yet' : 'Building baseline'}</div>
+                <div className="text-lg leading-tight font-bold text-text-primary">{result.assessment.status}</div>
               </div>
               <div className="text-right">
                 <div className="text-[10px] text-text-tertiary">Recent vs previous</div>
