@@ -439,7 +439,8 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     <div className="space-y-3">
       {storageWarning && <p className="text-xs text-amber-600" role="alert">{storageWarning.message}</p>}
       <div className="flex items-center justify-between gap-3">
-        <div className="relative">
+        {editing && <button type="button" onClick={() => setEditing(false)} className="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-text">Done editing</button>}
+        <div className="relative ml-auto">
           <button type="button" aria-haspopup="true" aria-expanded={dashboardMenuOpen} onClick={() => setDashboardMenuOpen(v => !v)} className="flex items-center gap-3 rounded-lg border border-border bg-bg-surface px-4 py-2.5 text-sm font-semibold text-text-primary hover:border-accent">
             {activeDashboard ? activeDashboard.name : "Dashboard"} <span className="text-text-tertiary">▾</span>
           </button>
@@ -459,7 +460,6 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
             <button type="button" onClick={() => {setCreateOpen(true); setDashboardMenuOpen(false);}} className="w-full rounded-lg bg-accent px-3 py-3 text-sm font-semibold text-accent-text">＋ Create new dashboard</button>
           </div>}
         </div>
-        {editing && <button type="button" onClick={() => setEditing(false)} className="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-text">Done editing</button>}
       </div>
       {editing && <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-surface p-3"><p className="text-xs text-text-secondary">Drag, resize, add or remove tiles to customise this dashboard.</p><button type="button" onClick={reset} className="text-xs text-text-secondary underline">Reset layout</button></div>}
       {renameId && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/65 p-4"><div role="dialog" aria-modal="true" aria-label="Rename dashboard" className="w-full max-w-sm rounded-xl border border-border bg-bg-surface p-5 shadow-2xl"><h2 className="text-base font-semibold text-text-primary">Rename dashboard</h2><input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)} onKeyDown={e => {if(e.key==="Enter")saveRename(); if(e.key==="Escape")setRenameId(null);}} className="mt-4 w-full rounded-lg border border-border bg-bg-page px-3 py-2 text-sm text-text-primary" maxLength={48}/><div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setRenameId(null)} className="rounded-lg border border-border px-3 py-2 text-xs">Cancel</button><button type="button" disabled={!renameValue.trim()} onClick={saveRename} className="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-text disabled:opacity-40">Save name</button></div></div></div>}
