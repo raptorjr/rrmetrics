@@ -17,6 +17,7 @@ cd rrmetrics
 - The initial release will implement Financial Performance only, using existing reliable trade data. Its proposed comparison is 20 recent closed trades versus the preceding 20, pending validation of methodology and sample sufficiency.
 - Trading Quality is reserved as a future view in the same tile. It is not to be inferred from Topstep P/L or execution imports; meaningful assessment requires additional structured data and product workflows such as trade plans, strategy/setup definitions, and reviews.
 - The two perspectives must remain distinct. Financial trend calculations, thresholds, and aggregation rules still require design before implementation.
+- The tile must use the same view-selector control pattern already used by other RR Metrics tiles, rather than introducing a new navigation style.
 
 
 ### RR Trading Score tooltip formatting
