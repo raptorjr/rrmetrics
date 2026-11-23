@@ -70,6 +70,17 @@ The Trading Trend tile is designed with two distinct views:
 
 The tile's structure and view navigation should accommodate both perspectives from the outset. Use the same view-selector control pattern already established in other RR Metrics tiles; do not introduce a bespoke tab, dropdown, or navigation treatment for Trading Trend. Financial Performance is the initially available view, while Trading Quality is reserved for a future release. The Trading Quality view is a planned extension, not part of the initial implementation: do not invent a score, infer discipline from P/L, or present unsupported conclusions. It should be clearly identified as coming later or otherwise kept unavailable until the required data model and workflows exist.
 
+#### Initial visual concept for Financial Performance
+
+Use the earlier Trading Trend tile concept as the starting point for visual exploration, while treating the exact layout and styling as refinable:
+- A clear overall status near the top (for example, Improving, Stable, Declining, or Insufficient Data).
+- A concise subtitle that states the comparison window, initially proposed as the latest 20 closed trades versus the preceding 20.
+- A compact set of individual metric comparisons with directional change indicators, so the overall status is explainable rather than a black-box judgement.
+- A simple, restrained visual comparison of the previous and recent periods, using available tile space without adding clutter.
+- Keep the tile's existing shared view-selector pattern for switching between Financial Performance and the future Trading Quality view.
+
+The earlier visual mock-up is illustrative only. It does not establish actual metric values, final layout dimensions, colours, thresholds, or calculation rules. Preserve the design intent—at-a-glance direction with enough supporting detail to understand why—while refining it against the established RR Metrics tile design system.
+
 #### Initial Financial Performance direction
 
 - Focus the initial implementation exclusively on financial performance, using existing, trustworthy trade fields.
