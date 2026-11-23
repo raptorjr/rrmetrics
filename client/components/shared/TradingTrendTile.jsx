@@ -4,16 +4,16 @@ const InfoTooltip = require('./InfoTooltip');
 const { getTradePL } = require('../../utils/analytics');
 const { toEST } = require('../../utils/dateUtils');
 
-const MIN_PERIOD_TRADES = 20;
-const FREQUENCY_LOOKBACK_DAYS = 4;
-const TARGET_ACTIVE_DAYS = 4;
+const MIN_PERIOD_TRADES = 30;
+const COMPARISON_ACTIVE_DAYS = 8;
+const DAILY_WEIGHT_CAP = 5;
 
 const METHODOLOGY = [
   'Trading Trend compares normalized trading performance using P/L per unit (trade P/L divided by absolute position quantity). This removes the direct effect of trading more contracts, but dollar-per-unit results are not automatically comparable across different instruments.',
   '',
-  'The target sample is estimated from the average number of trades across the latest four active trading days. Zero-trade days are naturally excluded. Each comparison period uses complete active days until it reaches the target trade count and at least four active days.',
+  'The comparison uses two consecutive windows of eight active trading days: the eight most recent active days and the eight active days immediately before them. Each period must contain at least 30 trades.',
   '',
-  'Daily results receive equal weight, so a high-volume scalping day cannot dominate just because it contains more trades. Metrics shown are daily-weighted expectancy, profit factor, average win and average loss.',
+  'Daily results use capped weighting: each active day receives a weight equal to its trade count, capped at five. This gives a one-trade day less influence while preventing very busy days from dominating. Metrics shown are weighted daily expectancy, profit factor, average win and average loss.',
   '',
   'Cross-instrument normalization, minimum-data safeguards and neutral thresholds for an overall Improving/Stable/Declining classification still need validation. Until those are settled, the tile shows the measured comparison but does not claim an overall trend direction.',
   '',
@@ -38,39 +38,37 @@ const getPeriodMetrics = days => {
     const wins = values.filter(value => value > 0);
     const losses = values.filter(value => value < 0);
     return {
+      weight: Math.min(values.length, DAILY_WEIGHT_CAP),
       expectancy: values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null,
       grossWins: wins.reduce((sum, value) => sum + value, 0),
       grossLosses: losses.reduce((sum, value) => sum + Math.abs(value), 0),
       avgWin: wins.length ? wins.reduce((sum, value) => sum + value, 0) / wins.length : null,
       avgLoss: losses.length ? losses.reduce((sum, value) => sum + value, 0) / losses.length : null,
     };
-  }).filter(day => day.expectancy !== null);
+  }).filter(day => day.expectancy !== null && day.weight > 0);
 
   if (!daily.length) return null;
-  const mean = key => {
-    const values = daily.map(day => day[key]).filter(value => value !== null && Number.isFinite(value));
-    return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+  const weightedMean = key => {
+    const values = daily.filter(day => day[key] !== null && Number.isFinite(day[key]));
+    const totalWeight = values.reduce((sum, day) => sum + day.weight, 0);
+    return totalWeight ? values.reduce((sum, day) => sum + day[key] * day.weight, 0) / totalWeight : null;
   };
-  const grossWins = mean('grossWins') || 0;
-  const grossLosses = mean('grossLosses') || 0;
+  const grossWins = daily.reduce((sum, day) => sum + day.grossWins * day.weight, 0);
+  const grossLosses = daily.reduce((sum, day) => sum + day.grossLosses * day.weight, 0);
+  const averageLoss = weightedMean('avgLoss');
   return {
-    expectancy: mean('expectancy'),
+    expectancy: weightedMean('expectancy'),
     profitFactor: grossLosses > 0 ? grossWins / grossLosses : grossWins > 0 ? Infinity : null,
-    avgWin: mean('avgWin'),
-    avgLoss: mean('avgLoss') === null ? null : Math.abs(mean('avgLoss')),
+    avgWin: weightedMean('avgWin'),
+    avgLoss: averageLoss === null ? null : Math.abs(averageLoss),
     tradeCount: days.reduce((sum, day) => sum + day.trades.length, 0),
     dayCount: days.length,
   };
 };
 
-const takeCompleteDaySample = (days, startIndex, targetTrades) => {
-  const selected = [];
-  let count = 0;
-  for (let index = startIndex; index >= 0 && (count < targetTrades || selected.length < TARGET_ACTIVE_DAYS); index--) {
-    selected.push(days[index]);
-    count += days[index].trades.length;
-  }
-  return { days: selected, nextIndex: startIndex - selected.length, count };
+const takeActiveDayWindow = (days, endIndex, windowSize) => {
+  const startIndex = endIndex - windowSize + 1;
+  return startIndex >= 0 ? days.slice(startIndex, endIndex + 1) : [];
 };
 
 const formatValue = (value, suffix = '') => {
@@ -106,22 +104,19 @@ const TradingTrendTile = ({ trades = [] }) => {
       byDate.get(key).trades.push(trade);
     });
     const days = Array.from(byDate.values()).sort((a, b) => a.key.localeCompare(b.key));
-    const frequencyDays = days.slice(-FREQUENCY_LOOKBACK_DAYS);
-    const averageTrades = frequencyDays.length
-      ? frequencyDays.reduce((sum, day) => sum + day.trades.length, 0) / frequencyDays.length : 0;
-    const targetTrades = Math.max(MIN_PERIOD_TRADES, Math.ceil(averageTrades * TARGET_ACTIVE_DAYS));
-    const recent = takeCompleteDaySample(days, days.length - 1, targetTrades);
-    const previous = takeCompleteDaySample(days, recent.nextIndex, targetTrades);
-    const enoughData = recent.count >= MIN_PERIOD_TRADES && previous.count >= MIN_PERIOD_TRADES
-      && recent.days.length >= TARGET_ACTIVE_DAYS && previous.days.length >= TARGET_ACTIVE_DAYS;
+    const recentDays = takeActiveDayWindow(days, days.length - 1, COMPARISON_ACTIVE_DAYS);
+    const previousDays = takeActiveDayWindow(days, days.length - COMPARISON_ACTIVE_DAYS - 1, COMPARISON_ACTIVE_DAYS);
+    const recent = { days: recentDays, count: recentDays.reduce((sum, day) => sum + day.trades.length, 0) };
+    const previous = { days: previousDays, count: previousDays.reduce((sum, day) => sum + day.trades.length, 0) };
+    const enoughData = recent.days.length === COMPARISON_ACTIVE_DAYS
+      && previous.days.length === COMPARISON_ACTIVE_DAYS
+      && recent.count >= MIN_PERIOD_TRADES && previous.count >= MIN_PERIOD_TRADES;
     const recentMetrics = enoughData ? getPeriodMetrics(recent.days) : null;
     const previousMetrics = enoughData ? getPeriodMetrics(previous.days) : null;
     const tickers = new Set([...recent.days, ...previous.days].flatMap(day => day.trades.map(trade => (trade.ticker || '').toUpperCase()).filter(Boolean)));
     return {
-      enoughData, daysAvailable: days.length, averageTrades, targetTrades,
-      recent, previous, recentMetrics, previousMetrics,
+      enoughData, daysAvailable: days.length, recent, previous, recentMetrics, previousMetrics,
       tickers: Array.from(tickers),
-      frequencyDays: frequencyDays.length,
     };
   }, [trades]);
 
@@ -173,7 +168,7 @@ const TradingTrendTile = ({ trades = [] }) => {
                   {result.enoughData ? result.recent.count + ' vs ' + result.previous.count + ' trades' : 'Insufficient sample'}
                 </div>
                 <div className="text-[10px] text-text-secondary">
-                  {result.enoughData ? result.recent.days.length + ' vs ' + result.previous.days.length + ' active days' : 'Need at least 4 active days per period'}
+                  {result.enoughData ? result.recent.days.length + ' vs ' + result.previous.days.length + ' active days' : 'Need 8 active days and 30 trades per period'}
                 </div>
               </div>
             </div>
@@ -198,7 +193,7 @@ const TradingTrendTile = ({ trades = [] }) => {
                   ))}
                 </div>
                 <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 text-[10px] text-text-tertiary">
-                  <span>Per-unit results · equal weight per active day</span>
+                  <span>Per-unit results · daily weight capped at 5 trades</span>
                   <span>{result.tickers.length > 1 ? 'Multiple instruments' : result.tickers[0] || 'No ticker data'}</span>
                 </div>
                 {result.tickers.length > 1 && (
@@ -209,7 +204,7 @@ const TradingTrendTile = ({ trades = [] }) => {
               <div className="flex-1 min-h-0 flex flex-col justify-center rounded-lg bg-bg-page p-4">
                 <div className="text-sm font-semibold text-text-primary mb-1">Not enough history yet</div>
                 <p className="text-xs text-text-secondary">
-                  {result.daysAvailable} active days available. The current method needs at least four active days in each of two comparison periods, with at least {MIN_PERIOD_TRADES} trades in each period. The recent-frequency estimate uses the latest four active days and currently targets about {result.targetTrades} trades per period.
+                  {result.daysAvailable} active days available. The method needs two complete comparison windows of {COMPARISON_ACTIVE_DAYS} active days each, with at least {MIN_PERIOD_TRADES} trades in each period.
                 </p>
               </div>
             )}
