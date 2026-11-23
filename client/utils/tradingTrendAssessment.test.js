@@ -13,8 +13,8 @@ test('uses conservative neutral thresholds', () => {
     expectancy: 15, profitFactor: 0.36, avgWin: 21, avgLoss: 19,
   });
   assert.equal(getDirection(10, 24, 15), 'neutral');
-  assert.equal(getDirection(1, 1.37, 0.36), 'neutral');
-  assert.equal(getDirection(50, 72, 21), 'neutral');
+  assert.equal(getDirection(1, 1.35, 0.36), 'neutral');
+  assert.equal(getDirection(50, 71, 21), 'neutral');
   assert.equal(getDirection(30, 10, 19, true), 'declining');
 });
 
