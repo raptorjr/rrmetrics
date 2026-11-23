@@ -345,7 +345,7 @@ const TradingScoreTile = ({ trades }) => {
     return { ...p, metric, anchor: p.x < center.x - 12 ? 'end' : p.x > center.x + 12 ? 'start' : 'middle' };
   });
   const scoreColor = result.score === null ? 'text-text-secondary' : result.score >= 70 ? 'text-positive' : result.score >= 45 ? 'text-warning' : 'text-negative';
-  const methodology = 'A personal review tool, not a target to chase. Score based on the selected trades.\\n\\nRR Trading Score is an educational self-review, not a prediction or a ranking. Weights: Profit factor 25%, Avg win/loss 20%, Drawdown control 20%, Win rate 15%, Recovery factor 10%, Consistency 10%. Scoring thresholds: Win rate 30–60%; Profit factor and avg win/loss 0.5–2.5; drawdown 5–30% of highest cumulative P/L peak; recovery factor 0.5–3.0; best positive day share 20–80%. At least 20 closed trades across 5 trading days are required.';
+  const methodology = 'A personal review tool, not a target to chase. Score based on the selected trades.\n\nRR Trading Score is an educational self-review, not a prediction or a ranking. Weights: Profit factor 25%, Avg win/loss 20%, Drawdown control 20%, Win rate 15%, Recovery factor 10%, Consistency 10%. Scoring thresholds: Win rate 30–60%; Profit factor and avg win/loss 0.5–2.5; drawdown 5–30% of highest cumulative P/L peak; recovery factor 0.5–3.0; best positive day share 20–80%. At least 20 closed trades across 5 trading days are required.';
   const insights = result.enoughData && result.weakest && result.strongest ? (
     <div className="flex flex-col gap-3 w-full max-w-3xl mx-auto">
       <div className="rounded-lg bg-bg-page p-4 min-w-0">
