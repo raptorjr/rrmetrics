@@ -87,7 +87,10 @@ The earlier visual mock-up is illustrative only. It does not establish actual me
 - Compare a recent rolling sample with the immediately preceding sample of closed trades. Twenty trades per sample is the initial proposal, subject to validation and refinement; it is not a statistically guaranteed minimum or a locked requirement.
 - Candidate measures include expectancy, profit factor, average win/loss, and drawdown. Win rate may provide supporting context but must not be treated as a standalone measure of improvement.
 - Present an understandable overall assessment such as Improving, Stable, Declining, or Insufficient Data, supported by visible component metrics and a clear comparison window.
-- Avoid overstating small or noisy differences. Define sample sufficiency, metric normalization, neutral thresholds, and aggregation methodology before implementation.
+- Base the trend assessment on normalized performance, not raw monetary P/L. The purpose is to compare trading performance without contract size alone making a larger-position period appear better. Do not add a separate raw-financial-performance view to this tile; the calendar and other existing views already provide financial-result context.
+- Normalize using execution-level trade data and instrument-specific tick/point values where required. Do not assume that simply dividing a trade's P/L by its contract count is always correct, especially with partial exits or changing position sizes.
+- The normalization method must also account for differences between instruments if multiple instruments are compared. Per-contract normalization alone does not make unlike instruments directly comparable; evaluate a common risk-based measure such as R-multiples before finalizing cross-instrument calculations.
+- Avoid overstating small or noisy differences. Define sample sufficiency, the precise normalization method, neutral thresholds, and aggregation methodology before implementation.
 - Respect existing data integrity rules, including currency handling, fees/commissions, closed-trade selection, and the application's established P/L calculations.
 
 #### Future Trading Quality direction
