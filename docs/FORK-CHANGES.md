@@ -16,7 +16,7 @@ cd rrmetrics
 - Simplified the tile to an at-a-glance overall trend and comparison sample, followed by compact metric summaries showing recent value, change, and previous value.
 - Moved the methodology explanation into the existing InfoTooltip beside the tile title; removed the in-tile methodology link and expandable section.
 - Retained the shared view selector and reserved Trading Quality as a disabled future view.
-- All displayed trend values remain illustrative sample content. The tile is a UI prototype only; no live trend calculations, normalization, sample selection, or trend classification have been implemented.
+- The tile now calculates live metric values from the selected trades. It estimates target sample size from the latest four active days, builds two comparison samples from complete active days (minimum four days and 20 trades per period), and calculates daily-weighted per-unit expectancy, profit factor, average win, and average loss. The metric grid uses two columns and expands vertically with available tile height. Direct position-quantity scaling is removed, but cross-instrument normalization is not solved; mixed-instrument samples are flagged. Overall Improving/Stable/Declining classification is intentionally withheld until normalization and neutral thresholds are validated.
 
 ### Trading Trend tile — adaptive sampling and daily weighting
 
