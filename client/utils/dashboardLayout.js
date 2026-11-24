@@ -205,6 +205,84 @@ const readLayoutFromValue = (saved, defaultOrder, defaultVisible, items) => {
   }
 };
 
+
+const getResponsivePositions = (visibleItems, layout, columns) => {
+  const entries = visibleItems.map((item, index) => {
+    const size = layout.sizes[item.id] || getDefaultSize(item);
+    const saved = layout.positions[item.id] || { col: 1, row: 1 };
+    const width = Math.min(columns, Math.max(1, Math.round(size.w * columns / MAX_COLUMNS)));
+    return {
+      id: item.id,
+      index,
+      width,
+      height: size.h,
+      preferredCol: clamp(Math.floor((saved.col - 1) * columns / MAX_COLUMNS) + 1, 1, columns - width + 1),
+      preferredRow: saved.row,
+    };
+  }).sort((a, b) => a.preferredRow - b.preferredRow || a.preferredCol - b.preferredCol || a.index - b.index);
+
+  const placed = [];
+  entries.forEach(entry => {
+    let position = null;
+    for (let row = entry.preferredRow; !position; row += 1) {
+      const columnsToTry = [
+        ...Array.from({ length: columns - entry.width - entry.preferredCol + 2 }, (_, i) => entry.preferredCol + i),
+        ...Array.from({ length: entry.preferredCol - 1 }, (_, i) => i + 1),
+      ];
+      for (const col of columnsToTry) {
+        const candidate = { col, row };
+        if (!placed.some(other =>
+          candidate.col < other.col + other.width
+          && candidate.col + entry.width > other.col
+          && candidate.row < other.row + other.height
+          && candidate.row + entry.height > other.row
+        )) {
+          position = candidate;
+          break;
+        }
+      }
+    }
+    placed.push({ id: entry.id, ...position, width: entry.width, height: entry.height });
+  });
+  return Object.fromEntries(placed.map(({ id, col, row, width }) => [id, { col, row, width }]));
+};
+
+const createBreakpointLayout = (layout, columns, items, defaultOrder, defaultVisible) => {
+  if (columns === MAX_COLUMNS) return JSON.parse(JSON.stringify(layout));
+  const visibleItems = layout.order
+    .map(id => items.find(item => item.id === id))
+    .filter(item => item && !layout.hidden.includes(item.id));
+  const responsive = getResponsivePositions(visibleItems, layout, columns);
+  const scale = MAX_COLUMNS / columns;
+  const sizes = Object.fromEntries(items.map(item => {
+    const base = layout.sizes[item.id] || getDefaultSize(item);
+    const visualWidth = Math.min(columns, Math.max(1, Math.round(base.w * columns / MAX_COLUMNS)));
+    return [item.id, { w: visualWidth * scale, h: base.h }];
+  }));
+  const positions = Object.fromEntries(Object.entries(responsive).map(([id, point]) => [
+    id, { col: (point.col - 1) * scale + 1, row: point.row },
+  ]));
+  return readLayoutFromValue({
+    gridVersion: 2,
+    order: layout.order,
+    hidden: layout.hidden,
+    sizes,
+    positions,
+  }, defaultOrder, defaultVisible, items);
+};
+
+const normalizeDashboardLayouts = (dashboard, defaultOrder, defaultVisible, items) => {
+  const base = readLayoutFromValue(dashboard.layout, defaultOrder, defaultVisible, items);
+  const savedLayouts = dashboard.layouts && typeof dashboard.layouts === 'object' ? dashboard.layouts : {};
+  const layouts = { 8: readLayoutFromValue(savedLayouts[8] || base, defaultOrder, defaultVisible, items) };
+  [4, 2].forEach(columns => {
+    layouts[columns] = savedLayouts[columns]
+      ? readLayoutFromValue(savedLayouts[columns], defaultOrder, defaultVisible, items)
+      : createBreakpointLayout(layouts[8], columns, items, defaultOrder, defaultVisible);
+  });
+  return { ...dashboard, layout: layouts[8], layouts };
+};
+
 const STARTER_LAYOUTS = [
   {
     id: 'trading-overview',
@@ -288,4 +366,7 @@ module.exports = {
   readLayoutFromValue,
   STARTER_LAYOUTS,
   createStarterLayout,
+  getResponsivePositions,
+  createBreakpointLayout,
+  normalizeDashboardLayouts,
 };
