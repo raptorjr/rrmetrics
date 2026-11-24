@@ -1,10 +1,11 @@
 ## 2026-11-24
 
-### Responsive dashboard tile placement
+### Independent responsive dashboard layouts
 
-- Fixed responsive dashboard rendering so tiles are reflowed into collision-free positions at four- and two-column widths instead of independently rounding saved eight-column positions and allowing overlaps.
-- Responsive positions are calculated for presentation only. The saved eight-column dashboard layout is not rewritten when the container width changes.
-- Verified the Trading and Demo layouts from the supplied browser backup have no overlaps at 8, 4, or 2 columns using the responsive placement algorithm.
+- Added separate saved tile sizes and positions for each dashboard at the 8-, 4-, and 2-column breakpoints. Moving or resizing tiles at one width no longer changes the arrangement saved for another width.
+- Tile visibility and order remain shared across breakpoints, so hiding, showing, adding, or reordering a tile is consistent on all screen sizes.
+- Existing dashboards retain their saved layout as the 8-column desktop layout. Initial 4- and 2-column arrangements are generated from that layout and persisted when the collection is saved; subsequent edits are breakpoint-specific.
+- Added automated layout tests for collision-free placement, legacy dashboard migration, and independent saved positions.
 
 # Fork changes
 
