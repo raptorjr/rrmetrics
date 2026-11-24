@@ -114,4 +114,4 @@ const ChartEngineLab = () => {
   );
 };
 
-module.exports = ChartEngineLab;
+export default ChartEngineLab;
