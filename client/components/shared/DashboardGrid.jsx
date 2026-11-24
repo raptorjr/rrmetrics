@@ -19,6 +19,54 @@ const {
 const GRID_GAP = 16;
 const ROW_UNIT = 128;
 
+// Convert the saved eight-column layout into a collision-free layout for the
+// narrower display grid. Saved positions remain untouched, so changing the
+// browser width never rewrites the user's desktop arrangement.
+const getResponsivePositions = (visibleItems, layout, columns) => {
+  const entries = visibleItems.map((item, index) => {
+    const size = layout.sizes[item.id] || getDefaultSize(item);
+    const saved = layout.positions[item.id] || { col: 1, row: 1 };
+    const width = Math.min(columns, Math.max(1, Math.round(size.w * columns / MAX_COLUMNS)));
+    return {
+      id: item.id,
+      index,
+      width,
+      height: size.h,
+      preferredCol: clamp(Math.floor((saved.col - 1) * columns / MAX_COLUMNS) + 1, 1, columns - width + 1),
+      preferredRow: saved.row,
+    };
+  }).sort((a, b) => a.preferredRow - b.preferredRow || a.preferredCol - b.preferredCol || a.index - b.index);
+
+  const placed = [];
+  const collides = (candidate, entry) =>
+    candidate.col < entry.col + entry.width
+    && candidate.col + entry.width > entry.col
+    && candidate.row < entry.row + entry.height
+    && candidate.row + entry.height > entry.row;
+
+  entries.forEach(entry => {
+    let position = null;
+    for (let row = entry.preferredRow; !position; row += 1) {
+      const columnsToTry = [
+        ...Array.from({ length: columns - entry.width - entry.preferredCol + 2 }, (_, i) => entry.preferredCol + i),
+        ...Array.from({ length: entry.preferredCol - 1 }, (_, i) => i + 1),
+      ];
+      for (const col of columnsToTry) {
+        const candidate = { col, row };
+        if (!placed.some(other => collides(candidate, { ...other, width: entry.width, height: entry.height })
+          || (candidate.col < other.col + other.width && candidate.col + entry.width > other.col
+            && candidate.row < other.row + other.height && candidate.row + entry.height > other.row))) {
+          position = candidate;
+          break;
+        }
+      }
+    }
+    placed.push({ id: entry.id, ...position, width: entry.width, height: entry.height });
+  });
+
+  return Object.fromEntries(placed.map(({ id, col, row, width }) => [id, { col, row, width }]));
+};
+
 const readTemplates = (storageKey) => {
   try {
     const saved = JSON.parse(localStorage.getItem(`${storageKey}_templates`) || '[]');
@@ -505,8 +553,9 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   };
 
 
+  const responsivePositions = getResponsivePositions(visibleItems, layout, columns);
   const lastOccupiedRow = visibleItems.reduce((lastRow, item) => {
-    const position = layout.positions[item.id] || { row: 1 };
+    const position = responsivePositions[item.id] || { row: 1 };
     const size = layout.sizes[item.id] || getDefaultSize(item);
     return Math.max(lastRow, position.row + size.h - 1);
   }, 0);
@@ -660,8 +709,8 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
               onDragEnd={editing ? () => { setDraggedId(null); setDropTarget(null); } : undefined}
               className={`relative min-w-0 h-full [&>*]:h-full ${editing ? `rounded-xl outline outline-1 outline-dashed outline-accent cursor-grab ${draggedId === item.id ? 'opacity-35' : ''} ${dropTarget && dropTarget.id === item.id ? 'bg-accent/10' : ''}` : ''}`}
               style={{
-                gridColumn: `${clamp(Math.floor(((layout.positions[item.id] || { col: 1 }).col - 1) * columns / MAX_COLUMNS) + 1, 1, Math.max(1, columns - getColumnSpan(size) + 1))} / span ${getColumnSpan(size)}`,
-                gridRow: `${(layout.positions[item.id] || { row: 1 }).row} / span ${size.h}`,
+                gridColumn: `${(responsivePositions[item.id] || { col: 1, width: getColumnSpan(size) }).col} / span ${(responsivePositions[item.id] || { width: getColumnSpan(size) }).width}`,
+                gridRow: `${(responsivePositions[item.id] || { row: 1 }).row} / span ${size.h}`,
               }}
             >
               {editing && dropTarget && dropTarget.id === item.id && (
