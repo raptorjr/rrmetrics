@@ -77,7 +77,7 @@ const BacktestingReplayWorkspace = () => {
   const stats = useMemo(() => calculateTradeStats(closedTrades), [closedTrades]);
   const unrealizedPnl = position ? calculateTradePnl(position, currentPrice, spec.pointValue) : 0;
   const initialIndex = Math.min(80, Math.max(0, candles.length - 1));
-  const canSeek = !position && closedTrades.length === 0;
+  const canSeek = !position && !pendingOrder && closedTrades.length === 0;
 
   useEffect(() => { candlesRef.current = candles; }, [candles]);
   useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
@@ -367,7 +367,7 @@ const BacktestingReplayWorkspace = () => {
   };
 
   const resetReplay = () => {
-    if ((closedTrades.length || position) && !window.confirm('Reset replay and clear all trades from this temporary session?')) return;
+    if ((closedTrades.length || position || pendingOrder) && !window.confirm('Reset replay and clear all orders and trades from this temporary session?')) return;
     setIsPlaying(false);
     setCurrentIndex(initialIndex);
     currentIndexRef.current = initialIndex;
