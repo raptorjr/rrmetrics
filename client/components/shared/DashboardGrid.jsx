@@ -167,9 +167,10 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     setDashboardLoadError(null);
     const load = async () => {
       try {
-        const response = await fetch('/api/dashboards?key=' + encodeURIComponent(storageKey), { credentials: 'same-origin' });
+        const response = await fetch('/api/dashboards?key=' + encodeURIComponent(storageKey), { credentials: 'same-origin', cache: 'no-store' });
         if (!response.ok) throw new Error('The server could not load dashboard settings.');
         const result = await response.json();
+        if (cancelled) return;
         let collection = result.collection;
         if (!collection || !Array.isArray(collection.items) || collection.items.length === 0) {
           const localItems = readDashboardCollection(storageKey, defaultOrder, defaultVisible, items);
