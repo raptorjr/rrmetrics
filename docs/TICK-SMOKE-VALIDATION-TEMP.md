@@ -1,0 +1,1 @@
+Temporary validation marker for the real ESZ6/NQZ6 tick Parquet smoke test. This file is not intended to be merged.
