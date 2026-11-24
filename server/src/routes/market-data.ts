@@ -1118,12 +1118,15 @@ marketData.delete('/api/market-data/files/:fileId', requiresLogin, async (c) => 
     overlappingDatasetsRetained,
     note: 'Only data owned by this source file will be deleted. Overlapping datasets from other files remain available.',
   };
-  if (c.req.query('confirm') !== 'true') {
-    return c.json({ requiresConfirmation: true, impact }, 409);
-  }
-
   if (!['needs_review', 'failed', 'ready'].includes(file.import_status)) {
     return c.json({ error: 'This source file is currently being processed and cannot be deleted yet.' }, 409);
+  }
+
+  // An unimported source has no normalized datasets or replay data to protect.
+  // Delete it immediately; only files that own imported datasets need a preview.
+  const hasImportedDatasets = datasets.length > 0 || tickDatasets.length > 0;
+  if (hasImportedDatasets && c.req.query('confirm') !== 'true') {
+    return c.json({ requiresConfirmation: true, impact }, 409);
   }
   const deletionClaim = db.prepare(
     `UPDATE market_data_files SET import_status = 'deleting'
