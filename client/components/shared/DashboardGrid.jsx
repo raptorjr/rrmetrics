@@ -375,8 +375,9 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const createDashboard = () => {
     const name = newName.trim(); if (!name) return;
     const starter = STARTER_LAYOUTS.find(x => x.id === newStarter) || STARTER_LAYOUTS[0];
-    const nextLayout = newMode === 'blank' ? readLayoutFromValue({order: defaultOrder, hidden: defaultOrder, sizes: {}, positions: {}}, defaultOrder, [], items) : newMode === 'copy' ? cloneLayout(layout) : createStarterLayout(starter, items, layout.order);
-    const layouts = { 8: nextLayout };
+    const sourceDashboard = dashboards.find(dashboard => dashboard.id === activeDashboardId) || dashboards[0];
+    const nextLayout = newMode === 'blank' ? readLayoutFromValue({order: defaultOrder, hidden: defaultOrder, sizes: {}, positions: {}}, defaultOrder, [], items) : newMode === 'copy' ? cloneLayout(sourceDashboard.layout) : createStarterLayout(starter, items, layout.order);
+    const layouts = newMode === 'copy' ? cloneLayout(sourceDashboard.layouts) : { 8: nextLayout };
     const d = normalizeDashboardLayouts({id: makeDashboardId(), name, layout: nextLayout, layouts}, defaultOrder, defaultVisible, items);
     layoutBreakpointRef.current = columns;
     setDashboards(ds => [...ds, d]); setActiveDashboardId(d.id); setLayout(d.layouts[columns]); setEditing(false); setCreateOpen(false); setDashboardMenuOpen(false); setNewName(''); setNewMode('starter');
