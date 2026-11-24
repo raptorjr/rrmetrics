@@ -570,6 +570,22 @@ const BacktestingReplayWorkspace = () => {
               <div className="text-sm font-semibold text-text-primary">Historical Futures</div>
               <div className="text-xs text-text-muted mt-0.5">Select a stored source and date range. Data is loaded through RR Metrics' central market-data API.</div>
             </div>
+            <button type="button" onClick={async () => {
+              setHistoricalLoading(true);
+              try {
+                const response = await authFetch('/api/market-data/datasets');
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Unable to refresh historical sources.');
+                setHistoricalDatasets(data.datasets || []);
+                setImportError('');
+              } catch (refreshError) {
+                setImportError(refreshError.message || 'Unable to refresh historical sources.');
+              } finally {
+                setHistoricalLoading(false);
+              }
+            }} disabled={historicalLoading} className="text-xs text-accent hover:underline disabled:opacity-50">
+              {historicalLoading ? 'Refreshing…' : 'Refresh sources'}
+            </button>
             {tickerDatasets.length === 0 ? (
               <div className="rounded-lg border border-border bg-bg-surface px-3 py-4 text-xs text-text-muted">
                 No historical datasets are available for {ticker}. Add CSV or Parquet files under Settings → Providers → Historical Futures first.
