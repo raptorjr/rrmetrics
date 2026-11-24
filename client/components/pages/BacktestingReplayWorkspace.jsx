@@ -556,4 +556,4 @@ const BacktestingReplayWorkspace = () => {
   );
 };
 
-module.exports = BacktestingReplayWorkspace;
+export default BacktestingReplayWorkspace;
