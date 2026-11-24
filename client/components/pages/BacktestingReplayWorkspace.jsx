@@ -43,7 +43,7 @@ const toDisplayDateTimeInput = value => {
 };
 
 const fromDisplayDateTimeInput = value => {
-  const match = /^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})(?::(\\d{2}))?$/.exec(value || '');
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value || '');
   if (!match) return null;
   const [, year, month, day, hour, minute, second = '00'] = match;
   const target = Date.UTC(+year, +month - 1, +day, +hour, +minute, +second);
