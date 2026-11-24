@@ -50,19 +50,52 @@ const getDisplayTimeZone = () => {
   catch { return EST_TZ; }
 };
 
-// Legacy name retained for existing imports; display dates use the selected user time zone.
+// Display formatting follows the user's Settings → Preferences choices.
+// Trading-session calculations remain on EST_TZ; these helpers only format instants.
+const getDateFormat = () => {
+  try {
+    return localStorage.getItem('rrmetrics_date_format') || 'auto';
+  } catch {
+    return 'auto';
+  }
+};
+
+const getTimeFormat = () => {
+  try {
+    return localStorage.getItem('rrmetrics_time_format') === '24h' ? '24h' : '12h';
+  } catch {
+    return '12h';
+  }
+};
+
 const formatDateEST = (dateString) => {
-  return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: getDisplayTimeZone() });
+  const date = new Date(dateString);
+  if (!Number.isFinite(date.getTime())) return '—';
+  const timeZone = getDisplayTimeZone();
+  const format = getDateFormat();
+  if (format === 'auto') {
+    return date.toLocaleDateString(undefined, {
+      month: 'short', day: 'numeric', year: 'numeric', timeZone,
+    });
+  }
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+  if (format === 'dmy-dot') return `${values.day}.${values.month}.${values.year}`;
+  if (format === 'dmy-slash') return `${values.day}/${values.month}/${values.year}`;
+  if (format === 'mdy-slash') return `${values.month}/${values.day}/${values.year}`;
+  if (format === 'ymd-dash') return `${values.year}-${values.month}-${values.day}`;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone });
 };
 
 // Legacy name retained for existing imports; trade times use the selected user time zone.
 const formatTimeEST = (dateString) => {
-  let timeFormat = '12h';
-  try {
-    if (typeof localStorage !== 'undefined' && localStorage.getItem('rrmetrics_time_format') === '24h') timeFormat = '24h';
-  } catch {}
-  return new Date(dateString).toLocaleTimeString('en-US', {
-    hour: '2-digit', minute: '2-digit', timeZone: getDisplayTimeZone(), hour12: timeFormat !== '24h',
+  const date = new Date(dateString);
+  if (!Number.isFinite(date.getTime())) return '—';
+  return date.toLocaleTimeString(undefined, {
+    hour: '2-digit', minute: '2-digit', timeZone: getDisplayTimeZone(),
+    hour12: getTimeFormat() !== '24h',
   });
 };
 
