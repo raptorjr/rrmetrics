@@ -178,7 +178,7 @@ export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection
   const warnings: string[] = [];
   const bars: OhlcvBar[] = [];
   const symbols: string[] = [];
-  const timestamps = new Set<number>();
+  const timestamps = new Set<string>();
   let invalidRowCount = 0;
   let timestampUnit: CsvInspection['timestampUnit'] = null;
   let timezone: string | null = null;
