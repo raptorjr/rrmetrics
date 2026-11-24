@@ -1,3 +1,11 @@
+## 2026-11-24
+
+### Responsive dashboard tile placement
+
+- Fixed responsive dashboard rendering so tiles are reflowed into collision-free positions at four- and two-column widths instead of independently rounding saved eight-column positions and allowing overlaps.
+- Responsive positions are calculated for presentation only. The saved eight-column dashboard layout is not rewritten when the container width changes.
+- Verified the Trading and Demo layouts from the supplied browser backup have no overlaps at 8, 4, or 2 columns using the responsive placement algorithm.
+
 # Fork changes
 
 ## 2026-11-24
