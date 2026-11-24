@@ -368,7 +368,7 @@ marketData.get('/api/market-data/query', requiresLogin, async (c) => {
 
   const baseQuery = `SELECT d.id, d.file_id, d.instrument, d.source_symbol, d.timeframe,
       d.row_count, d.start_time, d.end_time, d.normalized_storage_key,
-      f.original_filename, f.provider_id
+      f.original_filename, f.provider_id, f.imported_at
     FROM market_data_file_datasets d
     JOIN market_data_files f ON f.id = d.file_id AND f.user_id = d.user_id
     WHERE d.user_id = ? AND f.import_status = 'ready'`;
@@ -379,7 +379,7 @@ marketData.get('/api/market-data/query', requiresLogin, async (c) => {
        AND d.instrument = ? AND d.timeframe = ?
        AND d.start_time <= ? AND d.end_time >= ?
        AND (? IS NULL OR d.source_symbol = ?)
-       ORDER BY d.start_time`,
+       ORDER BY f.imported_at DESC, d.start_time`,
     ).all(
       user.id, instrument, timeframe,
       new Date(endTime).toISOString(), new Date(startTime).toISOString(),
@@ -407,27 +407,12 @@ marketData.get('/api/market-data/query', requiresLogin, async (c) => {
     }, 409);
   }
 
-  if (!datasetId && datasets.length > 1) {
-    const ordered = [...datasets].sort((a, b) => a.start_time.localeCompare(b.start_time));
-    for (let index = 1; index < ordered.length; index += 1) {
-      if (ordered[index].start_time <= ordered[index - 1].end_time) {
-        return c.json({
-          error: 'Overlapping source datasets are available. Select a datasetId to avoid silently resolving conflicting candles.',
-          code: 'SOURCE_OVERLAP_REQUIRES_SELECTION',
-          datasets: ordered.map(dataset => ({
-            id: dataset.id,
-            fileId: dataset.file_id,
-            filename: dataset.original_filename,
-            sourceSymbol: dataset.source_symbol,
-            startTime: dataset.start_time,
-            endTime: dataset.end_time,
-          })),
-        }, 409);
-      }
-    }
-  }
 
-  const bars = [];
+
+  // When source files overlap for the same contract/timeframe, prefer the most recently imported row at each timestamp.
+  // This keeps replay automatic while making conflict resolution deterministic and traceable via the sources list.
+  const barsByTimestamp = new Map<number, any>();
+  datasets.sort((a, b) => new Date(b.imported_at || 0).getTime() - new Date(a.imported_at || 0).getTime());
   const startIso = new Date(startTime).toISOString();
   const endIso = new Date(endTime).toISOString();
   try {
@@ -440,14 +425,17 @@ marketData.get('/api/market-data/query', requiresLogin, async (c) => {
       }
       const normalizedPath = path.join(MARKET_DATA_NORMALIZED_DIR, name);
       const rows = await readOhlcvParquetRange(normalizedPath, startTime, endTime);
-      bars.push(...rows);
+      for (const row of rows) {
+        const timestamp = Number(row.timestamp);
+        if (Number.isFinite(timestamp) && !barsByTimestamp.has(timestamp)) barsByTimestamp.set(timestamp, row);
+      }
     }
   } catch (error) {
     console.error('market data range query failed:', error);
     return c.json({ error: 'Unable to read one or more normalized market-data datasets.' }, 500);
   }
 
-  bars.sort((a, b) => a.timestamp - b.timestamp);
+  const bars = [...barsByTimestamp.values()].sort((a, b) => a.timestamp - b.timestamp);
   if (bars.length > 200_000) {
     return c.json({ error: 'The selected range is too large. Narrow the date range and try again.' }, 413);
   }
