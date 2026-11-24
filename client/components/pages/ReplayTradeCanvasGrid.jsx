@@ -1,0 +1,145 @@
+const React = require('react');
+const { useEffect, useMemo, useRef, useState } = React;
+const { ChartWidgetGrid } = require('@tradecanvas/chart/widget');
+const { timeframeSeconds } = require('../../utils/historicalReplay');
+
+const toBars = candles => candles.map(bar => ({
+  time: bar.time * 1000,
+  open: bar.open,
+  high: bar.high,
+  low: bar.low,
+  close: bar.close,
+  volume: Number(bar.volume || 0),
+}));
+
+const ReplayTradeCanvasGrid = ({
+  ticker,
+  timeframe,
+  baseCandles,
+  replayTime,
+  baseTimeframe,
+  position,
+  pendingOrder,
+  replayLayout,
+  onActiveChartChange,
+}) => {
+  const hostRef = useRef(null);
+  const gridRef = useRef(null);
+  const barsRef = useRef([]);
+  const [activeChart, setActiveChart] = useState(0);
+
+  const visibleBars = useMemo(() => {
+    if (!baseTimeframe || !replayTime) return [];
+    const interval = timeframeSeconds(baseTimeframe);
+    return toBars(baseCandles.filter(bar => bar.time + interval <= replayTime));
+  }, [baseCandles, baseTimeframe, replayTime]);
+
+  const layout = replayLayout === 'split3' ? '1x3' : replayLayout === 'split2' ? '1x2' : '1x1';
+
+  useEffect(() => {
+    if (!hostRef.current) return undefined;
+    const defaultTimeframes = [timeframe, '5m', '15m'];
+    const cells = defaultTimeframes.map((tf, index) => ({
+      symbol: ticker,
+      timeframe: tf,
+      theme: 'dark',
+      ui: 'modern',
+      features: { trading: false, replay: false, watchlist: false, depth: false },
+      resampleTimeframes: true,
+      layouts: false,
+    }));
+    const grid = new ChartWidgetGrid(hostRef.current, {
+      layout,
+      layoutChoices: ['1x1', '1x2', '1x3'],
+      cells,
+      bar: false,
+      sharedToolbar: true,
+      sharedDrawingTools: true,
+      sync: { symbol: false, interval: false, crosshair: true, time: false, drawings: false, replay: false },
+      onActiveChange: index => {
+        setActiveChart(index);
+        if (onActiveChartChange) onActiveChartChange(index);
+      },
+      onChartAdd: widget => {
+        if (barsRef.current.length) widget.setData(barsRef.current);
+      },
+    });
+    gridRef.current = grid;
+    grid.getWidgets().forEach(widget => {
+      if (barsRef.current.length) widget.setData(barsRef.current);
+    });
+    return () => {
+      grid.destroy();
+      gridRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    if (grid.getLayout() !== layout) grid.setLayout(layout);
+  }, [layout]);
+
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const previous = barsRef.current;
+    const isAppend = previous.length > 0
+      && visibleBars.length >= previous.length
+      && previous.every((bar, index) => visibleBars[index]?.time === bar.time);
+    if (!previous.length || !isAppend) {
+      grid.getWidgets().forEach(widget => widget.setData(visibleBars));
+    } else if (visibleBars.length > previous.length) {
+      const additions = visibleBars.slice(previous.length);
+      grid.getWidgets().forEach(widget => {
+        additions.forEach(bar => widget.getChart().appendBar(bar));
+      });
+    }
+    barsRef.current = visibleBars;
+  }, [visibleBars]);
+
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    grid.getWidgets().forEach(widget => {
+      if (widget.getSymbol() !== ticker) void widget.setSymbol(ticker);
+      if (widget.getTimeframe() === '1m' && timeframe !== '1m') void widget.setTimeframe(timeframe);
+    });
+  }, [ticker, timeframe]);
+
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    grid.getWidgets().forEach((widget, index) => {
+      const chart = widget.getChart();
+      const oldIds = widget.__rrReplayDrawingIds || [];
+      if (oldIds.length) chart.removeDrawings(oldIds);
+      const ids = [];
+      const anchorTime = visibleBars.length ? visibleBars[visibleBars.length - 1].time : Date.now();
+      const addLevel = (price, label, color, time = anchorTime) => {
+        if (price == null || !Number.isFinite(Number(price))) return;
+        ids.push(chart.addDrawing({
+          type: 'horizontalLine',
+          anchors: [{ time, price: Number(price) }],
+          style: { color, lineWidth: 1, lineStyle: 'dashed', text: label, textColor: color },
+          locked: true,
+          name: 'Replay · ' + label,
+        }));
+      };
+      if (pendingOrder) addLevel(pendingOrder.triggerPrice, 'PENDING ENTRY', '#f59e0b');
+      if (position) {
+        addLevel(position.entryPrice, position.direction.toUpperCase() + ' ENTRY', '#60a5fa', (position.entryTime || 0) * 1000);
+        addLevel(position.stopPrice, 'STOP', '#ef4444');
+        addLevel(position.targetPrice, 'TARGET', '#22c55e');
+      }
+      widget.__rrReplayDrawingIds = ids;
+    });
+  }, [position, pendingOrder, visibleBars]);
+
+  return (
+    <div className="w-full h-[430px] min-w-0" ref={hostRef} data-active-chart={activeChart} />
+  );
+};
+
+module.exports = ReplayTradeCanvasGrid;
+module.exports.default = ReplayTradeCanvasGrid;
