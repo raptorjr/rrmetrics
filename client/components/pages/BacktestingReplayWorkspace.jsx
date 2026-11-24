@@ -562,7 +562,7 @@ const BacktestingReplayWorkspace = () => {
               Upload OHLCV CSV
               <input type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsvUpload} />
             </label>
-          </div>>
+          </div>
         </div>
         {historicalPanelOpen && (
           <div className="rounded-lg border border-border bg-bg-page/50 p-3 space-y-3">

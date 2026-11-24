@@ -200,7 +200,6 @@ export function parseOhlcvCsv(buffer: Buffer, filename: string, options: { timez
     const get = (index: number) => index >= 0 ? (row[index] ?? '').trim() : '';
     const parsedTime = parseTimestamp(get(indexes.timestamp), options.timezone);
     const sourceSymbol = get(indexes.instrument).toUpperCase() || null;
-    if (sourceSymbol) symbols.push(sourceSymbol);
     const values = {
       open: Number(get(indexes.open)),
       high: Number(get(indexes.high)),
@@ -220,6 +219,7 @@ export function parseOhlcvCsv(buffer: Buffer, filename: string, options: { timez
       if (errors.length < 10) errors.push(`Row ${rowIndex + 1}: invalid timestamp, OHLC values or volume.`);
       continue;
     }
+    if (sourceSymbol) symbols.push(sourceSymbol);
     const timestampKey = `${sourceSymbol ?? ''}\u0000${parsedTime.timestamp}`;
     if (timestamps.has(timestampKey)) {
       invalidRowCount += 1;

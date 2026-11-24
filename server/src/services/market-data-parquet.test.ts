@@ -130,3 +130,36 @@ test('queries a bounded time range from normalized Parquet data', async () => {
     await fs.rm(directory, { recursive: true, force: true });
   }
 });
+
+
+test('interprets unannotated numeric epoch-second timestamps as UTC milliseconds', async () => {
+  const buffer = makeParquet([
+    { name: 'ts', type: 'INT64', data: [1794234600, 1794234660, 1794234720] },
+    { name: 'open', type: 'DOUBLE', data: [25000, 25001, 25002] },
+    { name: 'high', type: 'DOUBLE', data: [25002, 25003, 25004] },
+    { name: 'low', type: 'DOUBLE', data: [24999, 25000, 25001] },
+    { name: 'close', type: 'DOUBLE', data: [25001, 25002, 25003] },
+  ]);
+  const result = await inspectOhlcvParquet(buffer, 'NQ_epoch_seconds.parquet');
+  assert.equal(result.startTime, '2026-11-09T14:30:00.000Z');
+  assert.equal(result.detectedTimeframe, '1m');
+});
+
+test('does not detect source symbols from invalid Parquet rows', async () => {
+  const buffer = makeParquet([
+    { name: 'ts', type: 'TIMESTAMP', data: [
+      new Date('2026-11-09T14:30:00Z'),
+      new Date('2026-11-09T14:31:00Z'),
+    ] },
+    { name: 'symbol', type: 'STRING', data: ['NQZ6', 'ESZ6'] },
+    { name: 'open', type: 'DOUBLE', data: [25000, 6000] },
+    { name: 'high', type: 'DOUBLE', data: [25002, 5998] },
+    { name: 'low', type: 'DOUBLE', data: [24999, 5999] },
+    { name: 'close', type: 'DOUBLE', data: [25001, 6001] },
+  ]);
+  const result = await inspectOhlcvParquet(buffer, 'multi.parquet');
+  assert.equal(result.validRowCount, 1);
+  assert.equal(result.invalidRowCount, 1);
+  assert.deepEqual(result.detectedSymbols, ['NQZ6']);
+  assert.equal(result.detectedInstrument, 'NQ');
+});

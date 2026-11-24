@@ -153,6 +153,7 @@ function timestampToMilliseconds(value: unknown, unit: string): number | null {
     const absolute = value < 0n ? -value : value;
     if (absolute >= 100_000_000_000_000_000n) return Number(value / 1_000_000n);
     if (absolute >= 100_000_000_000_000n) return Number(value / 1_000n);
+    if (absolute >= 100_000_000n) return Number(value * 1_000n);
     return Number(value);
   }
   if (typeof value === 'number') {
@@ -162,6 +163,7 @@ function timestampToMilliseconds(value: unknown, unit: string): number | null {
     if (unit === 'MILLIS') return Math.trunc(value);
     if (Math.abs(value) >= 1e17) return Math.trunc(value / 1e6);
     if (Math.abs(value) >= 1e14) return Math.trunc(value / 1e3);
+    if (Math.abs(value) >= 1e8) return Math.trunc(value * 1e3);
     return Math.trunc(value);
   }
   if (typeof value === 'string') {
@@ -292,8 +294,6 @@ export async function inspectOhlcvParquet(
       const sourceSymbol = sourceSymbolValue === null || sourceSymbolValue === undefined || sourceSymbolValue === ''
         ? null
         : String(sourceSymbolValue).trim().toUpperCase();
-      if (sourceSymbol) symbols.add(sourceSymbol);
-
       const bar = {
         timestamp: timestamp ?? Number.NaN,
         open: numericValue(row[layout.mapping.open]) ?? Number.NaN,
@@ -326,6 +326,7 @@ export async function inspectOhlcvParquet(
         continue;
       }
 
+      if (sourceSymbol) symbols.add(sourceSymbol);
       lastTimestampBySymbol.set(sourceSymbol ?? '', timestamp!);
       validRowCount += 1;
       startTime = Math.min(startTime, timestamp!);

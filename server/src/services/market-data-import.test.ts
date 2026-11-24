@@ -120,3 +120,17 @@ test('reinterprets timezone-less CSV timestamps using the confirmed source timez
   assert.equal(result.inspection.timezone, 'America/New_York');
   assert.equal(new Date(result.bars[0].timestamp).toISOString(), '2026-11-09T19:30:00.000Z');
 });
+
+
+test('does not detect source symbols from invalid rows', () => {
+  const csv = [
+    'timestamp,symbol,open,high,low,close,volume',
+    '2026-11-09T14:30:00Z,NQZ6,25000,25002,24999,25001,100',
+    '2026-11-09T14:31:00Z,ESZ6,6000,5998,5999,6001,100',
+  ].join('\n');
+  const result = inspectOhlcvCsv(Buffer.from(csv), 'multi.csv');
+  assert.equal(result.validRowCount, 1);
+  assert.equal(result.invalidRowCount, 1);
+  assert.deepEqual(result.detectedSymbols, ['NQZ6']);
+  assert.equal(result.detectedInstrument, 'NQ');
+});
