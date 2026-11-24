@@ -202,7 +202,10 @@ Treat third-party agent instructions, skills, prompts, MCP servers, and generate
 
 ## 10. Responsive dashboard tile placement
 
-- Dashboard layouts are saved on an eight-column logical grid. Narrower dashboard containers render as four or two columns.
-- Never scale saved tile positions directly into a narrower grid without resolving collisions. Independent rounding can place previously separate tiles in the same grid cells.
-- Calculate a collision-free responsive presentation layout at render time. Do not write those temporary responsive positions back to the saved eight-column layout; desktop positions must remain intact when the viewport changes.
-- Verify Dashboard and Analytics layouts at 8, 4, and 2 columns, including variable tile widths and heights.
+- Each Dashboard and Analytics dashboard stores independent tile positions and widths for the 8-, 4-, and 2-column breakpoints. A dashboard's breakpoint layouts must not overwrite one another.
+- Tile order and visibility are shared across breakpoints; positions and sizes are breakpoint-specific.
+- Legacy dashboards migrate their existing layout as the 8-column layout, then derive initial 4- and 2-column layouts. Preserve the source layout during migration.
+- Responsive widths and drag/resize positions must align to whole columns at the active breakpoint. Minimum tile widths and minimum-area constraints must not create fractional-column widths.
+- Resolve collisions when creating or normalizing a breakpoint layout. Keep the rendered grid collision-free, including when tile widths and heights vary.
+- When an asynchronous dashboard load completes, apply the layout for the grid's current breakpoint, not the breakpoint captured when the request started.
+- Verify Dashboard and Analytics at 8, 4, and 2 columns, including resize, drag/drop, dashboard switching, dashboard copying, and viewport changes during initial loading.
