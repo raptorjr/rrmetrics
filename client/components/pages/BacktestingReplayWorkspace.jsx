@@ -3,7 +3,6 @@ const { useCallback, useEffect, useMemo, useRef, useState } = React;
 const { authFetch } = require('../../helper.js');
 import { createChart, CandlestickSeries, ColorType, LineStyle } from 'lightweight-charts';
 const {
-  createDemoCandles,
   getInstrumentSpec,
   normalizeOhlcvRows,
   evaluateEntryOrder,
@@ -80,11 +79,11 @@ const formatInterval = seconds => seconds < 60
     ? (seconds / 60) + ' minute' + (seconds === 60 ? '' : 's')
     : (seconds / 3600) + ' hour' + (seconds === 3600 ? '' : 's');
 
-const ReplayContextChart = ({ candles, replayTime, ticker, timeframe, height = 280 }) => {
+const ReplayContextChart = ({ candles, replayTime, ticker, timeframe, baseTimeframe, height = 280 }) => {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
-  const visibleCandles = useMemo(() => aggregateCandles(candles.filter(candle => candle.time <= replayTime), timeframe), [candles, replayTime, timeframe]);
+  const visibleCandles = useMemo(() => aggregateCandles(candles.filter(candle => candle.time + timeframeSeconds(baseTimeframe) <= replayTime), timeframe), [candles, replayTime, timeframe]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -156,13 +155,11 @@ const BacktestingReplayWorkspace = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [importError, setImportError] = useState('');
-  const [dataSource, setDataSource] = useState('demo');
+  const [dataSource, setDataSource] = useState('historical');
   const [historicalDatasets, setHistoricalDatasets] = useState([]);
   const [selectedMarketKey, setSelectedMarketKey] = useState('');
   const [historicalLoading, setHistoricalLoading] = useState(false);
-  const [historicalSourceSymbol, setHistoricalSourceSymbol] = useState('');
   const [historicalTimeframe, setHistoricalTimeframe] = useState('1m');
-  const [historicalDatasetId, setHistoricalDatasetId] = useState('');
   const [historicalStart, setHistoricalStart] = useState('');
   const [historicalEnd, setHistoricalEnd] = useState('');
   const chartContainerRef = useRef(null);
@@ -181,7 +178,6 @@ const BacktestingReplayWorkspace = () => {
   const tickerDatasets = selectedMarket?.datasets || [];
   const historicalTimeframes = selectedMarket?.availableTimeframes || [];
   const baseTimeframe = selectedMarket?.baseTimeframe || '';
-  const filteredHistoricalDatasets = tickerDatasets.filter(dataset => dataset.timeframe === baseTimeframe);
 
   useEffect(() => {
     let cancelled = false;
@@ -210,8 +206,6 @@ const BacktestingReplayWorkspace = () => {
   useEffect(() => {
     if (!selectedMarket) return;
     setTicker(selectedMarket.instrument);
-    setHistoricalSourceSymbol(selectedMarket.sourceSymbol);
-    setHistoricalDatasetId('');
     const first = selectedMarket.coverage[0];
     const last = selectedMarket.coverage[selectedMarket.coverage.length - 1];
     if (first && last) {
@@ -262,7 +256,7 @@ const BacktestingReplayWorkspace = () => {
   }, [selectedMarketKey, baseTimeframe, historicalTimeframe, historicalStart, historicalEnd, historicalDatasets.length]);
   const spec = getInstrumentSpec(ticker);
   const currentCandle = candles[currentIndex] || candles[0];
-  const replayTime = currentCandle?.time ?? 0;
+  const replayTime = currentCandle ? currentCandle.time + timeframeSeconds(historicalTimeframe) : 0;
   const contextChartCandles = contextTimeframes.map(timeframe => ({ timeframe, candles: marketBaseCandles }));
   const contextOptions = historicalTimeframes.filter(timeframe => timeframe !== historicalTimeframe);
 
@@ -493,6 +487,7 @@ const BacktestingReplayWorkspace = () => {
   };
 
   const openPosition = (direction) => {
+    if (!candles.length) { setError('Select an available historical market and period before placing a trade.'); return; }
     if (positionRef.current || pendingOrderRef.current || !currentCandle) return;
     const parsedQuantity = Number(quantity);
     if (!Number.isInteger(parsedQuantity) || parsedQuantity < 1 || parsedQuantity > 100) { setError('Quantity must be a whole number between 1 and 100.'); return; }
@@ -634,7 +629,7 @@ const BacktestingReplayWorkspace = () => {
                     {contextOptions.map(value => <option key={value} value={value}>{value}</option>)}
                   </select>
                 </div>
-                <ReplayContextChart candles={item.candles} replayTime={replayTime} ticker={ticker} timeframe={item.timeframe} height={430} />
+                <ReplayContextChart candles={item.candles} replayTime={replayTime} ticker={ticker} timeframe={item.timeframe} baseTimeframe={baseTimeframe} height={430} />
               </div>
             ))}
           </div>
@@ -692,7 +687,7 @@ const BacktestingReplayWorkspace = () => {
             <div className="grid grid-cols-2 gap-2"><div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Order type</label><select value={orderType} disabled={!!position || !!pendingOrder} onChange={event => setOrderType(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-2 py-2 text-sm text-text-primary"><option value="market">Market</option><option value="limit">Limit</option><option value="stop_market">Stop Market</option></select></div>{orderType !== 'market' && <div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Entry price</label><input type="number" step={spec.tickSize} value={orderPrice} onChange={event => setOrderPrice(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-2 py-2 text-sm text-text-primary" placeholder="Price" /></div>}</div>
             <div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Stop-loss price (optional)</label><input type="number" step={spec.tickSize} value={stopInput} disabled={!!position || !!pendingOrder} onChange={event => setStopInput(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary disabled:opacity-50" placeholder="Price" /></div>
             <div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Take-profit price (optional)</label><input type="number" step={spec.tickSize} value={targetInput} disabled={!!position || !!pendingOrder} onChange={event => setTargetInput(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary disabled:opacity-50" placeholder="Price" /></div>
-            {!position && !pendingOrder ? <div className="grid grid-cols-2 gap-2"><button type="button" onClick={() => openPosition('long')} className="py-2.5 rounded-lg bg-positive text-white text-sm font-semibold">BUY {quantity} @ {orderType === 'stop_market' ? 'STOP' : orderType.toUpperCase()}</button><button type="button" onClick={() => openPosition('short')} className="py-2.5 rounded-lg bg-negative text-white text-sm font-semibold">SELL {quantity} @ {orderType === 'stop_market' ? 'STOP' : orderType.toUpperCase()}</button></div> : pendingOrder ? <div className="rounded-lg bg-bg-input p-3 text-xs space-y-2"><div className="flex justify-between"><span className="text-text-muted">Pending {pendingOrder.type.replace('_', ' ')}</span><strong>{pendingOrder.direction.toUpperCase()} × {pendingOrder.quantity}</strong></div><div className="flex justify-between"><span className="text-text-muted">Order price</span><span className="font-mono">{formatPrice(pendingOrder.triggerPrice, spec.decimals)}</span></div><button type="button" onClick={() => { setPendingOrder(null); pendingOrderRef.current = null; setMessage('Pending order cancelled.'); }} className="w-full py-2 rounded-lg border border-border text-sm text-text-secondary">Cancel pending order</button></div> : <div className="space-y-2"><div className="rounded-lg bg-bg-input p-3 text-xs space-y-1"><div className="flex justify-between"><span className="text-text-muted">Open position</span><strong className={position.direction === 'long' ? 'text-positive' : 'text-negative'}>{position.direction.toUpperCase()} × {position.quantity}</strong></div><div className="flex justify-between"><span className="text-text-muted">Entry</span><span className="font-mono">{formatPrice(position.entryPrice, spec.decimals)}</span></div><div className="flex justify-between"><span className="text-text-muted">Unrealized P/L</span><strong className={unrealizedPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(unrealizedPnl)}</strong></div></div><button type="button" onClick={updatePositionLevels} className="w-full py-2 rounded-lg border border-border text-sm text-text-secondary hover:text-text-primary">Update SL / TP levels</button><button type="button" onClick={() => closePosition(position, currentPrice, currentCandle.time, 'Manual close')} className="w-full py-2.5 rounded-lg bg-accent text-accent-text text-sm font-semibold">Close position</button></div>}
+            {!position && !pendingOrder ? <div className="grid grid-cols-2 gap-2"><button type="button" onClick={() => openPosition('long')} className="py-2.5 rounded-lg bg-positive text-white text-sm font-semibold disabled:opacity-40" disabled={!candles.length}>BUY {quantity} @ {orderType === 'stop_market' ? 'STOP' : orderType.toUpperCase()}</button><button type="button" onClick={() => openPosition('short')} className="py-2.5 rounded-lg bg-negative text-white text-sm font-semibold disabled:opacity-40" disabled={!candles.length}>SELL {quantity} @ {orderType === 'stop_market' ? 'STOP' : orderType.toUpperCase()}</button></div> : pendingOrder ? <div className="rounded-lg bg-bg-input p-3 text-xs space-y-2"><div className="flex justify-between"><span className="text-text-muted">Pending {pendingOrder.type.replace('_', ' ')}</span><strong>{pendingOrder.direction.toUpperCase()} × {pendingOrder.quantity}</strong></div><div className="flex justify-between"><span className="text-text-muted">Order price</span><span className="font-mono">{formatPrice(pendingOrder.triggerPrice, spec.decimals)}</span></div><button type="button" onClick={() => { setPendingOrder(null); pendingOrderRef.current = null; setMessage('Pending order cancelled.'); }} className="w-full py-2 rounded-lg border border-border text-sm text-text-secondary">Cancel pending order</button></div> : <div className="space-y-2"><div className="rounded-lg bg-bg-input p-3 text-xs space-y-1"><div className="flex justify-between"><span className="text-text-muted">Open position</span><strong className={position.direction === 'long' ? 'text-positive' : 'text-negative'}>{position.direction.toUpperCase()} × {position.quantity}</strong></div><div className="flex justify-between"><span className="text-text-muted">Entry</span><span className="font-mono">{formatPrice(position.entryPrice, spec.decimals)}</span></div><div className="flex justify-between"><span className="text-text-muted">Unrealized P/L</span><strong className={unrealizedPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(unrealizedPnl)}</strong></div></div><button type="button" onClick={updatePositionLevels} className="w-full py-2 rounded-lg border border-border text-sm text-text-secondary hover:text-text-primary">Update SL / TP levels</button><button type="button" onClick={() => closePosition(position, currentPrice, currentCandle.time, 'Manual close')} className="w-full py-2.5 rounded-lg bg-accent text-accent-text text-sm font-semibold">Close position</button></div>}
             {error && <p className="text-xs text-negative">{error}</p>}{message && <p className="text-xs text-text-muted">{message}</p>}
           </div>
 
