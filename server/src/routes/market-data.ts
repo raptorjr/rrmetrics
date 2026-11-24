@@ -147,4 +147,66 @@ marketData.post('/api/market-data/files/inspect', requiresLogin, async (c) => {
   }, 201);
 });
 
+marketData.get('/api/market-data/providers/:providerId/files', requiresLogin, async (c) => {
+  const user = c.get('user');
+  const db = c.get('db');
+  const providerId = c.req.param('providerId');
+  const provider = db.prepare(
+    'SELECT id FROM market_data_providers WHERE id = ? AND user_id = ?',
+  ).get(providerId, user.id);
+  if (!provider) return c.notFound();
+
+  const files = db.prepare(
+    `SELECT id, original_filename, input_format, file_size_bytes, import_status,
+            detected_metadata_json, confirmed_metadata_json, created_at, imported_at, last_error
+     FROM market_data_files
+     WHERE provider_id = ? AND user_id = ?
+     ORDER BY created_at DESC`,
+  ).all(providerId, user.id);
+  return c.json({
+    files: files.map((row: any) => ({
+      ...row,
+      detectedMetadata: JSON.parse(row.detected_metadata_json || '{}'),
+      confirmedMetadata: JSON.parse(row.confirmed_metadata_json || '{}'),
+      detected_metadata_json: undefined,
+      confirmed_metadata_json: undefined,
+    })),
+  });
+});
+
+// DELETE /api/market-data/files/:fileId — discard an unconfirmed staged upload.
+marketData.delete('/api/market-data/files/:fileId', requiresLogin, async (c) => {
+  const user = c.get('user');
+  const db = c.get('db');
+  const fileId = c.req.param('fileId');
+  const file = db.prepare(
+    `SELECT id, import_status, original_storage_key FROM market_data_files
+     WHERE id = ? AND user_id = ?`,
+  ).get(fileId, user.id) as { id: string; import_status: string; original_storage_key: string } | undefined;
+  if (!file) return c.notFound();
+  if (!['needs_review', 'failed'].includes(file.import_status)) {
+    return c.json({ error: 'Only unconfirmed or failed uploads can be discarded at this stage.' }, 409);
+  }
+
+  const storageKey = file.original_storage_key;
+  if (!storageKey.startsWith('staging/') || path.basename(storageKey) !== storageKey.slice('staging/'.length)) {
+    return c.json({ error: 'Stored file path failed validation.' }, 500);
+  }
+  const stagedPath = path.join(MARKET_DATA_STAGING_DIR, path.basename(storageKey));
+  const tombstonePath = `${stagedPath}.deleting`;
+
+  try {
+    await fs.promises.rename(stagedPath, tombstonePath).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== 'ENOENT') throw error;
+    });
+    db.prepare('DELETE FROM market_data_files WHERE id = ? AND user_id = ?').run(fileId, user.id);
+    await fs.promises.rm(tombstonePath, { force: true });
+    return c.json({ deleted: true, fileId });
+  } catch (error) {
+    await fs.promises.rename(tombstonePath, stagedPath).catch(() => undefined);
+    console.error('market data staged-file deletion failed:', error);
+    return c.json({ error: 'Failed to discard staged upload.' }, 500);
+  }
+});
+
 export default marketData;
