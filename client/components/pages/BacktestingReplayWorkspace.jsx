@@ -80,9 +80,63 @@ const formatInterval = seconds => seconds < 60
     ? (seconds / 60) + ' minute' + (seconds === 60 ? '' : 's')
     : (seconds / 3600) + ' hour' + (seconds === 3600 ? '' : 's');
 
+const ReplayContextChart = ({ candles, replayTime, ticker, timeframe, height = 280 }) => {
+  const containerRef = useRef(null);
+  const chartRef = useRef(null);
+  const seriesRef = useRef(null);
+  const visibleCandles = useMemo(() => candles.filter(candle => candle.time <= replayTime), [candles, replayTime]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return undefined;
+    const border = getCssColor('--border', '#334155');
+    const chart = createChart(container, {
+      width: Math.max(container.clientWidth, 240), height,
+      layout: { background: { type: ColorType.Solid, color: getCssColor('--bg-surface', '#111827') }, textColor: getCssColor('--text-secondary', '#cbd5e1') },
+      attributionLogo: true,
+      grid: { vertLines: { color: border }, horzLines: { color: border } },
+      rightPriceScale: { borderColor: border },
+      timeScale: { borderColor: border, timeVisible: true, secondsVisible: timeframeSeconds(timeframe) < 60, rightOffset: 5, barSpacing: 6 },
+      crosshair: { mode: 0 }, handleScroll: true, handleScale: true,
+    });
+    const series = chart.addSeries(CandlestickSeries, {
+      upColor: getCssColor('--positive', '#22c55e'), downColor: getCssColor('--negative', '#ef4444'),
+      borderVisible: false, wickUpColor: getCssColor('--positive', '#22c55e'), wickDownColor: getCssColor('--negative', '#ef4444'),
+      priceFormat: { type: 'price', precision: getInstrumentSpec(ticker).decimals, minMove: getInstrumentSpec(ticker).tickSize },
+    });
+    chartRef.current = chart; seriesRef.current = series;
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(entries => {
+      const width = entries[0]?.contentRect.width;
+      if (width > 0) chart.applyOptions({ width: Math.floor(width) });
+    }) : null;
+    if (observer) observer.observe(container);
+    return () => { if (observer) observer.disconnect(); chart.remove(); chartRef.current = null; seriesRef.current = null; };
+  }, []);
+
+  useEffect(() => {
+    if (!seriesRef.current) return;
+    seriesRef.current.setData(visibleCandles);
+    if (chartRef.current) chartRef.current.timeScale().scrollToRealTime();
+  }, [visibleCandles]);
+
+  useEffect(() => {
+    if (!seriesRef.current) return;
+    const spec = getInstrumentSpec(ticker);
+    seriesRef.current.applyOptions({ priceFormat: { type: 'price', precision: spec.decimals, minMove: spec.tickSize } });
+  }, [ticker]);
+
+  return (
+    <div className='min-w-0 rounded-lg border border-border overflow-hidden'>
+      <div className='px-3 py-2 border-b border-border text-xs font-semibold text-text-secondary'>{ticker} · {timeframe} <span className='font-normal text-text-muted'>· context</span></div>
+      <div ref={containerRef} style={{ height }} className='w-full' />
+    </div>
+  );
+};
+
 const BacktestingReplayWorkspace = () => {
   const [ticker, setTicker] = useState('NQ');
   const [candles, setCandles] = useState([]);
+  const [marketBaseCandles, setMarketBaseCandles] = useState([]);
   const [isDemoData, setIsDemoData] = useState(false);
   const [dataLabel, setDataLabel] = useState('No historical data selected');
   const [currentIndex, setCurrentIndex] = useState(80);
@@ -184,6 +238,7 @@ const BacktestingReplayWorkspace = () => {
         if (!response.ok) throw new Error(data.error || 'Unable to prepare the selected historical market data.');
         if (cancelled) return;
         const baseCandles = normalizeOhlcvRows(data.bars || []);
+        setMarketBaseCandles(baseCandles);
         const normalized = historicalTimeframe === baseTimeframe ? baseCandles : aggregateCandles(baseCandles, historicalTimeframe);
         if (normalized.length < 2) throw new Error('There are not enough historical bars in this period to start replay.');
         setCandles(normalized);
@@ -207,6 +262,9 @@ const BacktestingReplayWorkspace = () => {
   }, [selectedMarketKey, baseTimeframe, historicalTimeframe, historicalStart, historicalEnd, historicalDatasets.length]);
   const spec = getInstrumentSpec(ticker);
   const currentCandle = candles[currentIndex] || candles[0];
+  const replayTime = currentCandle?.time ?? 0;
+  const contextChartCandles = useMemo(() => contextTimeframes.map(timeframe => ({ timeframe, candles: aggregateCandles(marketBaseCandles, timeframe) })), [marketBaseCandles, contextTimeframes]);
+  const contextOptions = historicalTimeframes.filter(timeframe => timeframe !== historicalTimeframe);
   const currentPrice = currentCandle ? currentCandle.close : 0;
   const intervalSeconds = useMemo(() => getIntervalSeconds(candles), [candles]);
   const intervalLabel = historicalTimeframe || formatInterval(intervalSeconds);
