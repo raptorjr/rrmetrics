@@ -65,6 +65,8 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const [activeDashboardId, setActiveDashboardId] = useState(() => { try { return localStorage.getItem(storageKey + '_active_dashboard'); } catch { return null; } });
   const [layout, setLayout] = useState(() => { const ds = readDashboardCollection(storageKey, defaultOrder, defaultVisible, items); const active = ds.find(d => d.id === (localStorage.getItem(storageKey + '_active_dashboard'))) || ds[0]; return active.layouts[8]; });
   const layoutBreakpointRef = useRef(8);
+  const columnsRef = useRef(columns);
+  columnsRef.current = columns;
   const [editing, setEditing] = useState(false);
   const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
   const [actionMenuId, setActionMenuId] = useState(null);
@@ -194,8 +196,11 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
         const active = normalized.find(d => d.id === collection.activeDashboardId) || normalized[0];
         setDashboards(normalized);
         setActiveDashboardId(active.id);
-        layoutBreakpointRef.current = columns;
-        setLayout(active.layouts[columns] || createBreakpointLayout(active.layouts[8], columns, items, defaultOrder, defaultVisible));
+        // The server request may finish after the grid has crossed a breakpoint.
+        // Read the current width here rather than using the effect's stale closure.
+        const activeColumns = columnsRef.current;
+        layoutBreakpointRef.current = activeColumns;
+        setLayout(active.layouts[activeColumns] || createBreakpointLayout(active.layouts[8], activeColumns, items, defaultOrder, defaultVisible));
         try {
           localStorage.setItem(storageKey + '_dashboards', JSON.stringify({ version: 1, items: normalized }));
           localStorage.setItem(storageKey + '_active_dashboard', active.id);
