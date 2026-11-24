@@ -460,6 +460,25 @@ marketData.get('/api/market-data/ticks/query', requiresLogin, async (c) => {
     }
   }
 
+  const maxTickEvents = 100_000;
+  const estimatedTickEvents = datasets.reduce((total: number, dataset: any) => {
+    const datasetStart = Date.parse(dataset.start_time);
+    const datasetEnd = Date.parse(dataset.end_time);
+    const coverage = Math.max(1, datasetEnd - datasetStart);
+    const overlapStart = Math.max(startTime, datasetStart);
+    const overlapEnd = Math.min(endTime, datasetEnd);
+    if (overlapEnd < overlapStart) return total;
+    const fraction = Math.min(1, Math.max(0, (overlapEnd - overlapStart) / coverage));
+    return total + Math.ceil(Number(dataset.row_count) * fraction);
+  }, 0);
+  if (estimatedTickEvents > maxTickEvents) {
+    return c.json({
+      error: 'The selected range is estimated to contain more than 100,000 tick events. Narrow the date range and try again.',
+      estimatedTickEvents,
+      maxTickEvents,
+    }, 413);
+  }
+
   const ticks = [];
   try {
     for (const dataset of datasets) {
@@ -484,8 +503,12 @@ marketData.get('/api/market-data/ticks/query', requiresLogin, async (c) => {
     if (left > right) return 1;
     return a.sequence - b.sequence;
   });
-  if (ticks.length > 2_000_000) {
-    return c.json({ error: 'The selected range contains too many tick events. Narrow the date range and try again.' }, 413);
+  if (ticks.length > maxTickEvents) {
+    return c.json({
+      error: 'The selected range contains more than 100,000 tick events. Narrow the date range and try again.',
+      totalTicks: ticks.length,
+      maxTickEvents,
+    }, 413);
   }
 
   return c.json({
