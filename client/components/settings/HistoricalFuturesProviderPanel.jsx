@@ -87,7 +87,7 @@ const HistoricalFuturesProviderPanel = () => {
     selectedFile &&
     ['needs_review', 'failed'].includes(selectedFile.import_status) &&
     form.instrument.trim() &&
-    /^\d+(s|m|h|d)$/.test(form.timeframe.trim()) &&
+    (inspection?.dataKind === 'ticks' ? form.timeframe === 'tick' : /^\d+(s|m|h|d)$/.test(form.timeframe.trim())) &&
     (!timezoneRequired || form.timezone) &&
     (!invalidRows || form.skipInvalidRows) &&
     (!needsSymbolChoice || form.sourceSymbol),
@@ -179,7 +179,7 @@ const HistoricalFuturesProviderPanel = () => {
           instrument: next ? (updated.detectedMetadata?.detectedInstrument || instrumentFromSymbol(next) || previous.instrument) : previous.instrument,
         }));
       }
-      setNotice(`Imported ${formatNumber(data.dataset.rowCount)} bars for ${data.dataset.instrument}${data.dataset.sourceSymbol ? ` (${data.dataset.sourceSymbol})` : ''}.${data.remainingSymbols?.length ? ` ${data.remainingSymbols.length} source symbol(s) remain to be imported.` : ''}`);
+      setNotice(`Imported ${formatNumber(data.dataset.rowCount)} ${data.dataset.dataKind === 'ticks' ? 'tick events' : 'bars'} for ${data.dataset.instrument}${data.dataset.sourceSymbol ? ` (${data.dataset.sourceSymbol})` : ''}.${data.remainingSymbols?.length ? ` ${data.remainingSymbols.length} source symbol(s) remain to be imported.` : ''}`);
     } catch (err) {
       setError(err.message || 'Import failed.');
     } finally {
@@ -285,7 +285,7 @@ const HistoricalFuturesProviderPanel = () => {
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {file.datasets.map(dataset => (
                         <span key={dataset.id} className="rounded-md border border-border bg-bg-page px-2 py-1 text-[10px] text-text-secondary">
-                          {dataset.instrument}{dataset.source_symbol ? ` · ${dataset.source_symbol}` : ''} · {dataset.timeframe} · {formatNumber(dataset.row_count)} bars
+                          {dataset.instrument}{dataset.source_symbol ? ` · ${dataset.source_symbol}` : ''} · {dataset.timeframe} · {formatNumber(dataset.row_count)} {dataset.data_kind === 'ticks' ? 'events' : 'bars'}
                         </span>
                       ))}
                     </div>
@@ -312,8 +312,9 @@ const HistoricalFuturesProviderPanel = () => {
           <div className="p-4 space-y-4">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                ['Valid rows', formatNumber(inspection.validRowCount)],
-                ['Invalid rows', formatNumber(inspection.invalidRowCount)],
+                [inspection.dataKind === 'ticks' ? 'Valid events' : 'Valid rows', formatNumber(inspection.validRowCount)],
+                [inspection.dataKind === 'ticks' ? 'Invalid events' : 'Invalid rows', formatNumber(inspection.invalidRowCount)],
+                ['Data type', inspection.dataKind === 'ticks' ? 'Tick events' : 'OHLCV bars'],
                 ['Detected timeframe', inspection.detectedTimeframe || 'Unknown'],
                 ['Coverage', inspection.startTime && inspection.endTime ? `${new Date(inspection.startTime).toLocaleDateString()} – ${new Date(inspection.endTime).toLocaleDateString()}` : 'Unknown'],
               ].map(([label, value]) => (
@@ -331,7 +332,7 @@ const HistoricalFuturesProviderPanel = () => {
               </label>
               <label className="space-y-1.5">
                 <span className="text-xs font-medium text-text-secondary">Timeframe</span>
-                <input value={form.timeframe} onChange={event => setForm(previous => ({ ...previous, timeframe: event.target.value }))} placeholder="e.g. 1m" className="w-full rounded-lg border border-border bg-bg-page px-3 py-2 text-sm text-text-primary" />
+                <input value={form.timeframe} disabled={inspection.dataKind === 'ticks'} onChange={event => setForm(previous => ({ ...previous, timeframe: event.target.value }))} placeholder="e.g. 1m" className="w-full rounded-lg border border-border bg-bg-page px-3 py-2 text-sm text-text-primary disabled:opacity-70" />
               </label>
               {needsSymbolChoice && (
                 <label className="space-y-1.5">
@@ -385,7 +386,31 @@ const HistoricalFuturesProviderPanel = () => {
                 </ul>
               </details>
             )}
-            {inspection.sample?.length > 0 && (
+            {inspection.dataKind === 'ticks' && inspection.sample?.length > 0 && (
+              <div className="overflow-x-auto">
+                <div className="mb-2 text-xs font-medium text-text-secondary">Tick preview · first valid events</div>
+                <table className="w-full text-xs">
+                  <thead><tr className="text-text-tertiary border-b border-border">
+                    <th className="py-2 pr-3 text-left">Timestamp</th>
+                    <th className="py-2 px-2 text-right">Price</th>
+                    <th className="py-2 px-2 text-right">Size</th>
+                    <th className="py-2 px-2 text-right">Bid size</th>
+                    <th className="py-2 px-2 text-right">Ask size</th>
+                    <th className="py-2 px-2 text-right">Trades</th>
+                    <th className="py-2 pl-2 text-left">Symbol / exchange</th>
+                  </tr></thead>
+                  <tbody>{inspection.sample.slice(0, 5).map((tick, index) => (
+                    <tr key={index} className="border-b border-border/60 text-text-secondary">
+                      <td className="py-2 pr-3 whitespace-nowrap">{formatDate(new Date(tick.timestamp).toISOString())}</td>
+                      {[tick.price, tick.size, tick.bidSize, tick.askSize, tick.tradeCount].map((value, i) => <td key={i} className="py-2 px-2 text-right tabular-nums">{value == null ? '—' : Number(value).toLocaleString()}</td>)}
+                      <td className="py-2 pl-2 whitespace-nowrap">{tick.sourceSymbol || '—'}{tick.exchange ? ' / ' + tick.exchange : ''}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+                <p className="mt-2 text-[11px] text-text-tertiary">Nanosecond timestamps and event order are retained. Repeated timestamps are not deduplicated or converted into candles.</p>
+              </div>
+            )}
+            {inspection.dataKind !== 'ticks' && inspection.sample?.length > 0 && (
               <div className="overflow-x-auto">
                 <div className="mb-2 text-xs font-medium text-text-secondary">Preview · first valid rows</div>
                 <table className="w-full text-xs">
