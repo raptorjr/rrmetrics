@@ -108,7 +108,7 @@ const TradeCanvasPanel = ({ candles, ticker, timeframe }) => {
           symbol: false,
           interval: false,
           drawings: false,
-          replay: false,
+          replay: true,
         },
         onChartAdd: chartWidget => {
           const chart = chartWidget.getChart();
