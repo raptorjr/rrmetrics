@@ -67,6 +67,22 @@ const formatDisplayDateTimeInput = value => {
 
 const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeFormat }) => {
   const [open, setOpen] = useState(false);
+  const pickerRef = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const handlePointerDown = event => {
+      if (!pickerRef.current?.contains(event.target)) setOpen(false);
+    };
+    const handleKeyDown = event => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
   const [visibleMonth, setVisibleMonth] = useState(() => {
     const match = /^(\d{4})-(\d{2})/.exec(value || '');
     return match ? new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1)) : new Date();
@@ -122,7 +138,7 @@ const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeForma
   const setPeriod = period => setTime((hour % 12) + (period === 'PM' ? 12 : 0));
   const monthStepAllowed = direction => monthIndex + direction >= minMonth && monthIndex + direction <= maxMonth;
   return (
-    <div className="relative">
+    <div ref={pickerRef} className="relative">
       <button type="button" onClick={() => setOpen(current => !current)} className="w-full text-left bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary" aria-expanded={open}>
         {parts ? (displayDate + ' ' + (timeFormat === '24h' ? pad(hour) + ':' + pad(minute) : pad(displayHour) + ':' + pad(minute) + ' ' + (hour >= 12 ? 'PM' : 'AM'))) : 'Select date and time'}
       </button>
@@ -337,8 +353,8 @@ const BacktestingReplayWorkspace = () => {
         const normalized = historicalTimeframe === baseTimeframe ? baseCandles : aggregateCandles(baseCandles, historicalTimeframe);
         if (normalized.length < 2) throw new Error('There are not enough historical bars in this period to start replay.');
         setCandles(normalized);
-        setCurrentIndex(Math.min(80, normalized.length - 1));
-        currentIndexRef.current = Math.min(80, normalized.length - 1);
+        setCurrentIndex(0);
+        currentIndexRef.current = 0;
         setIsPlaying(false);
         setPosition(null); positionRef.current = null;
         setPendingOrder(null); pendingOrderRef.current = null;
@@ -375,7 +391,7 @@ const BacktestingReplayWorkspace = () => {
   const intervalLabel = historicalTimeframe || formatInterval(intervalSeconds);
   const stats = useMemo(() => calculateTradeStats(closedTrades), [closedTrades]);
   const unrealizedPnl = position ? calculateTradePnl(position, currentPrice, spec.pointValue) : 0;
-  const initialIndex = Math.min(80, Math.max(0, candles.length - 1));
+  const initialIndex = 0;
   const canSeek = !position && !pendingOrder && closedTrades.length === 0;
 
   useEffect(() => { candlesRef.current = candles; }, [candles]);
@@ -457,8 +473,14 @@ const BacktestingReplayWorkspace = () => {
     if (!seriesRef.current || !candles[currentIndex]) return;
     const previousIndex = previousIndexRef.current;
     if (currentIndex === previousIndex + 1) {
+      const timeScale = chartRef.current?.timeScale();
+      const visibleRange = timeScale?.getVisibleLogicalRange();
+      const wasFollowingLatest = !visibleRange || visibleRange.to >= previousIndex - 1;
       seriesRef.current.update(candles[currentIndex]);
-      if (chartRef.current) chartRef.current.timeScale().scrollToRealTime();
+      if (timeScale) {
+        if (wasFollowingLatest) timeScale.scrollToRealTime();
+        else timeScale.setVisibleLogicalRange(visibleRange);
+      }
     } else {
       seriesRef.current.setData(candles.slice(0, currentIndex + 1));
     }
