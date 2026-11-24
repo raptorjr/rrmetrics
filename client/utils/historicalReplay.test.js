@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const {
   timeframeSeconds,
   getAvailableMarkets,
+  isRangeWithinCoverage,
   aggregateCandles,
 } = require('./historicalReplay');
 
@@ -39,4 +40,12 @@ test('market catalogue does not advertise trade-only datasets as chart markets',
     { id: 'tick', data_kind: 'trades', instrument: 'ES', source_symbol: 'ESZ6', timeframe: null, start_time: '2026-11-02T00:00:00.000Z', end_time: '2026-11-03T00:00:00.000Z' },
   ]);
   assert.deepEqual(markets, []);
+});
+
+test('replay date range must stay inside one continuous coverage period', () => {
+  const coverage = { start: Date.parse('2026-11-09T00:00:00.000Z'), end: Date.parse('2026-11-10T23:59:59.000Z') };
+  assert.equal(isRangeWithinCoverage(Date.parse('2026-11-09T01:00:00.000Z'), Date.parse('2026-11-10T12:00:00.000Z'), coverage), true);
+  assert.equal(isRangeWithinCoverage(Date.parse('2026-11-08T23:59:59.000Z'), coverage.end, coverage), false);
+  assert.equal(isRangeWithinCoverage(coverage.start, Date.parse('2026-11-11T00:00:00.000Z'), coverage), false);
+  assert.equal(isRangeWithinCoverage(coverage.end, coverage.start, coverage), false);
 });
