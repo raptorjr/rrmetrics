@@ -416,7 +416,9 @@ CREATE INDEX IF NOT EXISTS idx_projectx_trade_legs_connection_time
 -- ─── dashboard collections ──────────────────────────────────────────────────
 -- One authoritative dashboard collection per local RR Metrics user/install.
 CREATE TABLE IF NOT EXISTS dashboard_settings (
-  user_id          TEXT PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
+  user_id          TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  storage_key      TEXT NOT NULL,
   collection_json  TEXT NOT NULL,
-  updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  PRIMARY KEY (user_id, storage_key)
 );
