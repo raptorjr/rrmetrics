@@ -71,6 +71,10 @@ const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeForma
     const match = /^(\d{4})-(\d{2})/.exec(value || '');
     return match ? new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1)) : new Date();
   });
+  useEffect(() => {
+    const match = /^(\d{4})-(\d{2})/.exec(value || '');
+    if (match) setVisibleMonth(new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1)));
+  }, [value]);
   const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value || '');
   const year = parts ? Number(parts[1]) : 2000;
   const month = parts ? Number(parts[2]) : 1;
@@ -95,7 +99,10 @@ const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeForma
   const update = nextValue => { if (isAllowed(nextValue)) onChange(nextValue); };
   const changeDate = nextDay => {
     const nextDate = visibleMonth.getUTCFullYear() + '-' + pad(visibleMonth.getUTCMonth() + 1) + '-' + pad(nextDay);
-    update(candidate(nextDate));
+    let nextValue = candidate(nextDate);
+    if (min && nextValue < min) nextValue = min;
+    if (max && nextValue > max) nextValue = max;
+    update(nextValue);
   };
   const setTime = (nextHour, nextMinute = minute, nextSecond = second) => update(candidate(selectedDate, nextHour, nextMinute, nextSecond));
   const displayDate = (() => {
