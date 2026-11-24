@@ -2,6 +2,15 @@
 
 ## 2026-11-24
 
+### Server-side dashboard persistence
+
+- Added a SQLite-backed dashboard settings API, scoped to the local user and each page's storage key so Dashboard and Analytics layouts remain separate.
+- Existing browser dashboard collections and legacy templates are migrated on first server load when no server collection exists. The browser copy remains as a fallback.
+- Server data is authoritative after migration. Dashboard editing waits for a successful load, and failed saves display a warning while retaining the local backup.
+- The collection API validates dashboard structure, names, count, and payload size. Existing installations receive the new table through the normal idempotent schema initialization.
+- Remote access is intended through the user's private Tailscale network; Tailscale is network access control, not application-level authentication.
+
+
 ### Dashboard selector and management
 
 - Replaced the single Edit dashboard control with a named dashboard selector and popup list.
