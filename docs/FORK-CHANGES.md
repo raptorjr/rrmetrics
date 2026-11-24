@@ -233,3 +233,9 @@ cd rrmetrics
 ## Documentation maintenance
 
 Update this changelog whenever a user-visible feature, importer/reconciliation behaviour, data migration, or operational requirement changes. Keep detailed usage and troubleshooting instructions in the relevant document under `docs/`.
+
+
+### Responsive dashboard breakpoint observer fix
+
+- Fixed the grid-width observer so it attaches after the dashboard finishes loading and the grid element is mounted. This allows wide desktop screens to select the 8-column layout instead of remaining at the initial 2-column state.
+- Added a regression test to ensure the observer effect is tied to `dashboardReady`.
