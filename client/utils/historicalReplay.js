@@ -7,7 +7,12 @@ const TIMEFRAME_SECONDS = {
 const AGGREGATABLE_TIMEFRAMES = ['30s', '1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h', '2h', '4h'];
 
 function timeframeSeconds(value) {
-  return TIMEFRAME_SECONDS[String(value || '').toLowerCase()] || 0;
+  const normalized = String(value || '').toLowerCase();
+  if (TIMEFRAME_SECONDS[normalized]) return TIMEFRAME_SECONDS[normalized];
+  const match = /^(\\d+)(s|m|h|d)$/.exec(normalized);
+  if (!match) return 0;
+  const amount = Number(match[1]);
+  return amount * ({ s: 1, m: 60, h: 3600, d: 86400 }[match[2]]);
 }
 
 function compareTimeframes(a, b) {
