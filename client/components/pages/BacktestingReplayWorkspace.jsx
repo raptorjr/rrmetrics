@@ -637,7 +637,7 @@ const BacktestingReplayWorkspace = () => {
                 if (picker?.showPicker) picker.showPicker();
                 else picker?.focus();
               }} className="w-full text-left bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary disabled:opacity-50">{formatDisplayDateTimeInput(historicalEnd)}</button>
-              <input type="datetime-local" step="1" min={selectedMarket ? toDisplayDateTimeInput(selectedMarket.start) : undefined} max={selectedMarket ? toDisplayDateTimeInput(selectedMarket.end) : undefined} value={historicalEnd} onChange={event => handleDateChange(setHistoricalEnd, event.target.value)} aria-label="To date and time" className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" tabIndex={-1} />
+              <input type="datetime-local" step="1" min={selectedCoverage ? toDisplayDateTimeInput(selectedCoverage.start) : undefined} max={selectedCoverage ? toDisplayDateTimeInput(selectedCoverage.end) : undefined} value={historicalEnd} onChange={event => handleDateChange(setHistoricalEnd, event.target.value)} aria-label="To date and time" className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" tabIndex={-1} />
             </div>
           </label>
           <div className="flex items-end text-xs text-text-muted">
