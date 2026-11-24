@@ -392,6 +392,7 @@ const HistoricalFuturesProviderPanel = () => {
                 <table className="w-full text-xs">
                   <thead><tr className="text-text-tertiary border-b border-border">
                     <th className="py-2 pr-3 text-left">Timestamp</th>
+                    <th className="py-2 px-2 text-left">Timestamp ns</th>
                     <th className="py-2 px-2 text-right">Price</th>
                     <th className="py-2 px-2 text-right">Size</th>
                     <th className="py-2 px-2 text-right">Bid size</th>
@@ -402,6 +403,7 @@ const HistoricalFuturesProviderPanel = () => {
                   <tbody>{inspection.sample.slice(0, 5).map((tick, index) => (
                     <tr key={index} className="border-b border-border/60 text-text-secondary">
                       <td className="py-2 pr-3 whitespace-nowrap">{formatDate(new Date(tick.timestamp).toISOString())}</td>
+                      <td className="py-2 px-2 font-mono text-[10px] whitespace-nowrap">{tick.timestampNs}</td>
                       {[tick.price, tick.size, tick.bidSize, tick.askSize, tick.tradeCount].map((value, i) => <td key={i} className="py-2 px-2 text-right tabular-nums">{value == null ? '—' : Number(value).toLocaleString()}</td>)}
                       <td className="py-2 pl-2 whitespace-nowrap">{tick.sourceSymbol || '—'}{tick.exchange ? ' / ' + tick.exchange : ''}</td>
                     </tr>
