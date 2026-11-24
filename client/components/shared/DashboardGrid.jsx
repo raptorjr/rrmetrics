@@ -10,7 +10,6 @@ const {
   placeTileAndDisplace,
   getDropPositionFromGrab,
   getResizedTileGeometry,
-  normalizeLayout,
   readLayoutFromValue,
   createStarterLayout,
   getResponsivePositions,
