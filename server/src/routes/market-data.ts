@@ -411,44 +411,113 @@ marketData.get('/api/market-data/providers/:providerId/files', requiresLogin, as
       ...row,
       detectedMetadata: JSON.parse(row.detected_metadata_json || '{}'),
       confirmedMetadata: JSON.parse(row.confirmed_metadata_json || '{}'),
+      datasets: db.prepare(
+        `SELECT id, data_kind, instrument, source_symbol, timeframe, timezone,
+                row_count, start_time, end_time, normalized_storage_key, created_at
+         FROM market_data_file_datasets
+         WHERE file_id = ? AND user_id = ?
+         ORDER BY instrument, source_symbol`,
+      ).all(row.id, user.id),
       detected_metadata_json: undefined,
       confirmed_metadata_json: undefined,
     })),
   });
 });
 
-// DELETE /api/market-data/files/:fileId — discard an unconfirmed staged upload.
+// DELETE /api/market-data/files/:fileId — preview impact, then delete only this file's source-owned data.
 marketData.delete('/api/market-data/files/:fileId', requiresLogin, async (c) => {
   const user = c.get('user');
   const db = c.get('db');
   const fileId = c.req.param('fileId');
   const file = db.prepare(
-    `SELECT id, import_status, original_storage_key FROM market_data_files
-     WHERE id = ? AND user_id = ?`,
-  ).get(fileId, user.id) as { id: string; import_status: string; original_storage_key: string } | undefined;
+    `SELECT id, original_filename, input_format, import_status, original_storage_key
+     FROM market_data_files WHERE id = ? AND user_id = ?`,
+  ).get(fileId, user.id) as {
+    id: string;
+    original_filename: string;
+    input_format: 'csv' | 'parquet';
+    import_status: string;
+    original_storage_key: string;
+  } | undefined;
   if (!file) return c.notFound();
-  if (!['needs_review', 'failed'].includes(file.import_status)) {
-    return c.json({ error: 'Only unconfirmed or failed uploads can be discarded at this stage.' }, 409);
+
+  const datasets = db.prepare(
+    `SELECT id, instrument, source_symbol, timeframe, row_count, start_time, end_time, normalized_storage_key
+     FROM market_data_file_datasets WHERE file_id = ? AND user_id = ?
+     ORDER BY instrument, source_symbol`,
+  ).all(fileId, user.id) as Array<{
+    id: string;
+    instrument: string;
+    source_symbol: string | null;
+    timeframe: string;
+    row_count: number;
+    start_time: string;
+    end_time: string;
+    normalized_storage_key: string;
+  }>;
+
+  let overlappingDatasetsRetained = 0;
+  for (const dataset of datasets) {
+    const overlap = db.prepare(
+      `SELECT COUNT(*) AS count FROM market_data_file_datasets
+       WHERE user_id = ? AND file_id <> ? AND instrument = ? AND timeframe = ?
+         AND start_time <= ? AND end_time >= ?`,
+    ).get(user.id, fileId, dataset.instrument, dataset.timeframe, dataset.end_time, dataset.start_time) as { count: number };
+    overlappingDatasetsRetained += overlap.count;
   }
 
-  const storageKey = file.original_storage_key;
-  if (!storageKey.startsWith('staging/') || path.basename(storageKey) !== storageKey.slice('staging/'.length)) {
-    return c.json({ error: 'Stored file path failed validation.' }, 500);
+  const impact = {
+    fileId,
+    filename: file.original_filename,
+    status: file.import_status,
+    datasetCount: datasets.length,
+    totalRows: datasets.reduce((sum, dataset) => sum + dataset.row_count, 0),
+    datasets: datasets.map(({ normalized_storage_key, ...dataset }) => dataset),
+    overlappingDatasetsRetained,
+    note: 'Only data owned by this source file will be deleted. Overlapping datasets from other files remain available.',
+  };
+  if (c.req.query('confirm') !== 'true') {
+    return c.json({ requiresConfirmation: true, impact }, 409);
   }
-  const stagedPath = path.join(MARKET_DATA_STAGING_DIR, path.basename(storageKey));
-  const tombstonePath = `${stagedPath}.deleting`;
+
+  const moved: Array<{ from: string; to: string }> = [];
+  const resolveStoragePath = (key: string, prefix: 'staging' | 'originals' | 'normalized'): string => {
+    if (!key.startsWith(`${prefix}/`)) throw new Error('Stored market-data path failed validation.');
+    const name = key.slice(prefix.length + 1);
+    if (!name || path.basename(name) !== name || name.includes('..')) {
+      throw new Error('Stored market-data path failed validation.');
+    }
+    const directory = prefix === 'staging' ? MARKET_DATA_STAGING_DIR
+      : prefix === 'originals' ? MARKET_DATA_ORIGINALS_DIR : MARKET_DATA_NORMALIZED_DIR;
+    return path.join(directory, name);
+  };
 
   try {
-    await fs.promises.rename(stagedPath, tombstonePath).catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error;
+    const originalPrefix = file.original_storage_key.startsWith('staging/') ? 'staging' : 'originals';
+    const originalPath = resolveStoragePath(file.original_storage_key, originalPrefix);
+    const originalTombstone = `${originalPath}.deleting`;
+    await fs.promises.rename(originalPath, originalTombstone);
+    moved.push({ from: originalPath, to: originalTombstone });
+
+    for (const dataset of datasets) {
+      const normalizedPath = resolveStoragePath(dataset.normalized_storage_key, 'normalized');
+      const tombstone = `${normalizedPath}.deleting`;
+      await fs.promises.rename(normalizedPath, tombstone);
+      moved.push({ from: normalizedPath, to: tombstone });
+    }
+
+    const removeFile = db.transaction(() => {
+      db.prepare('DELETE FROM market_data_files WHERE id = ? AND user_id = ?').run(fileId, user.id);
     });
-    db.prepare('DELETE FROM market_data_files WHERE id = ? AND user_id = ?').run(fileId, user.id);
-    await fs.promises.rm(tombstonePath, { force: true });
-    return c.json({ deleted: true, fileId });
+    removeFile();
+    await Promise.all(moved.map(item => fs.promises.rm(item.to, { force: true })));
+    return c.json({ deleted: true, impact });
   } catch (error) {
-    await fs.promises.rename(tombstonePath, stagedPath).catch(() => undefined);
-    console.error('market data staged-file deletion failed:', error);
-    return c.json({ error: 'Failed to discard staged upload.' }, 500);
+    for (const item of moved.reverse()) {
+      await fs.promises.rename(item.to, item.from).catch(() => undefined);
+    }
+    console.error('market data source deletion failed:', error);
+    return c.json({ error: 'Failed to delete this market-data source. No trading data is affected.' }, 500);
   }
 });
 
