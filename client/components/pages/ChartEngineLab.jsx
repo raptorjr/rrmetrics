@@ -74,44 +74,69 @@ const TradeCanvasPanel = ({ candles, ticker, timeframe }) => {
   useEffect(() => {
     const host = hostRef.current;
     if (!host || !candles.length) return undefined;
-    let widget;
+    let grid;
     setChartError('');
     try {
-      const { ChartWidget } = require('@tradecanvas/chart/widget');
-      widget = new ChartWidget(host, {
-        symbol: ticker,
-        timeframe,
-        theme: 'dark',
-        historyLimit: Math.max(500, candles.length),
-        persistLayouts: false,
-        persistSettings: false,
-        trading: false,
-      });
-      widget.getChart().setData(candles.map(bar => ({
+      const { ChartWidgetGrid } = require('@tradecanvas/chart/widget');
+      const bars = candles.map(bar => ({
         time: bar.time * 1000,
         open: bar.open,
         high: bar.high,
         low: bar.low,
         close: bar.close,
         volume: Number(bar.volume || 0),
-      })));
-      widget.getChart().setDataTimeframe(timeframe);
-      try { widget.getChart().addIndicator('sma', { period: 20 }); } catch (indicatorError) { console.warn('TradeCanvas SMA indicator unavailable', indicatorError); }
+      }));
+
+      // Seed enough cells for the built-in layout picker. The grid starts as
+      // one full-size chart; additional widgets are created as the user splits it.
+      const cells = Array.from({ length: 6 }, () => ({ symbol: ticker, timeframe }));
+      grid = new ChartWidgetGrid(host, {
+        layout: '1x1',
+        layoutChoices: ['1x1', '1x2', '2x1', '2x2', '1+2', '1+3', '2x3'],
+        cells,
+        widget: {
+          timeframe,
+          theme: 'dark',
+          historyLimit: Math.max(500, candles.length),
+          persistLayouts: false,
+          persistSettings: false,
+          trading: false,
+        },
+        sync: {
+          crosshair: true,
+          time: false,
+          symbol: false,
+          interval: false,
+          drawings: false,
+          replay: true,
+        },
+        onChartAdd: chartWidget => {
+          const chart = chartWidget.getChart();
+          chart.setData(bars);
+          chart.setDataTimeframe(timeframe);
+          try {
+            chart.addIndicator('sma', { period: 20 });
+          } catch (indicatorError) {
+            console.warn('TradeCanvas SMA indicator unavailable', indicatorError);
+          }
+        },
+      });
     } catch (error) {
-      setChartError(error.message || 'TradeCanvas failed to initialise.');
+      setChartError(error.message || 'TradeCanvas grid failed to initialise.');
     }
     return () => {
-      if (widget) widget.destroy();
+      if (grid && typeof grid.destroy === 'function') grid.destroy();
+      else if (grid && typeof grid.dispose === 'function') grid.dispose();
     };
   }, [candles, ticker, timeframe]);
 
   return (
     <div className="rounded-lg border border-border overflow-hidden">
       <div className="px-3 py-2 border-b border-border flex items-center justify-between">
-        <span className="text-xs font-semibold text-text-primary">TradeCanvas · headless-backed widget</span>
-        <span className="text-[10px] text-text-muted">{candles.length.toLocaleString()} bars</span>
+        <span className="text-xs font-semibold text-text-primary">TradeCanvas · multi-chart workspace</span>
+        <span className="text-[10px] text-text-muted">{candles.length.toLocaleString()} bars per chart · starts with one chart</span>
       </div>
-      {chartError ? <div className="p-4 text-sm text-negative">{chartError}</div> : <div ref={hostRef} className="w-full" style={{ height: 540 }} />}
+      {chartError ? <div className="p-4 text-sm text-negative">{chartError}</div> : <div ref={hostRef} className="w-full" style={{ height: 640 }} />}
     </div>
   );
 };
