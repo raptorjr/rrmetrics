@@ -43,6 +43,10 @@ Tile customization changes presentation and ordering only; it does not change th
 
 Open **Settings → Preferences**.
 
+### Date format
+
+Choose Automatic (browser locale), DD.MM.YYYY, DD/MM/YYYY, MM/DD/YYYY, or YYYY-MM-DD. The selected format is stored in browser local storage and is used by the shared date formatter.
+
 ### Time format
 
 Choose either 12-hour or 24-hour display. The selected format is stored in browser local storage. The default remains 12-hour for compatibility with the previous display.
