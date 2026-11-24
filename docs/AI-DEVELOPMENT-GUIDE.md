@@ -115,6 +115,25 @@ The two perspectives must remain separate: profitable results do not prove good 
 
 - Add ticker/instrument filtering to the shared Dashboard and Analytics filter system. The current filter supports dates but not tickers; users should be able to select one or more instruments so Trading Trend and other affected analytics can be scoped to the selected ticker(s). Keep this as a product backlog item until the shared filter UX and data-flow implications have been designed.
 
+### Manual Backtesting and Chart Replay
+
+The Backtesting page retains its original Session Journal and adds a separate Chart Replay view.
+
+Current first-stage replay implementation:
+- Uses TradingView Lightweight Charts for candlestick rendering.
+- Starts with clearly labelled synthetic demonstration data and accepts user-supplied OHLCV CSV files.
+- Supports candle-by-candle replay, simulated long/short trades, optional stop/target levels, manual close, and basic temporary statistics.
+- Uploaded data and replay trades are currently browser-session only. Do not describe them as saved or persistent.
+- Do not commit provider-supplied or user-purchased historical market data to the public repository.
+- Bar-based stop/target sequencing is approximate. If both levels are touched within one candle, stop-first is assumed. Fees, slippage, bid/ask, partial fills, and tick-level sequencing are not yet implemented.
+
+Longer-term direction:
+- Historical data is optional and purchased/licensed independently by the RR Metrics user; RR Metrics provides tools, not bundled market data.
+- Support multiple historical-data providers through a common normalized market-data interface. Provider configuration belongs in Settings → Providers, with a historical-data category alongside broker and prop-firm connections.
+- Keep source files (including Parquet) outside the chart component. Evaluate a Node-compatible Parquet reader/query engine such as DuckDB before committing to a production import/storage design.
+- Build and validate the chart/replay workflow with small samples before recommending paid historical archives.
+- Add durable local data management, Parquet ingestion, tick replay, realistic execution assumptions, and persistent backtest sessions in later stages.
+
 ### Trading data and metric integrity
 
 - Correctness of imported trade history and calculated metrics is more important than making a dashboard look complete.

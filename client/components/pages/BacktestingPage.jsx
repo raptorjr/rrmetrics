@@ -3,12 +3,14 @@ const { authFetch } = helper;
 const React = require('react');
 const { useState, useEffect } = React;
 const Icons = require('../shared/Icons');
+const BacktestingReplayWorkspace = require('./BacktestingReplayWorkspace');
 
 const BacktestingPage = () => {
   const [sessions, setSessions] = useState([]);
   const [activeTrades, setActiveTrades] = useState([]);
   const [allTrades, setAllTrades] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeView, setActiveView] = useState('journal');
   const [statsFilter, setStatsFilter] = useState('all'); // 'all' | session id
   const [showStartForm, setShowStartForm] = useState(false);
   const [showEndForm, setShowEndForm] = useState(false);
@@ -234,6 +236,42 @@ const BacktestingPage = () => {
   const btnPrimary = 'px-4 py-2 bg-accent text-accent-text text-sm font-semibold rounded-lg hover:brightness-110 transition-all';
   const btnSecondary = 'px-4 py-2 bg-bg-input border border-border text-text-secondary text-sm font-medium rounded-lg hover:text-text-primary transition-colors';
 
+  const renderModeTabs = () => (
+    <div className="flex items-center gap-2 border-b border-border pb-3" role="tablist" aria-label="Backtesting views">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={activeView === 'journal'}
+        onClick={() => setActiveView('journal')}
+        className={"px-4 py-2 rounded-lg text-sm font-medium transition-colors " + (activeView === 'journal' ? 'bg-bg-surface border border-border text-accent' : 'text-text-muted hover:text-text-primary')}
+      >
+        Session Journal
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={activeView === 'replay'}
+        onClick={() => setActiveView('replay')}
+        className={"px-4 py-2 rounded-lg text-sm font-medium transition-colors " + (activeView === 'replay' ? 'bg-bg-surface border border-border text-accent' : 'text-text-muted hover:text-text-primary')}
+      >
+        Chart Replay
+      </button>
+    </div>
+  );
+
+  if (activeView === 'replay') {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-text-primary text-2xl font-bold">Backtesting</h1>
+          <p className="text-text-muted text-sm mt-1">Replay historical price action and practise simulated trades.</p>
+        </div>
+        {renderModeTabs()}
+        <BacktestingReplayWorkspace />
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-48 text-text-muted text-sm">
@@ -247,7 +285,7 @@ const BacktestingPage = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-text-primary text-2xl font-bold">Backtesting</h1>
-          <p className="text-text-muted text-sm mt-1">Track wins and losses across backtesting sessions</p>
+          <p className="text-text-muted text-sm mt-1">Replay historical price action or review your backtesting sessions</p>
         </div>
         {!activeSession && !showStartForm && (
           <button className={btnPrimary} onClick={() => setShowStartForm(true)}>
@@ -255,6 +293,7 @@ const BacktestingPage = () => {
           </button>
         )}
       </div>
+      {renderModeTabs()}
 
       {/* Start Session Form */}
       {showStartForm && (

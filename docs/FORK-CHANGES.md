@@ -1,5 +1,16 @@
 ## 2026-11-24
 
+
+### Manual chart replay — first frontend milestone
+
+- Added a Chart Replay view alongside the existing Backtesting Session Journal; existing session and trade logging workflows remain available.
+- Added TradingView Lightweight Charts candlestick charting, synthetic demonstration candles, and CSV OHLCV upload for local replay experiments.
+- Added candle-by-candle playback, pause, speed controls, pre-trade seeking, simulated long/short entries, contract quantity, stop-loss and take-profit levels, manual close, and automatic bar-based exits.
+- Added temporary closed-trade history and basic win-rate, net P/L, and profit-factor statistics.
+- Replay uploads and simulated trades are held in browser memory only; no market data or replay trades are persisted yet. No provider-supplied data is committed to the repository.
+- Documented execution assumptions and limitations, including conservative stop-first handling when both stop and target are touched in one candle, and the current absence of fees, slippage, partial fills, and tick-sequenced execution.
+- Added the initial replay design and roadmap in `docs/BACKTESTING-REPLAY.md`.
+
 ### Independent responsive dashboard layouts
 
 - Added separate saved tile sizes and positions for each dashboard at the 8-, 4-, and 2-column breakpoints. Moving or resizing tiles at one width no longer changes the arrangement saved for another width.
