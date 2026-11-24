@@ -38,12 +38,6 @@ const getResponsivePositions = (visibleItems, layout, columns) => {
   }).sort((a, b) => a.preferredRow - b.preferredRow || a.preferredCol - b.preferredCol || a.index - b.index);
 
   const placed = [];
-  const collides = (candidate, entry) =>
-    candidate.col < entry.col + entry.width
-    && candidate.col + entry.width > entry.col
-    && candidate.row < entry.row + entry.height
-    && candidate.row + entry.height > entry.row;
-
   entries.forEach(entry => {
     let position = null;
     for (let row = entry.preferredRow; !position; row += 1) {
@@ -53,9 +47,12 @@ const getResponsivePositions = (visibleItems, layout, columns) => {
       ];
       for (const col of columnsToTry) {
         const candidate = { col, row };
-        if (!placed.some(other => collides(candidate, { ...other, width: entry.width, height: entry.height })
-          || (candidate.col < other.col + other.width && candidate.col + entry.width > other.col
-            && candidate.row < other.row + other.height && candidate.row + entry.height > other.row))) {
+        if (!placed.some(other =>
+          candidate.col < other.col + other.width
+          && candidate.col + entry.width > other.col
+          && candidate.row < other.row + other.height
+          && candidate.row + entry.height > other.row
+        )) {
           position = candidate;
           break;
         }
