@@ -481,6 +481,7 @@ marketData.delete('/api/market-data/files/:fileId', requiresLogin, async (c) => 
   }
 
   const moved: Array<{ from: string; to: string }> = [];
+  let databaseDeleted = false;
   const resolveStoragePath = (key: string, prefix: 'staging' | 'originals' | 'normalized'): string => {
     if (!key.startsWith(`${prefix}/`)) throw new Error('Stored market-data path failed validation.');
     const name = key.slice(prefix.length + 1);
@@ -510,9 +511,16 @@ marketData.delete('/api/market-data/files/:fileId', requiresLogin, async (c) => 
       db.prepare('DELETE FROM market_data_files WHERE id = ? AND user_id = ?').run(fileId, user.id);
     });
     removeFile();
+    databaseDeleted = true;
     await Promise.all(moved.map(item => fs.promises.rm(item.to, { force: true })));
     return c.json({ deleted: true, impact });
   } catch (error) {
+    if (databaseDeleted) {
+      // The DB cascade has completed; leave any failed cleanup as a tombstone
+      // rather than restoring files that no longer have catalogue ownership.
+      console.error('market data tombstone cleanup needs attention:', error);
+      return c.json({ deleted: true, cleanupWarning: true, impact });
+    }
     for (const item of moved.reverse()) {
       await fs.promises.rename(item.to, item.from).catch(() => undefined);
     }

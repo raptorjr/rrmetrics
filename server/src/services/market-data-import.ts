@@ -200,6 +200,7 @@ export function parseOhlcvCsv(buffer: Buffer, filename: string, options: { timez
     const get = (index: number) => index >= 0 ? (row[index] ?? '').trim() : '';
     const parsedTime = parseTimestamp(get(indexes.timestamp), options.timezone);
     const sourceSymbol = get(indexes.instrument).toUpperCase() || null;
+    if (sourceSymbol) symbols.push(sourceSymbol);
     const values = {
       open: Number(get(indexes.open)),
       high: Number(get(indexes.high)),
@@ -236,7 +237,6 @@ export function parseOhlcvCsv(buffer: Buffer, filename: string, options: { timez
     }
     if (parsedTime.needsTimezone) timezoneNeedsConfirmation = true;
     if (parsedTime.timezone) timezone = parsedTime.timezone;
-    if (sourceSymbol) symbols.push(sourceSymbol);
 
     bars.push({
       timestamp: parsedTime.timestamp,
