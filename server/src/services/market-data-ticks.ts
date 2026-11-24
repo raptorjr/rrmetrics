@@ -561,7 +561,9 @@ export async function normalizeTradeTicksParquet(
     throw error;
   }
 
-  if (!rowCount || firstTimestamp === null || lastTimestamp === null) {
+  const finalFirstTimestamp = firstTimestamp as bigint | null;
+  const finalLastTimestamp = lastTimestamp as bigint | null;
+  if (!rowCount || finalFirstTimestamp === null || finalLastTimestamp === null) {
     await fs.promises.rm(destinationPath, { force: true });
     throw new Error('No valid trade-tick rows were supplied for normalization.');
   }
@@ -569,10 +571,10 @@ export async function normalizeTradeTicksParquet(
     rowCount,
     totalVolume,
     totalTradeCount: layout.mapping.tradeCount ? totalTradeCount : null,
-    startTime: isoFromNanoseconds(firstTimestamp),
-    endTime: isoFromNanoseconds(lastTimestamp),
-    startTimeNs: firstTimestamp.toString(),
-    endTimeNs: lastTimestamp.toString(),
+    startTime: isoFromNanoseconds(finalFirstTimestamp),
+    endTime: isoFromNanoseconds(finalLastTimestamp),
+    startTimeNs: finalFirstTimestamp.toString(),
+    endTimeNs: finalLastTimestamp.toString(),
     sourceSymbol,
     exchange: inspection.detectedExchange,
   };
