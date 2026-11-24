@@ -3,7 +3,7 @@ const { authFetch } = helper;
 const React = require('react');
 const { useState, useEffect } = React;
 const Icons = require('../shared/Icons');
-const BacktestingReplayWorkspace = require('./BacktestingReplayWorkspace');
+const BacktestingReplayWorkspace = require('./BacktestingReplayWorkspace').default;
 
 const BacktestingPage = () => {
   const [sessions, setSessions] = useState([]);
