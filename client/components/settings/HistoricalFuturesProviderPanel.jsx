@@ -455,7 +455,7 @@ const HistoricalFuturesProviderPanel = () => {
             <ul className="space-y-1 rounded-lg border border-border bg-bg-surface p-3">
               {deletePrompt.impact.datasets.map(dataset => (
                 <li key={dataset.id} className="text-xs text-text-secondary">
-                  <span className="font-medium text-text-primary">{dataset.instrument}{dataset.source_symbol ? ' · ' + dataset.source_symbol : ''}</span> · {dataset.timeframe} · {formatNumber(dataset.row_count)} rows · {formatDate(dataset.start_time)} – {formatDate(dataset.end_time)}
+                  <span className="font-medium text-text-primary">{dataset.instrument}{dataset.source_symbol ? ' · ' + dataset.source_symbol : ''}</span> · {dataset.timeframe} · {formatNumber(dataset.row_count)} {dataset.data_kind === 'ticks' ? 'events' : 'bars'} · {formatDate(dataset.start_time)} – {formatDate(dataset.end_time)}
                 </li>
               ))}
             </ul>
