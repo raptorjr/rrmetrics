@@ -122,6 +122,7 @@ marketData.post('/api/market-data/files/inspect', requiresLogin, async (c) => {
     return c.json({ error: 'No valid OHLCV rows were found.', inspection }, 422);
   }
 
+  const detectedTimeframe = 'detectedTimeframe' in inspection ? inspection.detectedTimeframe : null;
   const potentialOverlaps = new Map<string, {
     datasetId: string;
     fileId: string;
@@ -134,7 +135,7 @@ marketData.post('/api/market-data/files/inspect', requiresLogin, async (c) => {
     rowCount: number;
   }>();
   if ((!('dataKind' in inspection) || inspection.dataKind !== 'trades')
-    && inspection.detectedTimeframe && inspection.startTime && inspection.endTime
+    && detectedTimeframe && inspection.startTime && inspection.endTime
     && (inspection.detectedInstrument || inspection.detectedSymbols?.length)) {
     const sourceSymbols: Array<string | null> = inspection.detectedSymbols?.length
       ? inspection.detectedSymbols : [null];
@@ -150,7 +151,7 @@ marketData.post('/api/market-data/files/inspect', requiresLogin, async (c) => {
            AND d.source_symbol IS ?`,
       ).all(
         user.id,
-        inspection.detectedTimeframe,
+        detectedTimeframe,
         inspection.endTime,
         inspection.startTime,
         inspection.detectedInstrument,
@@ -490,7 +491,7 @@ marketData.post('/api/market-data/files/:fileId/import', requiresLogin, async (c
     : inspection.detectedInstrument;
   const timeframe = typeof confirmation.timeframe === 'string' && confirmation.timeframe.trim()
     ? confirmation.timeframe.trim()
-    : inspection.detectedTimeframe;
+    : ('detectedTimeframe' in inspection ? inspection.detectedTimeframe : null);
   if (!instrument) return c.json({ error: 'Confirm the canonical instrument before importing.' }, 400);
   if (!timeframe || !/^\d+(?:s|m|h|d)$/.test(timeframe)) {
     return c.json({ error: 'Confirm a supported timeframe (for example 1m or 5m) before importing.' }, 400);

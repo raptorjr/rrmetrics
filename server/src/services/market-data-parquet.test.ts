@@ -214,3 +214,26 @@ test('inspects and normalizes trade ticks without rounding nanosecond timestamps
     await fs.rm(directory, { recursive: true, force: true });
   }
 });
+
+
+test('keeps unannotated epoch-second tick timestamps absolute when a timezone is confirmed', async () => {
+  const baseSeconds = 1794234600n;
+  const buffer = makeParquet([
+    { name: 'ts', type: 'INT64', data: [baseSeconds, baseSeconds + 60n] },
+    { name: 'price', type: 'DOUBLE', data: [25000, 25001] },
+    { name: 'volume', type: 'INT32', data: [1, 1] },
+  ]);
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'rrm-ticks-'));
+  const destination = path.join(directory, 'ticks.parquet');
+  try {
+    await normalizeTradeTicksParquet(buffer, destination, { timezone: 'America/New_York' });
+    const file = await asyncBufferFromFile(destination);
+    const rows = await parquetReadObjects({ file, columns: ['timestamp_ns'] });
+    assert.equal(String(rows[0].timestamp_ns), (baseSeconds * 1_000_000_000n).toString());
+  } finally {
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});

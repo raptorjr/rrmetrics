@@ -208,9 +208,8 @@ function timestampForImport(value: unknown, unit: string, timezoneNeedsConfirmat
   if (!timezone) throw new Error('A timezone must be confirmed before importing this tick file.');
   if (typeof value === 'string' && /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)) return timestamp;
   const needsWallClockConversion = value instanceof Date
-    || typeof value === 'number'
-    || typeof value === 'bigint'
-    || typeof value === 'string';
+    || typeof value === 'string'
+    || (unit !== 'UNKNOWN' && (typeof value === 'number' || typeof value === 'bigint'));
   if (!needsWallClockConversion) return timestamp;
   const wholeMilliseconds = timestamp / 1_000_000n;
   const subMillisecond = timestamp % 1_000_000n;

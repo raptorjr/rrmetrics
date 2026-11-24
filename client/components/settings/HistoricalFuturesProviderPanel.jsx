@@ -78,8 +78,11 @@ const HistoricalFuturesProviderPanel = () => {
 
   const selectedFile = files.find(file => file.id === selectedFileId) || null;
   const datasets = selectedFile?.datasets || [];
+  const tickDatasets = selectedFile?.tickDatasets || [];
+  const isTickData = inspection?.dataKind === 'trades';
   const detectedSymbols = inspection?.detectedSymbols || [];
-  const remainingSymbols = detectedSymbols.filter(symbol => !datasets.some(dataset => dataset.source_symbol === symbol));
+  const importedSourceSymbols = [...datasets, ...tickDatasets].map(dataset => dataset.source_symbol).filter(Boolean);
+  const remainingSymbols = detectedSymbols.filter(symbol => !importedSourceSymbols.includes(symbol));
   const timezoneRequired = Boolean(inspection?.timezoneNeedsConfirmation);
   const invalidRows = Number(inspection?.invalidRowCount || 0);
   const needsSymbolChoice = detectedSymbols.length > 1;
@@ -87,7 +90,7 @@ const HistoricalFuturesProviderPanel = () => {
     selectedFile &&
     ['needs_review', 'failed'].includes(selectedFile.import_status) &&
     form.instrument.trim() &&
-    /^\d+(s|m|h|d)$/.test(form.timeframe.trim()) &&
+    (isTickData || /^\d+(s|m|h|d)$/.test(form.timeframe.trim())) &&
     (!timezoneRequired || form.timezone) &&
     (!invalidRows || form.skipInvalidRows) &&
     (!needsSymbolChoice || form.sourceSymbol),
@@ -97,7 +100,7 @@ const HistoricalFuturesProviderPanel = () => {
     setSelectedFileId(file.id);
     const metadata = file.detectedMetadata || {};
     const symbols = metadata.detectedSymbols || [];
-    const imported = (file.datasets || []).map(dataset => dataset.source_symbol).filter(Boolean);
+    const imported = [...(file.datasets || []), ...(file.tickDatasets || [])].map(dataset => dataset.source_symbol).filter(Boolean);
     const nextSymbol = symbols.find(symbol => !imported.includes(symbol)) || symbols[0] || '';
     setInspection(metadata);
     setForm({
@@ -154,12 +157,13 @@ const HistoricalFuturesProviderPanel = () => {
     setError('');
     setNotice('');
     try {
-      const response = await authFetch(`/api/market-data/files/${selectedFile.id}/import`, {
+      const tickImport = inspection?.dataKind === 'trades';
+      const response = await authFetch(`/api/market-data/files/${selectedFile.id}/${tickImport ? 'import-ticks' : 'import'}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           instrument: form.instrument.trim(),
-          timeframe: form.timeframe.trim(),
+          ...(tickImport ? {} : { timeframe: form.timeframe.trim() }),
           timezone: form.timezone || undefined,
           sourceSymbol: form.sourceSymbol || undefined,
           skipInvalidRows: form.skipInvalidRows,
@@ -179,7 +183,8 @@ const HistoricalFuturesProviderPanel = () => {
           instrument: next ? (updated.detectedMetadata?.detectedInstrument || instrumentFromSymbol(next) || previous.instrument) : previous.instrument,
         }));
       }
-      setNotice(`Imported ${formatNumber(data.dataset.rowCount)} bars for ${data.dataset.instrument}${data.dataset.sourceSymbol ? ` (${data.dataset.sourceSymbol})` : ''}.${data.remainingSymbols?.length ? ` ${data.remainingSymbols.length} source symbol(s) remain to be imported.` : ''}`);
+      const importedUnit = data.dataset.dataKind === 'trades' ? 'ticks' : 'bars';
+      setNotice(`Imported ${formatNumber(data.dataset.rowCount)} ${importedUnit} for ${data.dataset.instrument}${data.dataset.sourceSymbol ? ` (${data.dataset.sourceSymbol})` : ''}.${data.remainingSymbols?.length ? ` ${data.remainingSymbols.length} source symbol(s) remain to be imported.` : ''}`);
     } catch (err) {
       setError(err.message || 'Import failed.');
     } finally {
@@ -290,6 +295,15 @@ const HistoricalFuturesProviderPanel = () => {
                       ))}
                     </div>
                   )}
+                  {file.tickDatasets?.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {file.tickDatasets.map(dataset => (
+                        <span key={dataset.id} className="rounded-md border border-border bg-bg-page px-2 py-1 text-[10px] text-text-secondary">
+                          {dataset.instrument}{dataset.source_symbol ? ` · ${dataset.source_symbol}` : ''} · {formatNumber(dataset.row_count)} ticks
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </button>
                 <button onClick={() => handleDeletePreview(file)} disabled={busy} className="shrink-0 rounded-lg border border-border px-3 py-2 text-xs font-medium text-text-secondary hover:border-danger/40 hover:text-danger disabled:opacity-50">Delete source</button>
               </div>
@@ -311,12 +325,19 @@ const HistoricalFuturesProviderPanel = () => {
           </div>
           <div className="p-4 space-y-4">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
+              {(isTickData ? [
+                ['Valid ticks', formatNumber(inspection.validRowCount)],
+                ['Invalid ticks', formatNumber(inspection.invalidRowCount)],
+                ['Data type', 'Trade ticks'],
+                ['Total volume', formatNumber(inspection.totalVolume)],
+                ['Trade count', inspection.totalTradeCount == null ? 'Unavailable' : formatNumber(inspection.totalTradeCount)],
+                ['Coverage', inspection.startTime && inspection.endTime ? `${new Date(inspection.startTime).toLocaleDateString()} – ${new Date(inspection.endTime).toLocaleDateString()}` : 'Unknown'],
+              ] : [
                 ['Valid rows', formatNumber(inspection.validRowCount)],
                 ['Invalid rows', formatNumber(inspection.invalidRowCount)],
                 ['Detected timeframe', inspection.detectedTimeframe || 'Unknown'],
                 ['Coverage', inspection.startTime && inspection.endTime ? `${new Date(inspection.startTime).toLocaleDateString()} – ${new Date(inspection.endTime).toLocaleDateString()}` : 'Unknown'],
-              ].map(([label, value]) => (
+              ]).map(([label, value]) => (
                 <div key={label} className="rounded-lg bg-bg-page/60 p-3">
                   <div className="text-[10px] uppercase tracking-wide text-text-tertiary">{label}</div>
                   <div className="mt-1 text-sm font-semibold text-text-primary">{value}</div>
@@ -329,10 +350,10 @@ const HistoricalFuturesProviderPanel = () => {
                 <span className="text-xs font-medium text-text-secondary">Canonical instrument</span>
                 <input value={form.instrument} onChange={event => setForm(previous => ({ ...previous, instrument: event.target.value.toUpperCase() }))} placeholder="e.g. NQ" className="w-full rounded-lg border border-border bg-bg-page px-3 py-2 text-sm text-text-primary" />
               </label>
-              <label className="space-y-1.5">
+              {!isTickData && (<label className="space-y-1.5">
                 <span className="text-xs font-medium text-text-secondary">Timeframe</span>
                 <input value={form.timeframe} onChange={event => setForm(previous => ({ ...previous, timeframe: event.target.value }))} placeholder="e.g. 1m" className="w-full rounded-lg border border-border bg-bg-page px-3 py-2 text-sm text-text-primary" />
-              </label>
+              </label>)}
               {needsSymbolChoice && (
                 <label className="space-y-1.5">
                   <span className="text-xs font-medium text-text-secondary">Source symbol · {remainingSymbols.length} remaining</span>
@@ -387,18 +408,33 @@ const HistoricalFuturesProviderPanel = () => {
             )}
             {inspection.sample?.length > 0 && (
               <div className="overflow-x-auto">
-                <div className="mb-2 text-xs font-medium text-text-secondary">Preview · first valid rows</div>
-                <table className="w-full text-xs">
-                  <thead><tr className="text-text-tertiary border-b border-border">
-                    <th className="py-2 pr-3 text-left">Timestamp</th><th className="py-2 px-2 text-right">Open</th><th className="py-2 px-2 text-right">High</th><th className="py-2 px-2 text-right">Low</th><th className="py-2 px-2 text-right">Close</th><th className="py-2 pl-2 text-right">Volume</th>
-                  </tr></thead>
-                  <tbody>{inspection.sample.slice(0, 5).map((bar, index) => (
-                    <tr key={index} className="border-b border-border/60 text-text-secondary">
-                      <td className="py-2 pr-3 whitespace-nowrap">{formatDate(new Date(bar.timestamp).toISOString())}</td>
-                      {[bar.open,bar.high,bar.low,bar.close,bar.volume].map((value, i) => <td key={i} className="py-2 px-2 text-right tabular-nums">{value == null ? '—' : Number(value).toLocaleString()}</td>)}
-                    </tr>
-                  ))}</tbody>
-                </table>
+                <div className="mb-2 text-xs font-medium text-text-secondary">Preview · first valid tick records</div>
+                {isTickData ? (
+                  <table className="w-full text-xs">
+                    <thead><tr className="text-text-tertiary border-b border-border">
+                      <th className="py-2 pr-3 text-left">Timestamp</th><th className="py-2 px-2 text-right">Price</th><th className="py-2 px-2 text-right">Volume</th><th className="py-2 px-2 text-right">Bid exec.</th><th className="py-2 px-2 text-right">Ask exec.</th><th className="py-2 px-2 text-right">Trades</th><th className="py-2 pl-2 text-left">Contract</th>
+                    </tr></thead>
+                    <tbody>{inspection.sample.slice(0, 5).map((tick, index) => (
+                      <tr key={index} className="border-b border-border/60 text-text-secondary">
+                        <td className="py-2 pr-3 whitespace-nowrap">{formatDate(new Date(Number(BigInt(tick.timestampNs) / 1000000n)).toISOString())}</td>
+                        {[tick.price, tick.volume, tick.bidSize, tick.askSize, tick.tradeCount].map((value, i) => <td key={i} className="py-2 px-2 text-right tabular-nums">{value == null ? '—' : Number(value).toLocaleString()}</td>)}
+                        <td className="py-2 pl-2">{tick.sourceSymbol || '—'}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                ) : (
+                  <table className="w-full text-xs">
+                    <thead><tr className="text-text-tertiary border-b border-border">
+                      <th className="py-2 pr-3 text-left">Timestamp</th><th className="py-2 px-2 text-right">Open</th><th className="py-2 px-2 text-right">High</th><th className="py-2 px-2 text-right">Low</th><th className="py-2 px-2 text-right">Close</th><th className="py-2 pl-2 text-right">Volume</th>
+                    </tr></thead>
+                    <tbody>{inspection.sample.slice(0, 5).map((bar, index) => (
+                      <tr key={index} className="border-b border-border/60 text-text-secondary">
+                        <td className="py-2 pr-3 whitespace-nowrap">{formatDate(new Date(bar.timestamp).toISOString())}</td>
+                        {[bar.open,bar.high,bar.low,bar.close,bar.volume].map((value, i) => <td key={i} className="py-2 px-2 text-right tabular-nums">{value == null ? '—' : Number(value).toLocaleString()}</td>)}
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                )}
               </div>
             )}
 
