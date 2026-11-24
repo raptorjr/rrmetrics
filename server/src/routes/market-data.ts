@@ -468,7 +468,9 @@ marketData.get('/api/market-data/ticks/query', requiresLogin, async (c) => {
     const overlapStart = Math.max(startTime, datasetStart);
     const overlapEnd = Math.min(endTime, datasetEnd);
     if (overlapEnd < overlapStart) return total;
-    const fraction = Math.min(1, Math.max(0, (overlapEnd - overlapStart) / coverage));
+    const fraction = startTime === endTime
+      ? (startTime >= datasetStart && startTime <= datasetEnd ? 1 : 0)
+      : Math.min(1, Math.max(0, (overlapEnd - overlapStart) / coverage));
     return total + Math.ceil(Number(dataset.row_count) * fraction);
   }, 0);
   if (estimatedTickEvents > maxTickEvents) {
