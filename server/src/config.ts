@@ -11,6 +11,10 @@ import type { Env } from './bindings';
 
 export const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 export const SCREENSHOTS_DIR = path.join(DATA_DIR, 'screenshots');
+export const MARKET_DATA_DIR = path.join(DATA_DIR, 'market-data');
+export const MARKET_DATA_STAGING_DIR = path.join(MARKET_DATA_DIR, 'staging');
+export const MARKET_DATA_ORIGINALS_DIR = path.join(MARKET_DATA_DIR, 'originals');
+export const MARKET_DATA_NORMALIZED_DIR = path.join(MARKET_DATA_DIR, 'normalized');
 export const DB_PATH = path.join(DATA_DIR, 'rrmetrics.db');
 export const SECRET_KEY_PATH = path.join(DATA_DIR, 'secret.key');
 export const PUBLIC_DIR = path.join(process.cwd(), 'public');
@@ -25,6 +29,9 @@ export function getPort(): number {
 /** Creates the data directories if they don't exist yet. */
 export function ensureDataDirs(): void {
   fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
+  fs.mkdirSync(MARKET_DATA_STAGING_DIR, { recursive: true });
+  fs.mkdirSync(MARKET_DATA_ORIGINALS_DIR, { recursive: true });
+  fs.mkdirSync(MARKET_DATA_NORMALIZED_DIR, { recursive: true });
 }
 
 let cachedSecretKey: string | null = null;
