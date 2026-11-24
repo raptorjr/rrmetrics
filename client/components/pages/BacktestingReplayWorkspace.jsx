@@ -609,7 +609,7 @@ const BacktestingReplayWorkspace = () => {
           {selectedMarket?.coverage.length > 1 && <label className="space-y-1">
             <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">Continuous data period</span>
             <select value={selectedCoverageIndex} onChange={handleCoverageChange} disabled={historicalLoading} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
-              {selectedMarket.coverage.map((range, index) => <option key={index} value={index}>{formatDateEST(range.start)} – {formatDateEST(range.end)}</option>)}
+              {selectedMarket.coverage.map((range, index) => <option key={index} value={index}>{formatDateEST(range.start)} {formatTimeEST(range.start)} – {formatDateEST(range.end)} {formatTimeEST(range.end)}</option>)}
             </select>
           </label>}
           <div className="space-y-1">
