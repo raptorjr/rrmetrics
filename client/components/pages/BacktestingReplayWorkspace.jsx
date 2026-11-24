@@ -1,6 +1,5 @@
 const React = require('react');
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
-const Papa = require('papaparse');
 const { authFetch } = require('../../helper.js');
 import { createChart, CandlestickSeries, ColorType, LineStyle } from 'lightweight-charts';
 const {
@@ -21,8 +20,50 @@ const getCssColor = (name, fallback) => {
 
 const formatMoney = value => (value < 0 ? '-$' : '$') + Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatPrice = (value, decimals = 2) => Number(value).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-const formatBarTime = value => new Date(value * 1000).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-const toLocalDateTimeInput = value => { const date = new Date(value); if (!Number.isFinite(date.getTime())) return ''; return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 19); };
+const { formatDateEST, formatTimeEST, getDisplayTimeZone } = require('../../utils/dateUtils');
+
+const formatBarTime = value => {
+  const date = new Date(value * 1000);
+  return `${formatDateEST(date)} ${formatTimeEST(date)}`;
+};
+
+const getZonedParts = (date, timeZone) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+  }).formatToParts(date);
+  return Object.fromEntries(parts.filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+};
+
+const toDisplayDateTimeInput = value => {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return '';
+  const p = getZonedParts(date, getDisplayTimeZone());
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}`;
+};
+
+const fromDisplayDateTimeInput = value => {
+  const match = /^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})(?::(\\d{2}))?$/.exec(value || '');
+  if (!match) return null;
+  const [, year, month, day, hour, minute, second = '00'] = match;
+  const target = Date.UTC(+year, +month - 1, +day, +hour, +minute, +second);
+  const timeZone = getDisplayTimeZone();
+  let timestamp = target;
+  // Resolve the wall-clock value in the user's configured display timezone.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const p = getZonedParts(new Date(timestamp), timeZone);
+    const represented = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
+    const difference = target - represented;
+    timestamp += difference;
+    if (difference === 0) break;
+  }
+  return new Date(timestamp);
+};
+
+const formatDisplayDateTimeInput = value => {
+  const date = fromDisplayDateTimeInput(value);
+  return date ? `${formatDateEST(date)} ${formatTimeEST(date)}` : 'Select date and time';
+};
 const getIntervalSeconds = data => {
   const gaps = [];
   for (let index = 1; index < Math.min(data.length, 30); index += 1) {
@@ -146,8 +187,8 @@ const BacktestingReplayWorkspace = () => {
     }
     const starts = selected.map(dataset => new Date(dataset.start_time).getTime()).filter(Number.isFinite);
     const ends = selected.map(dataset => new Date(dataset.end_time).getTime()).filter(Number.isFinite);
-    setHistoricalStart(toLocalDateTimeInput(Math.min(...starts)));
-    setHistoricalEnd(toLocalDateTimeInput(Math.max(...ends)));
+    setHistoricalStart(toDisplayDateTimeInput(Math.min(...starts)));
+    setHistoricalEnd(toDisplayDateTimeInput(Math.max(...ends)));
   }, [filteredHistoricalDatasets, historicalDatasetId]);
 
   const spec = getInstrumentSpec(ticker);
@@ -364,44 +405,10 @@ const BacktestingReplayWorkspace = () => {
     setMessage('');
   };
 
-  const handleCsvUpload = (event) => {
-    const file = event.target.files && event.target.files[0];
-    if (!file) return;
-    setImportError('');
-    setError('');
-    setIsPlaying(false);
-    Papa.parse(file, {
-      header: true,
-      dynamicTyping: true,
-      skipEmptyLines: true,
-      complete: results => {
-        const normalized = normalizeOhlcvRows(results.data);
-        if (normalized.length < 2) {
-          setImportError('No usable OHLCV bars found. Expected timestamp, open, high, low and close columns.');
-          return;
-        }
-        setCandles(normalized);
-        setCurrentIndex(Math.min(80, normalized.length - 1));
-        currentIndexRef.current = Math.min(80, normalized.length - 1);
-        setDataLabel(file.name + ' · ' + normalized.length.toLocaleString() + ' bars');
-        setIsDemoData(false);
-        setDataSource('csv');
-        setPosition(null);
-        positionRef.current = null;
-        setClosedTrades([]);
-        setStopInput('');
-        setTargetInput('');
-        setMessage('Loaded ' + normalized.length.toLocaleString() + ' candles. Future bars are hidden during replay.');
-      },
-      error: parseError => setImportError(parseError.message || 'Could not read this CSV file.'),
-    });
-    event.target.value = '';
-  };
-
   const loadHistoricalData = async () => {
     if (historicalLoading || !historicalStart || !historicalEnd) return;
-    const start = new Date(historicalStart);
-    const end = new Date(historicalEnd);
+    const start = fromDisplayDateTimeInput(historicalStart);
+    const end = fromDisplayDateTimeInput(historicalEnd);
     if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end < start) {
       setImportError('Choose a valid historical start and end time.');
       return;
@@ -558,10 +565,6 @@ const BacktestingReplayWorkspace = () => {
             <button type="button" onClick={() => { setHistoricalPanelOpen(value => !value); setImportError(''); }} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-bg-input text-sm text-text-primary hover:border-accent">
               {historicalPanelOpen ? 'Close historical data' : 'Load historical data'}
             </button>
-            <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-bg-input text-sm text-text-primary hover:border-accent cursor-pointer">
-              Upload OHLCV CSV
-              <input type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsvUpload} />
-            </label>
           </div>
         </div>
         {historicalPanelOpen && (
@@ -627,12 +630,30 @@ const BacktestingReplayWorkspace = () => {
                     </select>
                   </label>
                   <label className="space-y-1">
-                    <span className="block text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">From</span>
-                    <input type="datetime-local" step="1" value={historicalStart} onChange={event => setHistoricalStart(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary" />
+                    <span className="block text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">From · ${getDisplayTimeZone()}</span>
+                    <div className="relative">
+                      <button type="button" onClick={event => {
+                        const picker = event.currentTarget.parentElement.querySelector('input');
+                        if (picker?.showPicker) picker.showPicker();
+                        else picker?.focus();
+                      }} className="w-full text-left bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
+                        {formatDisplayDateTimeInput(historicalStart)}
+                      </button>
+                      <input type="datetime-local" step="1" value={historicalStart} onChange={event => setHistoricalStart(event.target.value)} aria-label="From date and time" className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" tabIndex={-1} />
+                    </div>
                   </label>
                   <label className="space-y-1">
-                    <span className="block text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">To</span>
-                    <input type="datetime-local" step="1" value={historicalEnd} onChange={event => setHistoricalEnd(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary" />
+                    <span className="block text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">To · ${getDisplayTimeZone()}</span>
+                    <div className="relative">
+                      <button type="button" onClick={event => {
+                        const picker = event.currentTarget.parentElement.querySelector('input');
+                        if (picker?.showPicker) picker.showPicker();
+                        else picker?.focus();
+                      }} className="w-full text-left bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
+                        {formatDisplayDateTimeInput(historicalEnd)}
+                      </button>
+                      <input type="datetime-local" step="1" value={historicalEnd} onChange={event => setHistoricalEnd(event.target.value)} aria-label="To date and time" className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" tabIndex={-1} />
+                    </div>
                   </label>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -649,11 +670,8 @@ const BacktestingReplayWorkspace = () => {
         )}
         {isDemoData && (
           <div className="text-xs text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-            Synthetic demonstration data only — this is not historical market data. Upload a CSV or load stored Historical Futures data to replay real candles.
+            Synthetic demonstration data only — this is not historical market data. Add data under Settings → Providers → Historical Futures, then load it here to replay real candles.
           </div>
-        )}
-        {!isDemoData && dataSource === 'csv' && (
-          <div className="text-xs text-text-muted">Uploaded CSV data is held in this browser session only. It is not saved to RR Metrics. Confirm the selected instrument matches the file.</div>
         )}
         {!isDemoData && dataSource === 'historical' && (
           <div className="text-xs text-text-muted">Loaded from the server-managed Historical Futures catalogue. The source file and normalized dataset remain stored independently.</div>
