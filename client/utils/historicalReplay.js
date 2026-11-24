@@ -67,7 +67,7 @@ function getAvailableMarkets(datasets) {
     market.availableTimeframes = [...available].sort(compareTimeframes);
     market.start = market.coverage[0]?.start ?? null;
     market.end = market.coverage[market.coverage.length - 1]?.end ?? null;
-    market.label = market.sourceSymbol
+    market.label = market.sourceSymbol && market.sourceSymbol !== market.instrument
       ? market.instrument + ' · ' + market.sourceSymbol
       : market.instrument;
     return market;
