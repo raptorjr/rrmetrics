@@ -18,6 +18,7 @@ test('market catalogue exposes only available native and aggregatable timeframes
   assert.deepEqual(mgc.availableTimeframes, ['10s', '30s', '1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h', '2h', '4h']);
   assert.equal(mgc.coverage[0].end, Date.parse('2026-11-03T00:00:00.000Z'));
   assert.equal(timeframeSeconds('5m'), 300);
+  assert.equal(timeframeSeconds('1d'), 86400);
 });
 
 test('higher timeframe aggregation preserves OHLCV and UTC bucket boundaries', () => {
