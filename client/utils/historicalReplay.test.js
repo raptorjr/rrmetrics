@@ -49,3 +49,23 @@ test('replay date range must stay inside one continuous coverage period', () => 
   assert.equal(isRangeWithinCoverage(coverage.start, Date.parse('2026-11-11T00:00:00.000Z'), coverage), false);
   assert.equal(isRangeWithinCoverage(coverage.end, coverage.start, coverage), false);
 });
+
+test('market catalogue keeps disjoint coverage periods separate', () => {
+  const markets = getAvailableMarkets([
+    { id: 'first', instrument: 'NQ', source_symbol: null, timeframe: '1m', start_time: '2026-11-09T00:00:00.000Z', end_time: '2026-11-09T23:59:00.000Z' },
+    { id: 'second', instrument: 'NQ', source_symbol: null, timeframe: '1m', start_time: '2026-11-11T00:00:00.000Z', end_time: '2026-11-11T23:59:00.000Z' },
+  ]);
+  assert.equal(markets.length, 1);
+  assert.equal(markets[0].sourceSymbol, '');
+  assert.equal(markets[0].coverage.length, 2);
+  assert.equal(isRangeWithinCoverage(
+    Date.parse('2026-11-09T01:00:00.000Z'),
+    Date.parse('2026-11-09T20:00:00.000Z'),
+    markets[0].coverage[0],
+  ), true);
+  assert.equal(isRangeWithinCoverage(
+    Date.parse('2026-11-09T20:00:00.000Z'),
+    Date.parse('2026-11-11T02:00:00.000Z'),
+    markets[0].coverage[0],
+  ), false);
+});
