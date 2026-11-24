@@ -284,8 +284,9 @@ marketData.get('/api/market-data/query', requiresLogin, async (c) => {
 
   if (!datasets.length) return c.json({ error: 'No matching historical market-data datasets were found.' }, 404);
   if (datasetId && ((instrument && datasets[0].instrument !== instrument)
-    || (timeframe && datasets[0].timeframe !== timeframe))) {
-    return c.json({ error: 'The selected dataset does not match the requested instrument/timeframe.' }, 400);
+    || (timeframe && datasets[0].timeframe !== timeframe)
+    || (sourceSymbol && datasets[0].source_symbol !== sourceSymbol))) {
+    return c.json({ error: 'The selected dataset does not match the requested instrument/timeframe/source symbol.' }, 400);
   }
 
   const sourceSymbols = [...new Set(datasets.map(dataset => dataset.source_symbol ?? '__none__'))];
@@ -681,7 +682,7 @@ marketData.delete('/api/market-data/files/:fileId', requiresLogin, async (c) => 
   if (!file) return c.notFound();
 
   const datasets = db.prepare(
-    `SELECT id, instrument, source_symbol, timeframe, row_count, start_time, end_time, normalized_storage_key
+    `SELECT id, data_kind, instrument, source_symbol, timeframe, row_count, start_time, end_time, normalized_storage_key
      FROM market_data_file_datasets WHERE file_id = ? AND user_id = ?
      ORDER BY instrument, source_symbol`,
   ).all(fileId, user.id) as Array<{

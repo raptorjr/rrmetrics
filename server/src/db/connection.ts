@@ -6,6 +6,59 @@ import { DB_PATH, ensureDataDirs } from '../config';
 /** The better-sqlite3 database handle type used across the db layer. */
 export type Db = Database.Database;
 
+
+/**
+ * Rebuilds the source-owned dataset table when upgrading from the OHLCV-only
+ * check constraint. Existing dataset rows and file ownership are preserved.
+ */
+export function migrateMarketDataDatasetKinds(db: Db): void {
+  const table = db.prepare(
+    "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'market_data_file_datasets'",
+  ).get() as { sql: string } | undefined;
+  if (!table?.sql.includes("data_kind IN ('ohlcv')")) return;
+
+  db.transaction(() => {
+    db.exec(`
+      DROP INDEX IF EXISTS idx_market_data_datasets_query;
+      DROP INDEX IF EXISTS idx_market_data_datasets_file;
+      ALTER TABLE market_data_file_datasets RENAME TO market_data_file_datasets_legacy;
+      CREATE TABLE market_data_file_datasets (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+        file_id TEXT NOT NULL,
+        data_kind TEXT NOT NULL CHECK (data_kind IN ('ohlcv', 'ticks')),
+        instrument TEXT NOT NULL,
+        source_symbol TEXT,
+        timeframe TEXT NOT NULL,
+        timezone TEXT,
+        timestamp_unit TEXT NOT NULL,
+        row_count INTEGER NOT NULL CHECK (row_count >= 0),
+        start_time TEXT NOT NULL,
+        end_time TEXT NOT NULL,
+        schema_version INTEGER NOT NULL DEFAULT 1,
+        normalized_storage_key TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        FOREIGN KEY(file_id, user_id) REFERENCES market_data_files(id, user_id) ON DELETE CASCADE
+      );
+      INSERT INTO market_data_file_datasets (
+        id, user_id, file_id, data_kind, instrument, source_symbol, timeframe,
+        timezone, timestamp_unit, row_count, start_time, end_time, schema_version,
+        normalized_storage_key, created_at
+      )
+      SELECT
+        id, user_id, file_id, data_kind, instrument, source_symbol, timeframe,
+        timezone, timestamp_unit, row_count, start_time, end_time, schema_version,
+        normalized_storage_key, created_at
+      FROM market_data_file_datasets_legacy;
+      DROP TABLE market_data_file_datasets_legacy;
+      CREATE INDEX idx_market_data_datasets_query
+        ON market_data_file_datasets(user_id, instrument, timeframe, start_time, end_time);
+      CREATE INDEX idx_market_data_datasets_file
+        ON market_data_file_datasets(file_id);
+    `);
+  })();
+}
+
 let instance: Db | null = null;
 
 /**
@@ -22,6 +75,7 @@ export function getDb(): Db {
 
   const schemaPath = path.join(__dirname, 'schema.sql');
   db.exec(fs.readFileSync(schemaPath, 'utf8'));
+  migrateMarketDataDatasetKinds(db);
 
   // Expand the source-owned dataset catalogue to support tick-event datasets.
   // Rebuild the table transactionally so existing OHLCV records and ownership
