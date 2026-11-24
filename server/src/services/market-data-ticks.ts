@@ -439,7 +439,7 @@ export async function normalizeTickParquet(
           bid_size: bidSize,
           ask_size: askSize,
           trade_count: tradeCount === null ? null : BigInt(Math.trunc(tradeCount)),
-          source_symbol: rowSymbol,
+          source_symbol: sourceSymbol ?? rowSymbol,
           exchange: row[layout.mapping.exchange] == null ? null : String(row[layout.mapping.exchange]).trim().toUpperCase(),
         };
       }
