@@ -26,6 +26,7 @@ const ReplayTradeCanvasGrid = ({
   const hostRef = useRef(null);
   const gridRef = useRef(null);
   const barsRef = useRef([]);
+  const baseTimeframeRef = useRef(baseTimeframe);
   const dataIdentityRef = useRef('');
   const [gridRevision, setGridRevision] = useState(0);
   const lastExternalTimeframeRef = useRef(timeframe);
@@ -64,13 +65,13 @@ const ReplayTradeCanvasGrid = ({
         if (onActiveChartChange) onActiveChartChange(index);
       },
       onChartAdd: widget => {
-        if (barsRef.current.length) widget.setData(barsRef.current);
+        if (barsRef.current.length) widget.setData(barsRef.current, baseTimeframeRef.current);
         setGridRevision(value => value + 1);
       },
     });
     gridRef.current = grid;
     grid.getWidgets().forEach(widget => {
-      if (barsRef.current.length) widget.setData(barsRef.current);
+      if (barsRef.current.length) widget.setData(barsRef.current, baseTimeframeRef.current);
     });
     return () => {
       grid.destroy();
@@ -84,6 +85,8 @@ const ReplayTradeCanvasGrid = ({
     if (grid.getLayout() !== layout) grid.setLayout(layout);
   }, [layout]);
 
+  useEffect(() => { baseTimeframeRef.current = baseTimeframe; }, [baseTimeframe]);
+
   useEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
@@ -94,11 +97,11 @@ const ReplayTradeCanvasGrid = ({
       && visibleBars.length >= previous.length
       && previous.every((bar, index) => visibleBars[index]?.time === bar.time);
     if (!previous.length || identityChanged || !isAppend) {
-      grid.getWidgets().forEach(widget => widget.setData(visibleBars));
+      grid.getWidgets().forEach(widget => widget.setData(visibleBars, baseTimeframe));
     } else if (visibleBars.length > previous.length) {
       const additions = visibleBars.slice(previous.length);
       grid.getWidgets().forEach(widget => {
-        additions.forEach(bar => widget.getChart().appendBar(bar));
+        additions.forEach(bar => widget.appendDataBar(bar));
       });
     }
     barsRef.current = visibleBars;
