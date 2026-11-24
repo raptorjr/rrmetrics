@@ -69,3 +69,30 @@ test('allows matching timestamps for different symbols but rejects duplicates pe
   assert.equal(result.sample[0].sourceSymbol, 'NQ');
   assert.ok(result.warnings.some(warning => warning.includes('multiple instrument symbols')));
 });
+
+
+test('detects dated futures contract symbols and their canonical roots', () => {
+  const csv = [
+    'timestamp,symbol,open,high,low,close,volume',
+    '2026-11-09T14:30:00Z,ESZ6,6000,6002,5999,6001,100',
+    '2026-11-09T14:31:00Z,ESZ6,6001,6003,6000,6002,110',
+  ].join('\n');
+  const result = inspectOhlcvCsv(Buffer.from(csv), 'sample.csv');
+  assert.equal(result.detectedInstrument, 'ES');
+  assert.deepEqual(result.detectedSymbols, ['ESZ6']);
+});
+
+test('infers timeframe independently for interleaved instruments', () => {
+  const csv = [
+    'timestamp,symbol,open,high,low,close,volume',
+    '2026-11-09T14:30:00Z,NQZ6,25000,25002,24999,25001,100',
+    '2026-11-09T14:30:00Z,ESZ6,6000,6002,5999,6001,200',
+    '2026-11-09T14:31:00Z,NQZ6,25001,25003,25000,25002,110',
+    '2026-11-09T14:31:00Z,ESZ6,6001,6003,6000,6002,210',
+    '2026-11-09T14:32:00Z,NQZ6,25002,25004,25001,25003,120',
+    '2026-11-09T14:32:00Z,ESZ6,6002,6004,6001,6003,220',
+  ].join('\n');
+  const result = inspectOhlcvCsv(Buffer.from(csv), 'multi-symbol.csv');
+  assert.equal(result.detectedTimeframe, '1m');
+  assert.equal(result.detectedInstrument, null);
+});

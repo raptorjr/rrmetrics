@@ -142,10 +142,165 @@ function timeframeFromGap(milliseconds: number): string | null {
 }
 
 function detectInstrument(filename: string, symbols: string[]): string | null {
-  const candidates = [...symbols, path.basename(filename, path.extname(filename))].join(' ').toUpperCase();
-  const known = ['MNQ', 'NQ', 'MES', 'ES', 'MGC', 'GC', 'MYM', 'YM', 'M2K', 'RTY', 'CL', 'MCL', '6E', '6B', '6J'];
-  const matches = known.filter(symbol => new RegExp(`(^|[^A-Z0-9])${symbol}([^A-Z0-9]|$)`).test(candidates));
-  return matches.length === 1 ? matches[0] : null;
+  const candidates = [...symbols, path.basename(filename, path.extname(filename))]
+    .join(' ').toUpperCase();
+  const tokens = candidates.split(/[^A-Z0-9]+/).filter(Boolean);
+  const known = ['MNQ', 'NQ', 'MES', 'ES', 'MGC', 'GC', 'MYM', 'YM', 'M2K', 'RTY', 'MCL', 'CL', '6E', '6B', '6J'];
+  const matches = new Set<string>();
+
+  for (const token of tokens) {
+    for (const symbol of known) {
+      // Also recognize dated futures contracts such as ESZ6, ESZ26 and NQZ6.
+      if (token === symbol || new RegExp(`^${symbol}[FGHJKMNQUVXZ]\\d{1,2}import path from 'node:path';
+
+export interface OhlcvBar {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number | null;
+  sourceSymbol: string | null;
+}
+
+export interface CsvInspection {
+  format: 'csv';
+  delimiter: ',' | ';' | '\t';
+  columns: string[];
+  detectedSymbols: string[];
+  rowCount: number;
+  validRowCount: number;
+  invalidRowCount: number;
+  detectedInstrument: string | null;
+  detectedTimeframe: string | null;
+  timestampUnit: 'iso' | 'seconds' | 'milliseconds' | 'microseconds' | 'nanoseconds' | null;
+  timezone: string | null;
+  timezoneNeedsConfirmation: boolean;
+  startTime: string | null;
+  endTime: string | null;
+  sample: OhlcvBar[];
+  errors: string[];
+  warnings: string[];
+}
+
+const HEADER_ALIASES: Record<string, string[]> = {
+  timestamp: ['timestamp', 'time', 'datetime', 'date', 'ts', 'start', 'bar_time'],
+  open: ['open', 'o'],
+  high: ['high', 'h'],
+  low: ['low', 'l'],
+  close: ['close', 'c', 'last'],
+  volume: ['volume', 'vol', 'v'],
+  instrument: ['symbol', 'ticker', 'instrument', 'contract'],
+};
+
+function detectCsvDelimiter(source: string): ',' | ';' | '\t' {
+  const firstLine = source.split(/\r?\n/, 1)[0] ?? '';
+  const candidates: Array<',' | ';' | '\t'> = [',', ';', '\t'];
+  const counts = candidates.map((delimiter) => {
+    let quoted = false;
+    let count = 0;
+    for (let index = 0; index < firstLine.length; index += 1) {
+      const char = firstLine[index];
+      if (char === '"' && quoted && firstLine[index + 1] === '"') {
+        index += 1;
+      } else if (char === '"') {
+        quoted = !quoted;
+      } else if (!quoted && char === delimiter) {
+        count += 1;
+      }
+    }
+    return count;
+  });
+  const bestIndex = counts.indexOf(Math.max(...counts));
+  return counts[bestIndex] > 0 ? candidates[bestIndex] : ',';
+}
+
+function parseCsvRows(source: string, delimiter: ',' | ';' | '\t'): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let quoted = false;
+
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i];
+    if (quoted) {
+      if (char === '"' && source[i + 1] === '"') {
+        field += '"';
+        i += 1;
+      } else if (char === '"') {
+        quoted = false;
+      } else {
+        field += char;
+      }
+    } else if (char === '"' && field.length === 0) {
+      quoted = true;
+    } else if (char === delimiter) {
+      row.push(field);
+      field = '';
+    } else if (char === '\n') {
+      row.push(field.replace(/\r$/, ''));
+      if (row.some(value => value.trim() !== '')) rows.push(row);
+      row = [];
+      field = '';
+    } else {
+      field += char;
+    }
+  }
+
+  if (quoted) throw new Error('CSV contains an unterminated quoted field.');
+  if (field.length > 0 || row.length > 0) {
+    row.push(field.replace(/\r$/, ''));
+    if (row.some(value => value.trim() !== '')) rows.push(row);
+  }
+  return rows;
+}
+
+function normalizeHeader(value: string): string {
+  return value.trim().toLowerCase().replace(/[\s_-]+/g, '');
+}
+
+function parseTimestamp(value: string): { timestamp: number; unit: CsvInspection['timestampUnit']; timezone: string | null; needsTimezone: boolean } | null {
+  const input = value.trim();
+  if (!input) return null;
+
+  if (/^\d+(?:\.\d+)?$/.test(input)) {
+    const numeric = Number(input);
+    if (!Number.isFinite(numeric)) return null;
+    const absolute = Math.abs(numeric);
+    if (absolute >= 1e17) return { timestamp: Math.trunc(numeric / 1e6), unit: 'nanoseconds', timezone: 'UTC', needsTimezone: false };
+    if (absolute >= 1e14) return { timestamp: Math.trunc(numeric / 1e3), unit: 'microseconds', timezone: 'UTC', needsTimezone: false };
+    if (absolute >= 1e11) return { timestamp: Math.trunc(numeric), unit: 'milliseconds', timezone: 'UTC', needsTimezone: false };
+    if (absolute >= 1e8) return { timestamp: Math.trunc(numeric * 1000), unit: 'seconds', timezone: 'UTC', needsTimezone: false };
+    return null;
+  }
+
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(input);
+  const parsed = Date.parse(hasZone ? input : `${input}Z`);
+  if (!Number.isFinite(parsed)) return null;
+  return {
+    timestamp: parsed,
+    unit: 'iso',
+    timezone: hasZone ? 'explicit' : null,
+    needsTimezone: !hasZone,
+  };
+}
+
+function timeframeFromGap(milliseconds: number): string | null {
+  const seconds = Math.round(milliseconds / 1000);
+  if (seconds <= 0) return null;
+  if (seconds % 86400 === 0) return `${seconds / 86400}d`;
+  if (seconds % 3600 === 0) return `${seconds / 3600}h`;
+  if (seconds % 60 === 0) return `${seconds / 60}m`;
+  return `${seconds}s`;
+}
+
+function detectInstrument(filename: string, symbols: string[]): string | null {
+).test(token)) {
+        matches.add(symbol);
+      }
+    }
+  }
+  return matches.size === 1 ? [...matches][0] : null;
 }
 
 export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection {
@@ -236,7 +391,22 @@ export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection
   }
 
   bars.sort((a, b) => a.timestamp - b.timestamp);
-  const gaps = bars.slice(1).map((bar, index) => bar.timestamp - bars[index].timestamp).filter(gap => gap > 0);
+  // Calculate intervals independently per source symbol. Interleaved symbols
+  // commonly share timestamps; treating those as one stream skews the median
+  // and can hide the actual timeframe for multi-instrument files.
+  const timestampsBySymbol = new Map<string, number[]>();
+  for (const bar of bars) {
+    const key = bar.sourceSymbol ?? '';
+    const timestamps = timestampsBySymbol.get(key) ?? [];
+    timestamps.push(bar.timestamp);
+    timestampsBySymbol.set(key, timestamps);
+  }
+  const gaps = [...timestampsBySymbol.values()].flatMap((timestamps) => {
+    timestamps.sort((a, b) => a - b);
+    return timestamps.slice(1)
+      .map((timestamp, index) => timestamp - timestamps[index])
+      .filter(gap => gap > 0);
+  });
   const medianGap = gaps.length ? [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)] : 0;
   const uniqueSymbols = [...new Set(symbols)];
   const detectedInstrument = detectInstrument(filename, uniqueSymbols);

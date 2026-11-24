@@ -141,3 +141,13 @@ Chart Replay should use this service instead of maintaining its own independent 
 ## Data ownership and repository hygiene
 
 Historical data files supplied by users or licensed from providers must never be committed to the public repository. Tests must use synthetic or explicitly redistributable fixtures.
+
+
+## User-supplied evaluation sample
+
+The supplied `es-nq-tick-sample-2026-11-09.zip` contains:
+- ES and NQ one-minute OHLCV Parquet files (1,380 bars per instrument).
+- Separate ESZ6 and NQZ6 trade-tick Parquet files (1,481,669 ES records and 710,815 NQ records).
+- Per-minute volume CSVs, a manifest, and SHA-256 checksums.
+
+The first provider release remains OHLCV-only. Do not import tick files as candles or discard their event-level detail; tick ingestion remains a separate later capability. The manifest's file sizes and SHA-256 values were checked against all eight listed archive files. Actual Parquet decoding and bar/tick reconciliation still require a Parquet reader in the project runtime.
