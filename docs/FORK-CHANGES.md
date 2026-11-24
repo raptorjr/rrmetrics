@@ -8,6 +8,7 @@
 - Added automated layout tests for collision-free placement, legacy dashboard migration, and independent saved positions.
 - Corrected initial server loading so a delayed response selects the breakpoint that is active when loading completes, even if the browser width changed during the request.
 - Kept minimum-area resize corrections aligned to whole breakpoint columns, preventing fractional logical widths at narrow sizes.
+- Fixed the dashboard's breakpoint ref initialization order so the component no longer reads the breakpoint state before it is initialized.
 
 # Fork changes
 
