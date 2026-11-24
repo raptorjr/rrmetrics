@@ -32,6 +32,16 @@ jobs:
 
 
 
+      - name: Bundle trade-tick services for real Parquet smoke test
+        run: tar -czf /tmp/trade-tick-service-smoke.tgz -C node_modules hyparquet hyparquet-writer hyparquet-compressors fzstd hysnappy typescript -C .. server/src/services/market-data-ticks.ts server/src/services/market-data-time.ts
+
+      - name: Upload trade-tick service smoke bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: trade-tick-service-smoke
+          path: /tmp/trade-tick-service-smoke.tgz
+          retention-days: 1
+
       - name: Type-check server
         run: npx tsc --noEmit -p server/tsconfig.json
 
