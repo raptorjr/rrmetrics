@@ -1,6 +1,7 @@
 const React = require('react');
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
 const Papa = require('papaparse');
+const { authFetch } = require('../../helper.js');
 import { createChart, CandlestickSeries, ColorType, LineStyle } from 'lightweight-charts';
 const {
   createDemoCandles,
@@ -21,6 +22,7 @@ const getCssColor = (name, fallback) => {
 const formatMoney = value => (value < 0 ? '-$' : '$') + Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatPrice = (value, decimals = 2) => Number(value).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 const formatBarTime = value => new Date(value * 1000).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+const toLocalDateTimeInput = value => { const date = new Date(value); if (!Number.isFinite(date.getTime())) return ''; return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 19); };
 const getIntervalSeconds = data => {
   const gaps = [];
   for (let index = 1; index < Math.min(data.length, 30); index += 1) {
@@ -58,6 +60,15 @@ const BacktestingReplayWorkspace = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [importError, setImportError] = useState('');
+  const [dataSource, setDataSource] = useState('demo');
+  const [historicalDatasets, setHistoricalDatasets] = useState([]);
+  const [historicalPanelOpen, setHistoricalPanelOpen] = useState(false);
+  const [historicalLoading, setHistoricalLoading] = useState(false);
+  const [historicalSourceSymbol, setHistoricalSourceSymbol] = useState('');
+  const [historicalTimeframe, setHistoricalTimeframe] = useState('1m');
+  const [historicalDatasetId, setHistoricalDatasetId] = useState('');
+  const [historicalStart, setHistoricalStart] = useState('');
+  const [historicalEnd, setHistoricalEnd] = useState('');
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
@@ -68,6 +79,76 @@ const BacktestingReplayWorkspace = () => {
   const positionRef = useRef(null);
   const pendingOrderRef = useRef(null);
   const advanceOneRef = useRef(null);
+
+  const tickerDatasets = useMemo(
+    () => historicalDatasets.filter(dataset => dataset.instrument === ticker),
+    [historicalDatasets, ticker],
+  );
+  const historicalTimeframes = useMemo(
+    () => [...new Set(tickerDatasets.map(dataset => dataset.timeframe))].sort(),
+    [tickerDatasets],
+  );
+  const historicalSymbols = useMemo(
+    () => [...new Set(tickerDatasets
+      .filter(dataset => dataset.timeframe === historicalTimeframe)
+      .map(dataset => dataset.source_symbol)
+      .filter(Boolean))].sort(),
+    [tickerDatasets, historicalTimeframe],
+  );
+  const filteredHistoricalDatasets = useMemo(
+    () => tickerDatasets.filter(dataset =>
+      dataset.timeframe === historicalTimeframe &&
+      (!historicalSourceSymbol || dataset.source_symbol === historicalSourceSymbol)),
+    [tickerDatasets, historicalTimeframe, historicalSourceSymbol],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const response = await authFetch('/api/market-data/datasets');
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Unable to load historical market-data catalogue.');
+        if (!cancelled) setHistoricalDatasets(data.datasets || []);
+      } catch (loadError) {
+        if (!cancelled) setImportError(loadError.message || 'Unable to load historical market-data catalogue.');
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (historicalTimeframes.length && !historicalTimeframes.includes(historicalTimeframe)) {
+      setHistoricalTimeframe(historicalTimeframes[0]);
+    }
+  }, [historicalTimeframes, historicalTimeframe]);
+
+  useEffect(() => {
+    if (historicalSymbols.length && !historicalSymbols.includes(historicalSourceSymbol)) {
+      setHistoricalSourceSymbol(historicalSymbols[0]);
+    } else if (!historicalSymbols.length && historicalSourceSymbol) {
+      setHistoricalSourceSymbol('');
+    }
+  }, [historicalSymbols, historicalSourceSymbol]);
+
+  useEffect(() => {
+    if (historicalDatasetId && !filteredHistoricalDatasets.some(dataset => dataset.id === historicalDatasetId)) {
+      setHistoricalDatasetId('');
+    }
+    const selected = historicalDatasetId
+      ? filteredHistoricalDatasets.filter(dataset => dataset.id === historicalDatasetId)
+      : filteredHistoricalDatasets;
+    if (!selected.length) {
+      setHistoricalStart('');
+      setHistoricalEnd('');
+      return;
+    }
+    const starts = selected.map(dataset => new Date(dataset.start_time).getTime()).filter(Number.isFinite);
+    const ends = selected.map(dataset => new Date(dataset.end_time).getTime()).filter(Number.isFinite);
+    setHistoricalStart(toLocalDateTimeInput(Math.min(...starts)));
+    setHistoricalEnd(toLocalDateTimeInput(Math.max(...ends)));
+  }, [filteredHistoricalDatasets, historicalDatasetId]);
 
   const spec = getInstrumentSpec(ticker);
   const currentCandle = candles[currentIndex] || candles[0];
@@ -263,11 +344,14 @@ const BacktestingReplayWorkspace = () => {
   const handleTickerChange = (event) => {
     const nextTicker = event.target.value;
     setTicker(nextTicker);
-    if (isDemoData) {
+    if (isDemoData || dataSource === 'historical') {
       const nextCandles = createDemoCandles(nextTicker);
       setCandles(nextCandles);
       setCurrentIndex(Math.min(80, nextCandles.length - 1));
       currentIndexRef.current = Math.min(80, nextCandles.length - 1);
+      setIsDemoData(true);
+      setDataSource('demo');
+      setDataLabel('Generated demo candles');
     }
     setIsPlaying(false);
     setPosition(null);
@@ -301,6 +385,7 @@ const BacktestingReplayWorkspace = () => {
         currentIndexRef.current = Math.min(80, normalized.length - 1);
         setDataLabel(file.name + ' · ' + normalized.length.toLocaleString() + ' bars');
         setIsDemoData(false);
+        setDataSource('csv');
         setPosition(null);
         positionRef.current = null;
         setClosedTrades([]);
@@ -311,6 +396,57 @@ const BacktestingReplayWorkspace = () => {
       error: parseError => setImportError(parseError.message || 'Could not read this CSV file.'),
     });
     event.target.value = '';
+  };
+
+  const loadHistoricalData = async () => {
+    if (historicalLoading || !historicalStart || !historicalEnd) return;
+    const start = new Date(historicalStart);
+    const end = new Date(historicalEnd);
+    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end < start) {
+      setImportError('Choose a valid historical start and end time.');
+      return;
+    }
+
+    setHistoricalLoading(true);
+    setImportError('');
+    setError('');
+    try {
+      const params = new URLSearchParams({ start: start.toISOString(), end: end.toISOString() });
+      if (historicalDatasetId) {
+        params.set('datasetId', historicalDatasetId);
+      } else {
+        params.set('instrument', ticker);
+        params.set('timeframe', historicalTimeframe);
+        if (historicalSourceSymbol) params.set('sourceSymbol', historicalSourceSymbol);
+      }
+
+      const response = await authFetch('/api/market-data/query?' + params.toString());
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Unable to load the selected historical market data.');
+      const normalized = normalizeOhlcvRows(data.bars || []);
+      if (normalized.length < 2) throw new Error('The selected range contains fewer than two usable OHLCV bars.');
+
+      setCandles(normalized);
+      setCurrentIndex(Math.min(80, normalized.length - 1));
+      currentIndexRef.current = Math.min(80, normalized.length - 1);
+      setIsDemoData(false);
+      setDataSource('historical');
+      setDataLabel((data.instrument || ticker) + ' · ' + (data.timeframe || historicalTimeframe) + ' · ' + (data.sourceSymbol || 'source data') + ' · ' + normalized.length.toLocaleString() + ' bars');
+      setIsPlaying(false);
+      setPosition(null);
+      positionRef.current = null;
+      setPendingOrder(null);
+      pendingOrderRef.current = null;
+      setClosedTrades([]);
+      setStopInput('');
+      setTargetInput('');
+      setMessage('Loaded ' + normalized.length.toLocaleString() + ' historical candles from the central market-data manager.');
+      setHistoricalPanelOpen(false);
+    } catch (loadError) {
+      setImportError(loadError.message || 'Unable to load historical market data.');
+    } finally {
+      setHistoricalLoading(false);
+    }
   };
 
   const validateLevels = (direction, entryPrice, stopPrice, targetPrice) => {
@@ -418,18 +554,109 @@ const BacktestingReplayWorkspace = () => {
               <span className="block max-w-[260px] truncate text-sm text-text-secondary" title={dataLabel}>{dataLabel}</span>
             </div>
           </div>
-          <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-bg-input text-sm text-text-primary hover:border-accent cursor-pointer">
-            Upload OHLCV CSV
-            <input type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsvUpload} />
-          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => { setHistoricalPanelOpen(value => !value); setImportError(''); }} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-bg-input text-sm text-text-primary hover:border-accent">
+              {historicalPanelOpen ? 'Close historical data' : 'Load historical data'}
+            </button>
+            <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-bg-input text-sm text-text-primary hover:border-accent cursor-pointer">
+              Upload OHLCV CSV
+              <input type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsvUpload} />
+            </label>
+          </div>>
         </div>
-        {isDemoData && (
-          <div className="text-xs text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-            Synthetic demonstration data only — this is not historical market data. Upload an OHLCV CSV to replay real candles.
+        {historicalPanelOpen && (
+          <div className="rounded-lg border border-border bg-bg-page/50 p-3 space-y-3">
+            <div>
+              <div className="text-sm font-semibold text-text-primary">Historical Futures</div>
+              <div className="text-xs text-text-muted mt-0.5">Select a stored source and date range. Data is loaded through RR Metrics' central market-data API.</div>
+            </div>
+            <button type="button" onClick={async () => {
+              setHistoricalLoading(true);
+              try {
+                const response = await authFetch('/api/market-data/datasets');
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Unable to refresh historical sources.');
+                setHistoricalDatasets(data.datasets || []);
+                setImportError('');
+              } catch (refreshError) {
+                setImportError(refreshError.message || 'Unable to refresh historical sources.');
+              } finally {
+                setHistoricalLoading(false);
+              }
+            }} disabled={historicalLoading} className="text-xs text-accent hover:underline disabled:opacity-50">
+              {historicalLoading ? 'Refreshing…' : 'Refresh sources'}
+            </button>
+            {tickerDatasets.length === 0 ? (
+              <div className="rounded-lg border border-border bg-bg-surface px-3 py-4 text-xs text-text-muted">
+                No historical datasets are available for {ticker}. Add CSV or Parquet files under Settings → Providers → Historical Futures first.
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                  <label className="space-y-1">
+                    <span className="block text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Timeframe</span>
+                    <select value={historicalTimeframe} onChange={event => { setHistoricalTimeframe(event.target.value); setHistoricalDatasetId(''); }} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
+                      {historicalTimeframes.map(value => <option key={value} value={value}>{value}</option>)}
+                    </select>
+                  </label>
+                  {historicalSymbols.length > 1 && (
+                    <label className="space-y-1">
+                      <span className="block text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Contract / source symbol</span>
+                      <select value={historicalSourceSymbol} onChange={event => { setHistoricalSourceSymbol(event.target.value); setHistoricalDatasetId(''); }} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
+                        {historicalSymbols.map(value => <option key={value} value={value}>{value}</option>)}
+                      </select>
+                    </label>
+                  )}
+                  <label className="space-y-1 sm:col-span-2">
+                    <span className="block text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Source selection</span>
+                    <select value={historicalDatasetId} onChange={event => {
+                      const id = event.target.value;
+                      setHistoricalDatasetId(id);
+                      const dataset = filteredHistoricalDatasets.find(item => item.id === id);
+                      if (dataset) {
+                        if (dataset.source_symbol) setHistoricalSourceSymbol(dataset.source_symbol);
+                        setHistoricalTimeframe(dataset.timeframe);
+                      }
+                    }} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
+                      <option value="">Combine non-overlapping files for this contract</option>
+                      {filteredHistoricalDatasets.map(dataset => (
+                        <option key={dataset.id} value={dataset.id}>
+                          {dataset.original_filename} · {dataset.source_symbol || dataset.instrument} · {new Date(dataset.start_time).toLocaleDateString()} – {new Date(dataset.end_time).toLocaleDateString()}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1">
+                    <span className="block text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">From</span>
+                    <input type="datetime-local" step="1" value={historicalStart} onChange={event => setHistoricalStart(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary" />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="block text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">To</span>
+                    <input type="datetime-local" step="1" value={historicalEnd} onChange={event => setHistoricalEnd(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary" />
+                  </label>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-[11px] text-text-muted">
+                    {filteredHistoricalDatasets.length} matching source dataset(s). Overlapping files require selecting a specific source.
+                  </div>
+                  <button type="button" onClick={loadHistoricalData} disabled={historicalLoading || !historicalStart || !historicalEnd || !filteredHistoricalDatasets.length} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-text disabled:opacity-50">
+                    {historicalLoading ? 'Loading…' : 'Load selected historical range'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
-        {!isDemoData && (
-          <div className="text-xs text-text-muted">Uploaded data is held in this browser session only. It is not saved to RR Metrics yet. Confirm the selected instrument matches the file.</div>
+        {isDemoData && (
+          <div className="text-xs text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+            Synthetic demonstration data only — this is not historical market data. Upload a CSV or load stored Historical Futures data to replay real candles.
+          </div>
+        )}
+        {!isDemoData && dataSource === 'csv' && (
+          <div className="text-xs text-text-muted">Uploaded CSV data is held in this browser session only. It is not saved to RR Metrics. Confirm the selected instrument matches the file.</div>
+        )}
+        {!isDemoData && dataSource === 'historical' && (
+          <div className="text-xs text-text-muted">Loaded from the server-managed Historical Futures catalogue. The source file and normalized dataset remain stored independently.</div>
         )}
         {importError && <div className="text-xs text-negative">{importError}</div>}
       </div>

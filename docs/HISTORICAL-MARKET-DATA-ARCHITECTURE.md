@@ -153,3 +153,38 @@ The supplied `es-nq-tick-sample-2026-11-09.zip` contains:
 The supplied Parquet files use Zstandard compression (Parquet codec 6). The one-minute bar schema is `ts, open, high, low, close, volume, trade_count`; the trade schema is `ts, price, volume, bid_sz, ask_sz, trade_count, symbol, exchange`. Timestamp fields are UTC timestamp values, prices are doubles, and count/volume fields are unsigned 32-bit integers.
 
 The first provider release remains OHLCV-only. Do not import tick files as candles or discard their event-level detail; tick ingestion remains a separate later capability. The manifest's file sizes and SHA-256 values were checked against all eight listed archive files. Actual Parquet decoding and bar/tick reconciliation still require a Parquet reader in the project runtime.
+
+
+## Confirmed import and source deletion API
+
+The inspect endpoint accepts both CSV and Parquet OHLCV files. Confirmation is submitted to `POST /api/market-data/files/:fileId/import`. Files containing multiple source symbols are imported one symbol at a time; the file remains in review until every detected symbol has its own dataset record. A timezone-less timestamp requires an IANA timezone confirmation. Invalid rows are not skipped unless the request explicitly sets `skipInvalidRows: true`.
+
+Normalized datasets are written as source-owned Parquet files with millisecond UTC timestamps. The original upload remains staged until all detected symbols have been imported, then it is moved to the originals directory. Dataset metadata remains linked to the originating file.
+
+File deletion first returns an impact preview (HTTP 409 with `requiresConfirmation`). The caller must repeat the request with `?confirm=true`. The delete operation tombstones the selected original and normalized source files, then deletes only that file's market-data catalogue hierarchy. Other source files with overlapping instrument/timeframe coverage are reported and retained.
+
+
+### Real Parquet compatibility smoke test
+
+The supplied ES and NQ one-minute Parquet files were run through the actual RR Metrics service functions: inspection, normalization, and bounded range query. Each contained 1,380 valid OHLCV rows, used Zstandard compression and nanosecond timestamps, and was correctly identified as 1-minute UTC data without timezone confirmation. Both normalized to Snappy Parquet and returned all 1,380 bars through the central query service with matching first/last timestamps. The separate ESZ6 and NQZ6 tick files were correctly rejected by the OHLCV inspector because they do not contain OHLCV columns. Their metadata reports 1,481,669 and 710,815 trade events respectively. Tick event decoding/import remains outside the OHLCV first release.
+
+
+## Current OHLCV reader/writer and query contract
+
+The first OHLCV implementation uses the pure-JavaScript Hyparquet stack:
+
+- `hyparquet` for Parquet metadata inspection and column reads.
+- `hyparquet-compressors` for Zstandard and other supported input codecs.
+- `hyparquet-writer` for normalized Parquet output.
+- Normalized files use millisecond UTC timestamps and Snappy compression. The timestamp column includes a page index for bounded range reads.
+
+DuckDB was not selected for this phase. The pure-JavaScript implementation avoids a native runtime dependency in the Alpine Docker image and has been exercised against the supplied Zstandard-compressed files. Revisit DuckDB only if real workload measurements show that the current reader is insufficient.
+
+Provider-independent endpoints:
+
+- `GET /api/market-data/datasets` lists ready datasets and their source/file provenance.
+- `GET /api/market-data/query` returns ordered OHLCV bars for instrument, timeframe and time range, optionally constrained by source symbol or dataset ID.
+
+Source resolution is deliberately conservative. Distinct contract symbols are never automatically merged into a continuous contract. Multiple files for the same instrument/timeframe/source symbol can be combined only when their date coverage does not overlap. If coverage overlaps, the caller must select a specific dataset ID. This prevents silent conflict resolution until explicit source-priority controls are implemented.
+
+Chart Replay now consumes this query API for stored historical data. Its synthetic demo candles and manual CSV upload remain available as separate data sources.
