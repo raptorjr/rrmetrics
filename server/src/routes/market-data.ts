@@ -128,11 +128,12 @@ marketData.post('/api/market-data/files/inspect', requiresLogin, async (c) => {
          FROM market_data_file_datasets d
          JOIN market_data_files f ON f.id = d.file_id AND f.user_id = d.user_id
          WHERE d.user_id = ? AND f.import_status = 'ready'
-           AND d.timeframe = ? AND d.start_time <= ? AND d.end_time >= ?
+           AND d.data_kind = ? AND d.timeframe = ? AND d.start_time <= ? AND d.end_time >= ?
            AND (? IS NULL OR d.instrument = ?)
            AND d.source_symbol IS ?`,
       ).all(
         user.id,
+        inspection.dataKind || 'ohlcv',
         inspection.detectedTimeframe,
         inspection.endTime,
         inspection.startTime,
@@ -228,7 +229,7 @@ marketData.get('/api/market-data/datasets', requiresLogin, async (c) => {
             f.original_filename, f.provider_id, f.imported_at
      FROM market_data_file_datasets d
      JOIN market_data_files f ON f.id = d.file_id AND f.user_id = d.user_id
-     WHERE d.user_id = ? AND f.import_status = 'ready'
+     WHERE d.user_id = ? AND f.import_status = 'ready' AND d.data_kind = 'ohlcv'
        AND (? IS NULL OR d.instrument = ?)
        AND (? IS NULL OR d.timeframe = ?)
        AND (? IS NULL OR d.source_symbol = ?)
@@ -266,7 +267,7 @@ marketData.get('/api/market-data/query', requiresLogin, async (c) => {
       f.original_filename, f.provider_id
     FROM market_data_file_datasets d
     JOIN market_data_files f ON f.id = d.file_id AND f.user_id = d.user_id
-    WHERE d.user_id = ? AND f.import_status = 'ready'`;
+    WHERE d.user_id = ? AND f.import_status = 'ready' AND d.data_kind = 'ohlcv'`;
   const datasets = datasetId
     ? db.prepare(`${baseQuery} AND d.id = ?`).all(user.id, datasetId) as Array<any>
     : db.prepare(
@@ -698,9 +699,9 @@ marketData.delete('/api/market-data/files/:fileId', requiresLogin, async (c) => 
   for (const dataset of datasets) {
     const overlap = db.prepare(
       `SELECT COUNT(*) AS count FROM market_data_file_datasets
-       WHERE user_id = ? AND file_id <> ? AND instrument = ? AND timeframe = ?
+       WHERE user_id = ? AND file_id <> ? AND data_kind = ? AND instrument = ? AND timeframe = ?
          AND source_symbol IS ? AND start_time <= ? AND end_time >= ?`,
-    ).get(user.id, fileId, dataset.instrument, dataset.timeframe, dataset.source_symbol, dataset.end_time, dataset.start_time) as { count: number };
+    ).get(user.id, fileId, dataset.data_kind, dataset.instrument, dataset.timeframe, dataset.source_symbol, dataset.end_time, dataset.start_time) as { count: number };
     overlappingDatasetsRetained += overlap.count;
   }
 

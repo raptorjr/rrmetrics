@@ -23,6 +23,55 @@ export function getDb(): Db {
   const schemaPath = path.join(__dirname, 'schema.sql');
   db.exec(fs.readFileSync(schemaPath, 'utf8'));
 
+  // Expand the source-owned dataset catalogue to support tick-event datasets.
+  // Rebuild the table transactionally so existing OHLCV records and ownership
+  // constraints are preserved on installations created before tick support.
+  const marketDatasetTable = db.prepare(
+    "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'market_data_file_datasets'",
+  ).get() as { sql: string } | undefined;
+  if (marketDatasetTable?.sql.includes("data_kind IN ('ohlcv')")) {
+    db.transaction(() => {
+      db.exec(`
+        DROP INDEX IF EXISTS idx_market_data_datasets_query;
+        DROP INDEX IF EXISTS idx_market_data_datasets_file;
+        ALTER TABLE market_data_file_datasets RENAME TO market_data_file_datasets_legacy;
+        CREATE TABLE market_data_file_datasets (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+          file_id TEXT NOT NULL,
+          data_kind TEXT NOT NULL CHECK (data_kind IN ('ohlcv', 'ticks')),
+          instrument TEXT NOT NULL,
+          source_symbol TEXT,
+          timeframe TEXT NOT NULL,
+          timezone TEXT,
+          timestamp_unit TEXT NOT NULL,
+          row_count INTEGER NOT NULL CHECK (row_count >= 0),
+          start_time TEXT NOT NULL,
+          end_time TEXT NOT NULL,
+          schema_version INTEGER NOT NULL DEFAULT 1,
+          normalized_storage_key TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+          FOREIGN KEY(file_id, user_id) REFERENCES market_data_files(id, user_id) ON DELETE CASCADE
+        );
+        INSERT INTO market_data_file_datasets (
+          id, user_id, file_id, data_kind, instrument, source_symbol, timeframe,
+          timezone, timestamp_unit, row_count, start_time, end_time, schema_version,
+          normalized_storage_key, created_at
+        )
+        SELECT
+          id, user_id, file_id, data_kind, instrument, source_symbol, timeframe,
+          timezone, timestamp_unit, row_count, start_time, end_time, schema_version,
+          normalized_storage_key, created_at
+        FROM market_data_file_datasets_legacy;
+        DROP TABLE market_data_file_datasets_legacy;
+        CREATE INDEX idx_market_data_datasets_query
+          ON market_data_file_datasets(user_id, instrument, timeframe, start_time, end_time);
+        CREATE INDEX idx_market_data_datasets_file
+          ON market_data_file_datasets(file_id);
+      `);
+    })();
+  }
+
   // CREATE TABLE IF NOT EXISTS does not add columns to existing databases.
   // Apply additive, idempotent migrations before the DB is exposed to routes.
   const tradeColumns = new Set(

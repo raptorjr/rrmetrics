@@ -472,7 +472,7 @@ CREATE TABLE IF NOT EXISTS market_data_file_datasets (
   id                  TEXT PRIMARY KEY,
   user_id             TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   file_id             TEXT NOT NULL,
-  data_kind           TEXT NOT NULL CHECK (data_kind IN ('ohlcv')),
+  data_kind           TEXT NOT NULL CHECK (data_kind IN ('ohlcv', 'ticks')),
   instrument          TEXT NOT NULL,
   source_symbol       TEXT,
   timeframe           TEXT NOT NULL,
