@@ -7,6 +7,7 @@ import { MARKET_DATA_STAGING_DIR } from '../config';
 import { requiresLogin } from '../middleware/auth';
 import { generateId } from '../utils/id';
 import { inspectOhlcvCsv } from '../services/market-data-import';
+import { inspectOhlcvParquet } from '../services/market-data-parquet';
 
 type HonoEnv = {
   Bindings: Env;
@@ -73,13 +74,6 @@ marketData.post('/api/market-data/files/inspect', requiresLogin, async (c) => {
   if (!ALLOWED_EXTENSIONS.has(extension)) {
     return c.json({ error: 'Supported file formats are CSV and Parquet.' }, 400);
   }
-  if (extension === 'parquet') {
-    return c.json({
-      error: 'Parquet inspection is not enabled yet. The Parquet reader is being added as part of this provider implementation.',
-      code: 'PARQUET_READER_PENDING',
-    }, 501);
-  }
-
   const buffer = Buffer.from(await file.arrayBuffer());
   const contentSha256 = crypto.createHash('sha256').update(buffer).digest('hex');
   const provider = getOrCreateHistoricalProvider(db, user.id);
@@ -98,9 +92,14 @@ marketData.post('/api/market-data/files/inspect', requiresLogin, async (c) => {
 
   let inspection;
   try {
-    inspection = inspectOhlcvCsv(buffer, file.name);
+    inspection = extension === 'csv'
+      ? inspectOhlcvCsv(buffer, file.name)
+      : await inspectOhlcvParquet(buffer, file.name);
   } catch (error) {
-    return c.json({ error: error instanceof Error ? error.message : 'Unable to inspect CSV.' }, 422);
+    return c.json({
+      error: error instanceof Error ? error.message : 'Unable to inspect market-data file.',
+      code: extension === 'parquet' ? 'PARQUET_INSPECTION_FAILED' : 'CSV_INSPECTION_FAILED',
+    }, 422);
   }
   if (inspection.validRowCount === 0) {
     return c.json({ error: 'No valid OHLCV rows were found.', inspection }, 422);
@@ -116,12 +115,13 @@ marketData.post('/api/market-data/files/inspect', requiresLogin, async (c) => {
       `INSERT INTO market_data_files (
         id, user_id, provider_id, original_filename, input_format, file_size_bytes,
         content_sha256, import_status, detected_metadata_json, original_storage_key
-      ) VALUES (?, ?, ?, ?, 'csv', ?, ?, 'needs_review', ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'needs_review', ?, ?)`,
     ).run(
       fileId,
       user.id,
       provider.id,
       path.basename(file.name).slice(0, 255),
+      extension,
       buffer.length,
       contentSha256,
       JSON.stringify(inspection),
@@ -138,7 +138,7 @@ marketData.post('/api/market-data/files/inspect', requiresLogin, async (c) => {
       id: fileId,
       providerId: provider.id,
       filename: path.basename(file.name),
-      format: 'csv',
+      format: extension,
       sizeBytes: buffer.length,
       status: 'needs_review',
     },
