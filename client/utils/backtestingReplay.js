@@ -98,6 +98,20 @@ function normalizeOhlcvRows(rows) {
   return unique;
 }
 
+function evaluateEntryOrder(order, candle) {
+  if (!order || !candle || order.type === 'market') return null;
+  const isBuy = order.direction === 'long';
+  if (order.type === 'limit') {
+    if (!(isBuy ? candle.low <= order.triggerPrice : candle.high >= order.triggerPrice)) return null;
+    return { price: isBuy ? Math.min(candle.open, order.triggerPrice) : Math.max(candle.open, order.triggerPrice), reason: 'Limit order filled' };
+  }
+  if (order.type === 'stop_market') {
+    if (!(isBuy ? candle.high >= order.triggerPrice : candle.low <= order.triggerPrice)) return null;
+    return { price: isBuy ? Math.max(candle.open, order.triggerPrice) : Math.min(candle.open, order.triggerPrice), reason: 'Stop-market order triggered' };
+  }
+  return null;
+}
+
 function evaluateCandleExit(position, candle) {
   if (!position || !candle) return null;
   const isLong = position.direction === 'long';
@@ -149,6 +163,7 @@ module.exports = {
   createDemoCandles,
   parseTimestamp,
   normalizeOhlcvRows,
+  evaluateEntryOrder,
   evaluateCandleExit,
   calculateTradePnl,
   calculateTradeStats,
