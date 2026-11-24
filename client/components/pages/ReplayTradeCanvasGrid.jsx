@@ -26,6 +26,7 @@ const ReplayTradeCanvasGrid = ({
   const hostRef = useRef(null);
   const gridRef = useRef(null);
   const barsRef = useRef([]);
+  const lastExternalTimeframeRef = useRef(timeframe);
   const [activeChart, setActiveChart] = useState(0);
 
   const visibleBars = useMemo(() => {
@@ -44,7 +45,8 @@ const ReplayTradeCanvasGrid = ({
       timeframe: tf,
       theme: 'dark',
       ui: 'modern',
-      features: { trading: false, replay: false, watchlist: false, depth: false },
+      trading: false,
+      features: { replay: false, 'dock.watchlist': false, depthLadder: false },
       resampleTimeframes: true,
       layouts: false,
     }));
@@ -103,9 +105,15 @@ const ReplayTradeCanvasGrid = ({
     if (!grid) return;
     grid.getWidgets().forEach(widget => {
       if (widget.getSymbol() !== ticker) void widget.setSymbol(ticker);
-      if (widget.getTimeframe() === '1m' && timeframe !== '1m') void widget.setTimeframe(timeframe);
     });
-  }, [ticker, timeframe]);
+  }, [ticker]);
+
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid || lastExternalTimeframeRef.current === timeframe) return;
+    lastExternalTimeframeRef.current = timeframe;
+    void grid.getActiveWidget().setTimeframe(timeframe);
+  }, [timeframe]);
 
   useEffect(() => {
     const grid = gridRef.current;
