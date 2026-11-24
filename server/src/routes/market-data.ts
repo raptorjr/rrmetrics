@@ -404,21 +404,21 @@ marketData.get('/api/market-data/ticks/query', requiresLogin, async (c) => {
     return c.json({ error: 'Instrument is required unless a datasetId is selected.' }, 400);
   }
 
-  const baseQuery = \`SELECT d.id, d.file_id, d.instrument, d.source_symbol, d.timeframe,
+  const baseQuery = `SELECT d.id, d.file_id, d.instrument, d.source_symbol, d.timeframe,
       d.row_count, d.start_time, d.end_time, d.normalized_storage_key,
       f.original_filename, f.provider_id
     FROM market_data_file_datasets d
     JOIN market_data_files f ON f.id = d.file_id AND f.user_id = d.user_id
     WHERE d.user_id = ? AND f.import_status = 'ready'
-      AND d.data_kind = 'ticks' AND d.timeframe = 'tick'\`;
+      AND d.data_kind = 'ticks' AND d.timeframe = 'tick'`;
   const datasets = datasetId
-    ? db.prepare(\`\${baseQuery} AND d.id = ?\`).all(user.id, datasetId) as Array<any>
+    ? db.prepare(`${baseQuery} AND d.id = ?`).all(user.id, datasetId) as Array<any>
     : db.prepare(
-      \`\${baseQuery}
+      `${baseQuery}
        AND d.instrument = ?
        AND d.start_time <= ? AND d.end_time >= ?
        AND (? IS NULL OR d.source_symbol = ?)
-       ORDER BY d.start_time\`,
+       ORDER BY d.start_time`,
     ).all(
       user.id, instrument,
       new Date(endTime).toISOString(), new Date(startTime).toISOString(),
