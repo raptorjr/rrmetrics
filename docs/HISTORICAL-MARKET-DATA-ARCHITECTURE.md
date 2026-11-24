@@ -188,3 +188,21 @@ Provider-independent endpoints:
 Source resolution is deliberately conservative. Distinct contract symbols are never automatically merged into a continuous contract. Multiple files for the same instrument/timeframe/source symbol can be combined only when their date coverage does not overlap. If coverage overlaps, the caller must select a specific dataset ID. This prevents silent conflict resolution until explicit source-priority controls are implemented.
 
 Chart Replay now consumes this query API for stored historical data. Its synthetic demo candles and manual CSV upload remain available as separate data sources.
+
+
+## Tick-event ingestion foundation
+
+The dataset catalogue now supports both `ohlcv` and `ticks`. Existing installations are upgraded transactionally: the OHLCV-only dataset table is rebuilt with the expanded `data_kind` constraint, preserving existing rows, file ownership, indexes and foreign keys.
+
+The first tick adapter reads Parquet trade-event files with timestamp, price and size/volume fields. It also preserves optional bid/ask executed sizes, trade count, contract symbol and exchange. The normalized source-owned Parquet schema contains:
+
+- `timestamp`: UTC millisecond timestamp used for indexed range filtering.
+- `timestamp_ns`: exact epoch nanoseconds as INT64, preserving sub-millisecond event timing.
+- `sequence`: original source-row index, preserving stable order when timestamps are equal.
+- `price`, `size`, `bid_size`, `ask_size`, `trade_count`, `source_symbol`, and `exchange`.
+
+Tick events are never deduplicated by timestamp and are never converted to OHLCV during import. Files with multiple symbols are imported as separate source-owned datasets. The tick query endpoint is `GET /api/market-data/ticks/query`; requests are bounded to 100,000 events and should use narrower ranges for dense sessions.
+
+The supplied ESZ6 and NQZ6 Parquet tick files were run through the actual inspector, normalizer and bounded range-query service. All 1,481,669 ESZ6 events and 710,815 NQZ6 events validated and normalized successfully. The tests confirmed Zstandard input, nanosecond timestamps, preserved source symbols/exchange fields, stable event order and multiple events within the same millisecond.
+
+Tick ingestion and range queries are now available as a data capability. Chart Replay remains on OHLCV candles; tick-level execution/replay semantics are a separate future task and must not be inferred from candle-level execution assumptions.
