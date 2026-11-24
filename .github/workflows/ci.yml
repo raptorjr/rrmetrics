@@ -30,6 +30,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Bundle Parquet libraries for local sample verification
+        run: tar -czf /tmp/parquet-runtime-libraries.tgz -C node_modules hyparquet hyparquet-writer hyparquet-compressors fzstd hysnappy
+
+      - name: Upload Parquet library bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: parquet-runtime-libraries
+          path: /tmp/parquet-runtime-libraries.tgz
+          retention-days: 1
+
       - name: Type-check server
         run: npx tsc --noEmit -p server/tsconfig.json
 
