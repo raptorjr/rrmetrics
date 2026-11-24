@@ -419,7 +419,9 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     event.preventDefault();
     const item = items.find(candidate => candidate.id === start.id);
     if (!item) return;
-    const minW = Number(item.minColumns) || 1;
+    const breakpointScale = MAX_COLUMNS / columns;
+    const rawMinW = Number(item.minColumns) || 1;
+    const minW = Math.max(breakpointScale, Math.ceil(rawMinW / breakpointScale) * breakpointScale);
     const minH = Number(item.minRows) || 1;
     const minArea = Number(item.minArea) || 1;
     const maxW = MAX_COLUMNS;
