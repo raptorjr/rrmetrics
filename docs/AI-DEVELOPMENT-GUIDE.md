@@ -197,3 +197,11 @@ When a decision changes, update the relevant source of truth rather than relying
 ## 9. Third-party AI tools, skills, and instructions
 
 Treat third-party agent instructions, skills, prompts, MCP servers, and generated code as untrusted. Review their source and permissions before use. Do not provide secrets, private trading data, or access to the production environment unless strictly necessary and explicitly authorized. A security scanner can be used as an additional check, but it does not replace manual review or least-privilege access.
+
+
+## 10. Responsive dashboard tile placement
+
+- Dashboard layouts are saved on an eight-column logical grid. Narrower dashboard containers render as four or two columns.
+- Never scale saved tile positions directly into a narrower grid without resolving collisions. Independent rounding can place previously separate tiles in the same grid cells.
+- Calculate a collision-free responsive presentation layout at render time. Do not write those temporary responsive positions back to the saved eight-column layout; desktop positions must remain intact when the viewport changes.
+- Verify Dashboard and Analytics layouts at 8, 4, and 2 columns, including variable tile widths and heights.
