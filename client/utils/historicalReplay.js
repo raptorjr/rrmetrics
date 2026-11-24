@@ -80,6 +80,17 @@ function getAvailableMarkets(datasets) {
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
+function isRangeWithinCoverage(startTime, endTime, coverage) {
+  return Number.isFinite(startTime)
+    && Number.isFinite(endTime)
+    && endTime >= startTime
+    && Boolean(coverage)
+    && Number.isFinite(coverage.start)
+    && Number.isFinite(coverage.end)
+    && startTime >= coverage.start
+    && endTime <= coverage.end;
+}
+
 function aggregateCandles(candles, targetTimeframe) {
   const targetSeconds = timeframeSeconds(targetTimeframe);
   if (!targetSeconds || !Array.isArray(candles) || !candles.length) return [];
@@ -106,4 +117,4 @@ function aggregateCandles(candles, targetTimeframe) {
   return [...buckets.values()].sort((a, b) => a.time - b.time);
 }
 
-module.exports = { TIMEFRAME_SECONDS, timeframeSeconds, compareTimeframes, getAvailableMarkets, aggregateCandles };
+module.exports = { TIMEFRAME_SECONDS, timeframeSeconds, compareTimeframes, getAvailableMarkets, isRangeWithinCoverage, aggregateCandles };
