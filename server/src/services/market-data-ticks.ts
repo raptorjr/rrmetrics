@@ -164,7 +164,8 @@ function timestampToNanoseconds(value: unknown, unit: string): bigint | null {
     const absolute = value < 0n ? -value : value;
     if (absolute >= 100_000_000_000_000_000n) return value;
     if (absolute >= 100_000_000_000_000n) return value * 1_000n;
-    return value * 1_000_000n;
+    if (absolute >= 100_000_000_000n) return value * 1_000_000n;
+    return value * 1_000_000_000n;
   }
   if (typeof value === 'number' && Number.isSafeInteger(value)) {
     const integer = BigInt(value);
@@ -173,7 +174,8 @@ function timestampToNanoseconds(value: unknown, unit: string): bigint | null {
     if (unit === 'MILLIS') return integer * 1_000_000n;
     if (Math.abs(value) >= 1e17) return integer;
     if (Math.abs(value) >= 1e14) return integer * 1_000n;
-    return integer * 1_000_000n;
+    if (Math.abs(value) >= 1e11) return integer * 1_000_000n;
+    return integer * 1_000_000_000n;
   }
   if (typeof value === 'string') {
     const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value);
@@ -215,10 +217,20 @@ async function inspectTickLayout(buffer: Uint8Array): Promise<TickParquetLayout>
   const timestampUnit = timestampUnitFromSchema(timestampElement);
   const legacyUtcTimestamp = timestampElement?.converted_type === 'TIMESTAMP_MILLIS'
     || timestampElement?.converted_type === 'TIMESTAMP_MICROS';
-  const timezoneNeedsConfirmation = logicalTimestamp
+  let timezoneNeedsConfirmation = logicalTimestamp
     ? !logicalTimestamp.isAdjustedToUTC
     : !legacyUtcTimestamp;
-  const timezone = logicalTimestamp?.isAdjustedToUTC || legacyUtcTimestamp ? 'UTC' : null;
+  let timezone = logicalTimestamp?.isAdjustedToUTC || legacyUtcTimestamp ? 'UTC' : null;
+  if (timezoneNeedsConfirmation && timestampElement?.type === 'BYTE_ARRAY') {
+    const firstRow = await parquetReadObjects({
+      file, metadata, columns: [mapping.timestamp], rowStart: 0, rowEnd: 1, compressors,
+    });
+    const sampleTimestamp = firstRow[0]?.[mapping.timestamp];
+    if (typeof sampleTimestamp === 'string' && /(?:Z|[+-]\d{2}:?\d{2})$/i.test(sampleTimestamp)) {
+      timezoneNeedsConfirmation = false;
+      timezone = 'explicit';
+    }
+  }
   const compressionCodecs = [...new Set(
     metadata.row_groups.flatMap(group =>
       group.columns.map(column => column.meta_data?.codec).filter((codec): codec is NonNullable<typeof codec> => Boolean(codec)),
