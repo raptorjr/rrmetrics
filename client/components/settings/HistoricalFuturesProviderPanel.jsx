@@ -24,6 +24,29 @@ const formatBytes = (bytes) => {
 const formatDate = (value) => value ? `${formatDateEST(value)} ${formatTimeEST(value)}` : '—';
 const formatNumber = (value) => Number(value || 0).toLocaleString();
 
+const getFileImportIssues = (file) => {
+  const metadata = file?.detectedMetadata || {};
+  const issues = [];
+  if (file?.last_error) issues.push(file.last_error);
+  if (!metadata.detectedInstrument && !instrumentFromSymbol((metadata.detectedSymbols || [])[0])) {
+    issues.push('Instrument could not be identified automatically.');
+  }
+  if (metadata.dataKind !== 'trades' && !/^\d+(s|m|h|d)$/.test(metadata.detectedTimeframe || '')) {
+    issues.push('Timeframe could not be identified automatically.');
+  }
+  if (metadata.timezoneNeedsConfirmation) {
+    issues.push('The source timestamps do not identify a timezone. Please select the timezone used by the file.');
+  }
+  if (Number(metadata.invalidRowCount || 0) > 0) {
+    issues.push(`${formatNumber(metadata.invalidRowCount)} invalid rows need your decision: import the valid rows and skip the invalid ones, or cancel.`);
+  }
+  if (metadata.errors?.length) issues.push(...metadata.errors);
+  if (!issues.length && !getFileImportPlan(file)) {
+    issues.push('RR Metrics could not prepare this file for automatic import. Please check the detected details below.');
+  }
+  return [...new Set(issues)];
+};
+
 const getFileImportPlan = (file) => {
   const metadata = file?.detectedMetadata || {};
   const symbols = metadata.detectedSymbols || [];
@@ -292,7 +315,14 @@ const HistoricalFuturesProviderPanel = () => {
       if (response.status === 409 && data.requiresConfirmation) {
         setDeletePrompt({ file, impact: data.impact });
       } else if (!response.ok) {
-        throw new Error(data.error || 'Unable to prepare source deletion.');
+        throw new Error(data.error || 'Unable to delete source.');
+      } else {
+        if (selectedFileId === file.id) {
+          setSelectedFileId(null);
+          setInspection(null);
+        }
+        await loadFiles(provider.id);
+        setNotice('The unimported source file was deleted.');
       }
     } catch (err) {
       setError(err.message || 'Unable to prepare source deletion.');
@@ -416,14 +446,18 @@ const HistoricalFuturesProviderPanel = () => {
         )}
       </div>
 
-      {selectedFile && inspection && (
+      {selectedFile && inspection && ['needs_review', 'failed'].includes(selectedFile.import_status) && getFileImportIssues(selectedFile).length > 0 && (
         <div className="rounded-xl border border-border bg-bg-surface overflow-hidden">
           <div className="px-4 py-3 border-b border-border">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h4 className="text-sm font-semibold text-text-primary">Review import</h4>
                 <p className="mt-0.5 text-xs text-text-tertiary">{selectedFile.original_filename}</p>
-                <p className="mt-1 text-xs ${canImport && !invalidRows && !timezoneRequired ? 'text-positive' : 'text-text-secondary'}">{canImport && !invalidRows && !timezoneRequired ? 'Ready to import. All required details were detected; no changes are needed.' : 'This file needs your attention before it can be imported. Only fields that are missing or incorrect need to be completed.'}</p>
+                <div className="mt-1 space-y-1">
+                  {getFileImportIssues(selectedFile).map((issue, index) => (
+                    <p key={index} className="text-xs text-warning">{issue}</p>
+                  ))}
+                </div>
               </div>
               <span className="text-xs text-text-tertiary">{inspection.format?.toUpperCase()} · {formatNumber(inspection.rowCount)} rows</span>
             </div>
