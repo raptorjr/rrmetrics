@@ -74,13 +74,26 @@ const getFileImportPlan = (file) => {
   return plans.some(plan => !plan) ? null : plans;
 };
 
-const statusLabel = (status) => ({
-  ready: 'Ready',
-  needs_review: 'Awaiting import',
-  inspecting: 'Processing',
-  deleting: 'Deleting',
-  failed: 'Failed',
-}[status] || status || 'Unknown');
+const statusLabel = (file) => {
+  if (file?.import_status === 'ready') return 'Imported';
+  if (file?.import_status === 'needs_review') {
+    return getFileImportPlan(file) ? 'Ready to import' : 'Needs attention';
+  }
+  if (file?.import_status === 'failed') return 'Import failed';
+  return ({
+    inspecting: 'Inspecting',
+    deleting: 'Deleting',
+  }[file?.import_status] || file?.import_status || 'Unknown');
+};
+
+const statusClass = (file) => {
+  if (file?.import_status === 'ready' || (file?.import_status === 'needs_review' && getFileImportPlan(file))) {
+    return 'bg-positive/10 text-positive';
+  }
+  if (file?.import_status === 'failed') return 'bg-danger/10 text-danger';
+  if (file?.import_status === 'needs_review') return 'bg-warning/10 text-warning';
+  return 'bg-bg-page text-text-tertiary';
+};
 
 const HistoricalFuturesProviderPanel = () => {
   const [provider, setProvider] = useState(null);
@@ -198,7 +211,9 @@ const HistoricalFuturesProviderPanel = () => {
       const latest = refreshed.find(file => file.id === lastFileId);
       if (latest) selectFile(latest);
       setUploadFiles([]);
-      setNotice(`Inspected ${uploaded} file${uploaded === 1 ? '' : 's'}. Review the detected metadata before importing.`);
+      const readyCount = refreshed.filter(file => ['needs_review', 'failed'].includes(file.import_status) && getFileImportPlan(file)).length;
+      const attentionCount = refreshed.filter(file => ['needs_review', 'failed'].includes(file.import_status) && !getFileImportPlan(file)).length;
+      setNotice(`Inspected ${uploaded} file${uploaded === 1 ? '' : 's'}. ${readyCount} ready to import automatically${attentionCount ? `; ${attentionCount} need attention` : ''}.`);
     } catch (err) {
       setError(err.message || 'Upload failed.');
       if (currentProviderId) {
@@ -379,7 +394,7 @@ const HistoricalFuturesProviderPanel = () => {
             {busy ? 'Working…' : `Inspect ${uploadFiles.length || ''} file${uploadFiles.length === 1 ? '' : 's'}`}
           </button>
         </div>
-        <p className="text-[11px] text-text-tertiary">Maximum 100 MB per file. Uploading only stages the file; nothing is imported until you confirm the metadata.</p>
+        <p className="text-[11px] text-text-tertiary">Maximum 100 MB per file. Files are checked automatically; only missing or ambiguous information needs your attention. Nothing is imported until you start an import.</p>
       </div>
 
       <div className="rounded-xl border border-border bg-bg-surface overflow-hidden">
@@ -388,7 +403,7 @@ const HistoricalFuturesProviderPanel = () => {
             <h4 className="text-sm font-semibold text-text-primary">Source files</h4>
             <p className="text-xs text-text-tertiary">{files.length} file{files.length === 1 ? '' : 's'} · each file owns its own datasets</p>
             {automaticImports.length > 0 && (
-              <p className="mt-1 text-xs text-positive">{automaticImports.length} file{automaticImports.length === 1 ? '' : 's'} ready for automatic import{manualReviewCount ? ` · ${manualReviewCount} need${manualReviewCount === 1 ? 's' : ''} attention` : ''}</p>
+              <p className="mt-1 text-xs text-positive">{automaticImports.length} file{automaticImports.length === 1 ? '' : 's'} can be imported automatically{manualReviewCount ? ` · ${manualReviewCount} need${manualReviewCount === 1 ? 's' : ''} attention` : ''}</p>
             )}
             {manualReviewCount > 0 && automaticImports.length === 0 && (
               <p className="mt-1 text-xs text-warning">{manualReviewCount} file{manualReviewCount === 1 ? '' : 's'} need information or a decision before import</p>
@@ -397,7 +412,7 @@ const HistoricalFuturesProviderPanel = () => {
           <div className="flex items-center gap-3">
             {automaticImports.length > 0 && (
               <button onClick={handleImportAllReady} disabled={busy} className="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-text disabled:opacity-50">
-                {busy ? 'Importing…' : `Import all ready (${automaticImports.length})`}
+                {busy ? 'Importing…' : `Import all (${automaticImports.length})`}
               </button>
             )}
             <button onClick={() => provider?.id && loadFiles(provider.id)} disabled={!provider?.id || busy} className="text-xs text-accent hover:underline disabled:opacity-50">Refresh</button>
@@ -412,7 +427,7 @@ const HistoricalFuturesProviderPanel = () => {
                 <button onClick={() => selectFile(file)} className="min-w-0 flex-1 text-left">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="truncate text-sm font-medium text-text-primary">{file.original_filename}</span>
-                    <span className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${file.import_status === 'ready' ? 'bg-positive/10 text-positive' : file.import_status === 'failed' ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'}`}>{statusLabel(file.import_status)}</span>
+                    <span className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${statusClass(file)}`}>{statusLabel(file)}</span>
                   </div>
                   <div className="mt-1 text-xs text-text-tertiary">
                     {file.input_format.toUpperCase()} · {formatBytes(file.file_size_bytes)} · uploaded {formatDate(file.created_at)}
