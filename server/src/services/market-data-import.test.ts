@@ -107,3 +107,16 @@ test('detects canonical instrument from a dated-contract filename', () => {
   const result = inspectOhlcvCsv(Buffer.from(csv), 'NQZ26_2026-11-09_1m.csv');
   assert.equal(result.detectedInstrument, 'NQ');
 });
+
+test('reinterprets timezone-less CSV timestamps using the confirmed source timezone', async () => {
+  const { parseOhlcvCsv } = await import('./market-data-import');
+  const csv = [
+    'timestamp,open,high,low,close',
+    '2026-11-09 14:30:00,25000,25002,24999,25001',
+    '2026-11-09 14:31:00,25001,25003,25000,25002',
+  ].join('\n');
+  const result = parseOhlcvCsv(Buffer.from(csv), 'NQ_1m.csv', { timezone: 'America/New_York' });
+  assert.equal(result.inspection.timezoneNeedsConfirmation, false);
+  assert.equal(result.inspection.timezone, 'America/New_York');
+  assert.equal(new Date(result.bars[0].timestamp).toISOString(), '2026-11-09T19:30:00.000Z');
+});
