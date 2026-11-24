@@ -14,8 +14,10 @@ const MAX_DASHBOARDS = 50;
 dashboard.get('/api/dashboards', requiresLogin, (c) => {
   const user = c.get('user');
   const db = c.get('db');
+  const storageKey = c.req.query('key') || '';
+  if (!/^[a-zA-Z0-9_.:-]{1,120}$/.test(storageKey)) return c.json({ error: 'A valid dashboard storage key is required.' }, 400);
   try {
-    const row = db.prepare('SELECT collection_json, updated_at FROM dashboard_settings WHERE user_id = ?').get(user.id) as
+    const row = db.prepare('SELECT collection_json, updated_at FROM dashboard_settings WHERE user_id = ? AND storage_key = ?').get(user.id, storageKey) as
       { collection_json: string; updated_at: string } | undefined;
     if (!row) return c.json({ collection: null, updatedAt: null });
     return c.json({ collection: JSON.parse(row.collection_json), updatedAt: row.updated_at });
@@ -35,6 +37,10 @@ dashboard.put('/api/dashboards', requiresLogin, async (c) => {
     return c.json({ error: 'A valid dashboard collection is required.' }, 400);
   }
 
+  const storageKey = body?.key;
+  if (typeof storageKey !== 'string' || !/^[a-zA-Z0-9_.:-]{1,120}$/.test(storageKey)) {
+    return c.json({ error: 'A valid dashboard storage key is required.' }, 400);
+  }
   const collection = body?.collection;
   if (!collection || collection.version !== 1 || !Array.isArray(collection.items) ||
       collection.items.length < 1 || collection.items.length > MAX_DASHBOARDS ||
@@ -64,11 +70,11 @@ dashboard.put('/api/dashboards', requiresLogin, async (c) => {
 
   try {
     const now = new Date().toISOString();
-    db.prepare(`INSERT INTO dashboard_settings (user_id, collection_json, updated_at)
-      VALUES (?, ?, ?)
-      ON CONFLICT(user_id) DO UPDATE SET
+    db.prepare(`INSERT INTO dashboard_settings (user_id, storage_key, collection_json, updated_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(user_id, storage_key) DO UPDATE SET
         collection_json = excluded.collection_json,
-        updated_at = excluded.updated_at`).run(user.id, serialized, now);
+        updated_at = excluded.updated_at`).run(user.id, storageKey, serialized, now);
     return c.json({ ok: true, updatedAt: now });
   } catch (err) {
     console.error('Dashboard settings save error:', err);
