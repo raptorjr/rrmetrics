@@ -648,8 +648,10 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
                 }
                 const bounds = event.currentTarget.getBoundingClientRect();
                 const size = layout.sizes[item.id] || getDefaultSize(item);
+                const visualSpan = getColumnSpan(size);
+                const breakpointScale = MAX_COLUMNS / columns;
                 dragOffsetRef.current = {
-                  col: clamp(Math.floor((event.clientX - bounds.left) / Math.max(1, bounds.width) * size.w), 0, size.w - 1),
+                  col: clamp(Math.floor((event.clientX - bounds.left) / Math.max(1, bounds.width) * visualSpan) * breakpointScale, 0, size.w - breakpointScale),
                   row: clamp(Math.floor((event.clientY - bounds.top) / Math.max(1, bounds.height) * size.h), 0, size.h - 1),
                 };
                 setDraggedId(item.id);
