@@ -162,3 +162,8 @@ The inspect endpoint accepts both CSV and Parquet OHLCV files. Confirmation is s
 Normalized datasets are written as source-owned Parquet files with millisecond UTC timestamps. The original upload remains staged until all detected symbols have been imported, then it is moved to the originals directory. Dataset metadata remains linked to the originating file.
 
 File deletion first returns an impact preview (HTTP 409 with `requiresConfirmation`). The caller must repeat the request with `?confirm=true`. The delete operation tombstones the selected original and normalized source files, then deletes only that file's market-data catalogue hierarchy. Other source files with overlapping instrument/timeframe coverage are reported and retained.
+
+
+### Real Parquet compatibility smoke test
+
+The supplied ES and NQ one-minute Parquet files were read successfully with the selected Hyparquet reader and Zstandard decompressor. Each contained 1,380 OHLCV rows. Both were written to normalized Parquet using the selected writer (Snappy output), then read back successfully with matching row counts and first/last timestamps. The separate tick files were inspected at the metadata level: ESZ6 contains 1,481,669 trade events and NQZ6 contains 710,815. Tick event decoding/import remains outside the OHLCV first release.

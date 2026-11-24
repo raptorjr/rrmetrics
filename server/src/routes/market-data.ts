@@ -268,6 +268,14 @@ marketData.post('/api/market-data/files/:fileId/import', requiresLogin, async (c
     return c.json({ error: 'A dataset for this source symbol has already been imported from this file.' }, 409);
   }
 
+  const claim = db.prepare(
+    `UPDATE market_data_files SET import_status = 'inspecting'
+     WHERE id = ? AND user_id = ? AND import_status = ?`,
+  ).run(fileId, user.id, file.import_status);
+  if (claim.changes !== 1) {
+    return c.json({ error: 'This source file is already being processed. Try again when the current operation finishes.' }, 409);
+  }
+
   const datasetId = generateId();
   const temporaryPath = path.join(MARKET_DATA_NORMALIZED_DIR, `${datasetId}.tmp.parquet`);
   const normalizedPath = path.join(MARKET_DATA_NORMALIZED_DIR, `${datasetId}.parquet`);
@@ -288,8 +296,13 @@ marketData.post('/api/market-data/files/:fileId/import', requiresLogin, async (c
     await fs.promises.rename(temporaryPath, normalizedPath);
   } catch (error) {
     await fs.promises.rm(temporaryPath, { force: true }).catch(() => undefined);
+    const message = error instanceof Error ? error.message : 'Failed to normalize the source dataset.';
+    db.prepare(
+      `UPDATE market_data_files SET import_status = ?, last_error = ?
+       WHERE id = ? AND user_id = ? AND import_status = 'inspecting'`,
+    ).run(file.import_status, message, fileId, user.id);
     return c.json({
-      error: error instanceof Error ? error.message : 'Failed to normalize the source dataset.',
+      error: message,
       code: 'NORMALIZATION_FAILED',
     }, 422);
   }
@@ -369,6 +382,10 @@ marketData.post('/api/market-data/files/:fileId/import', requiresLogin, async (c
     if (originalMoved) {
       await fs.promises.rename(originalPath, stagedPath).catch(() => undefined);
     }
+    db.prepare(
+      `UPDATE market_data_files SET import_status = ?, last_error = ?
+       WHERE id = ? AND user_id = ? AND import_status = 'inspecting'`,
+    ).run(file.import_status, error instanceof Error ? error.message : 'Import transaction failed.', fileId, user.id);
     console.error('market data import transaction failed:', error);
     return c.json({ error: 'Failed to commit normalized market data.' }, 500);
   }
@@ -481,6 +498,18 @@ marketData.delete('/api/market-data/files/:fileId', requiresLogin, async (c) => 
     return c.json({ requiresConfirmation: true, impact }, 409);
   }
 
+  if (!['needs_review', 'failed', 'ready'].includes(file.import_status)) {
+    return c.json({ error: 'This source file is currently being processed and cannot be deleted yet.' }, 409);
+  }
+  const deletionClaim = db.prepare(
+    `UPDATE market_data_files SET import_status = 'deleting'
+     WHERE id = ? AND user_id = ? AND import_status = ?`,
+  ).run(fileId, user.id, file.import_status);
+  if (deletionClaim.changes !== 1) {
+    return c.json({ error: 'This source file changed while deletion was being confirmed. Refresh and try again.' }, 409);
+  }
+
+  const previousStatus = file.import_status;
   const moved: Array<{ from: string; to: string }> = [];
   let databaseDeleted = false;
   const resolveStoragePath = (key: string, prefix: 'staging' | 'originals' | 'normalized'): string => {
@@ -525,6 +554,10 @@ marketData.delete('/api/market-data/files/:fileId', requiresLogin, async (c) => 
     for (const item of moved.reverse()) {
       await fs.promises.rename(item.to, item.from).catch(() => undefined);
     }
+    db.prepare(
+      `UPDATE market_data_files SET import_status = ?
+       WHERE id = ? AND user_id = ? AND import_status = 'deleting'`,
+    ).run(previousStatus, fileId, user.id);
     console.error('market data source deletion failed:', error);
     return c.json({ error: 'Failed to delete this market-data source. No trading data is affected.' }, 500);
   }
