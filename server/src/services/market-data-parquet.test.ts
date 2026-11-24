@@ -134,7 +134,7 @@ test('queries a bounded time range from normalized Parquet data', async () => {
 
 test('interprets unannotated numeric epoch-second timestamps as UTC milliseconds', async () => {
   const buffer = makeParquet([
-    { name: 'ts', type: 'INT64', data: [1794234600, 1794234660, 1794234720] },
+    { name: 'ts', type: 'INT64', data: [1794234600n, 1794234660n, 1794234720n] },
     { name: 'open', type: 'DOUBLE', data: [25000, 25001, 25002] },
     { name: 'high', type: 'DOUBLE', data: [25002, 25003, 25004] },
     { name: 'low', type: 'DOUBLE', data: [24999, 25000, 25001] },
