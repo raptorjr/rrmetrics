@@ -150,4 +150,6 @@ The supplied `es-nq-tick-sample-2026-11-09.zip` contains:
 - Separate ESZ6 and NQZ6 trade-tick Parquet files (1,481,669 ES records and 710,815 NQ records).
 - Per-minute volume CSVs, a manifest, and SHA-256 checksums.
 
+The supplied Parquet files use Zstandard compression (Parquet codec 6). The one-minute bar schema is `ts, open, high, low, close, volume, trade_count`; the trade schema is `ts, price, volume, bid_sz, ask_sz, trade_count, symbol, exchange`. Timestamp fields are UTC timestamp values, prices are doubles, and count/volume fields are unsigned 32-bit integers.
+
 The first provider release remains OHLCV-only. Do not import tick files as candles or discard their event-level detail; tick ingestion remains a separate later capability. The manifest's file sizes and SHA-256 values were checked against all eight listed archive files. Actual Parquet decoding and bar/tick reconciliation still require a Parquet reader in the project runtime.

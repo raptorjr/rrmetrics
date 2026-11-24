@@ -96,3 +96,14 @@ test('infers timeframe independently for interleaved instruments', () => {
   assert.equal(result.detectedTimeframe, '1m');
   assert.equal(result.detectedInstrument, null);
 });
+
+
+test('detects canonical instrument from a dated-contract filename', () => {
+  const csv = [
+    'timestamp,open,high,low,close,volume',
+    '2026-11-09T14:30:00Z,25000,25002,24999,25001,100',
+    '2026-11-09T14:31:00Z,25001,25003,25000,25002,110',
+  ].join('\n');
+  const result = inspectOhlcvCsv(Buffer.from(csv), 'NQZ26_2026-11-09_1m.csv');
+  assert.equal(result.detectedInstrument, 'NQ');
+});

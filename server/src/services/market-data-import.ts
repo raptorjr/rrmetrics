@@ -157,6 +157,7 @@ function detectInstrument(filename: string, symbols: string[]): string | null {
   }
   return matches.size === 1 ? [...matches][0] : null;
 }
+
 export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection {
   const source = buffer.toString('utf8').replace(/^\uFEFF/, '');
   if (source.includes('\u0000')) throw new Error('The uploaded file does not look like a UTF-8 CSV file.');
