@@ -15,17 +15,19 @@ It currently supports:
 - Generated synthetic demonstration candles for NQ, MNQ, ES, MES, GC and MGC.
 - CSV upload for OHLCV candles using timestamp/time, open, high, low, close and optional volume columns.
 - Play, pause, single-bar stepping, replay speed and pre-trade seeking.
-- Simulated long/short entries, contract quantity, optional stop-loss and take-profit levels, manual close and automatic stop/target exits.
+- Simulated long/short market entries, configurable quick contract-size presets, optional stop-loss and take-profit levels, manual close and automatic stop/target exits.
+- Simulated limit and stop-market entry orders with pending-order cancellation and chart price markers. Limit orders fill at the limit or a better opening price; stop-market orders fill at the stop or worse when the market gaps through it.
+- Single play/pause toggle and configurable replay speed.
 - Basic closed-trade statistics and a trade history table.
 
 Uploaded CSV data and simulated trades are held in browser memory only. They are not persisted. The first prototype does not import Parquet directly and does not include a server-side historical data manager.
 
 ## Execution assumptions and limitations
 
-- Entries are simulated at the close of the last revealed candle.
+- Market entries are simulated at the close of the last revealed candle. Limit and stop-market orders are evaluated against each subsequently revealed candle; pending orders do not fill on the candle in which they are placed.
 - Stop and target checks use the high/low of each subsequent candle.
 - If a candle touches both stop and target, the stop is assumed to have executed first. This is a conservative bar-based assumption, not a reconstruction of actual intrabar sequence.
-- Stop and target fills are simulated at their configured prices. Gaps, queue position, bid/ask spread, slippage, fees, commissions, partial fills and market depth are not yet modelled.
+- Stop and target fills are simulated at their configured prices. Limit entries may receive a better fill at the candle open; stop-market entries account for gaps through the stop price. Intrabar sequencing, queue position, bid/ask spread, slippage, fees, commissions, partial fills and market depth are not yet modelled.
 - P/L uses the selected instrument's point value. It is a gross estimate before trading costs.
 - The chart starts with synthetic demonstration data. It must be clearly labelled as synthetic and never presented as real historical market data.
 
