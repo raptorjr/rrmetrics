@@ -3,11 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Hono } from 'hono';
 import type { Env, AuthContext } from '../bindings';
-import { MARKET_DATA_STAGING_DIR } from '../config';
+import { MARKET_DATA_NORMALIZED_DIR, MARKET_DATA_ORIGINALS_DIR, MARKET_DATA_STAGING_DIR } from '../config';
 import { requiresLogin } from '../middleware/auth';
 import { generateId } from '../utils/id';
-import { inspectOhlcvCsv } from '../services/market-data-import';
-import { inspectOhlcvParquet } from '../services/market-data-parquet';
+import { inspectOhlcvCsv, parseOhlcvCsv } from '../services/market-data-import';
+import { inspectOhlcvParquet, normalizeOhlcvParquet, writeOhlcvBarsToParquet } from '../services/market-data-parquet';
 
 type HonoEnv = {
   Bindings: Env;
@@ -144,6 +144,249 @@ marketData.post('/api/market-data/files/inspect', requiresLogin, async (c) => {
     },
     inspection,
     requiresReview: true,
+  }, 201);
+});
+
+// POST /api/market-data/files/:fileId/import — confirm metadata and persist one source-owned dataset.
+marketData.post('/api/market-data/files/:fileId/import', requiresLogin, async (c) => {
+  const user = c.get('user');
+  const db = c.get('db');
+  const fileId = c.req.param('fileId');
+  const file = db.prepare(
+    `SELECT id, provider_id, original_filename, input_format, import_status,
+            content_sha256, original_storage_key, confirmed_metadata_json
+     FROM market_data_files WHERE id = ? AND user_id = ?`,
+  ).get(fileId, user.id) as {
+    id: string;
+    provider_id: string;
+    original_filename: string;
+    input_format: 'csv' | 'parquet';
+    import_status: string;
+    content_sha256: string;
+    original_storage_key: string;
+    confirmed_metadata_json: string;
+  } | undefined;
+  if (!file) return c.notFound();
+  if (!['needs_review', 'failed'].includes(file.import_status)) {
+    return c.json({ error: 'This file is not awaiting import confirmation.' }, 409);
+  }
+  if (!file.original_storage_key.startsWith('staging/')
+    || path.basename(file.original_storage_key) !== file.original_storage_key.slice('staging/'.length)) {
+    return c.json({ error: 'Stored file path failed validation.' }, 500);
+  }
+
+  let confirmation: {
+    instrument?: unknown;
+    timeframe?: unknown;
+    timezone?: unknown;
+    sourceSymbol?: unknown;
+    skipInvalidRows?: unknown;
+  };
+  try {
+    confirmation = await c.req.json();
+  } catch {
+    return c.json({ error: 'A JSON confirmation body is required.' }, 400);
+  }
+
+  const stagedPath = path.join(MARKET_DATA_STAGING_DIR, path.basename(file.original_storage_key));
+  let buffer: Buffer;
+  try {
+    buffer = await fs.promises.readFile(stagedPath);
+  } catch {
+    return c.json({ error: 'The staged source file could not be found. Please upload it again.' }, 410);
+  }
+  const actualHash = crypto.createHash('sha256').update(buffer).digest('hex');
+  if (actualHash !== file.content_sha256) {
+    return c.json({ error: 'The staged source file no longer matches its original fingerprint.' }, 409);
+  }
+
+  let inspection;
+  try {
+    inspection = file.input_format === 'csv'
+      ? inspectOhlcvCsv(buffer, file.original_filename)
+      : await inspectOhlcvParquet(buffer, file.original_filename);
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : 'Unable to re-inspect source file.' }, 422);
+  }
+
+  const detectedSymbols = inspection.detectedSymbols ?? [];
+  const sourceSymbol = typeof confirmation.sourceSymbol === 'string'
+    ? confirmation.sourceSymbol.trim().toUpperCase()
+    : detectedSymbols.length === 1 ? detectedSymbols[0] : null;
+  if (detectedSymbols.length > 1 && !sourceSymbol) {
+    return c.json({
+      error: 'This file contains multiple source symbols. Select one symbol for this dataset; repeat the import for each remaining symbol.',
+      code: 'SOURCE_SYMBOL_REQUIRED',
+      detectedSymbols,
+    }, 400);
+  }
+  if (sourceSymbol && !detectedSymbols.includes(sourceSymbol)) {
+    return c.json({ error: 'The selected source symbol was not detected in this file.' }, 400);
+  }
+
+  const instrument = typeof confirmation.instrument === 'string' && confirmation.instrument.trim()
+    ? confirmation.instrument.trim().toUpperCase()
+    : inspection.detectedInstrument;
+  const timeframe = typeof confirmation.timeframe === 'string' && confirmation.timeframe.trim()
+    ? confirmation.timeframe.trim()
+    : inspection.detectedTimeframe;
+  if (!instrument) return c.json({ error: 'Confirm the canonical instrument before importing.' }, 400);
+  if (!timeframe || !/^\d+(?:s|m|h|d)$/.test(timeframe)) {
+    return c.json({ error: 'Confirm a supported timeframe (for example 1m or 5m) before importing.' }, 400);
+  }
+
+  const timezone = typeof confirmation.timezone === 'string' && confirmation.timezone.trim()
+    ? confirmation.timezone.trim()
+    : inspection.timezoneNeedsConfirmation ? null : inspection.timezone;
+  if (inspection.timezoneNeedsConfirmation && !timezone) {
+    return c.json({ error: 'Confirm the source timezone before importing.', code: 'TIMEZONE_REQUIRED' }, 400);
+  }
+  if (timezone && timezone !== 'UTC' && timezone !== 'explicit') {
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: timezone });
+    } catch {
+      return c.json({ error: 'The supplied timezone is not a valid IANA timezone.' }, 400);
+    }
+  }
+
+  const skipInvalidRows = confirmation.skipInvalidRows === true;
+  if (inspection.invalidRowCount > 0 && !skipInvalidRows) {
+    return c.json({
+      error: 'The file contains invalid rows. Review the inspection errors and explicitly confirm whether valid rows should be imported while invalid rows are skipped.',
+      code: 'INVALID_ROWS_REQUIRE_CONFIRMATION',
+      invalidRowCount: inspection.invalidRowCount,
+      errors: inspection.errors,
+    }, 422);
+  }
+
+  const existingDataset = db.prepare(
+    `SELECT id FROM market_data_file_datasets
+     WHERE file_id = ? AND user_id = ? AND source_symbol IS ?`,
+  ).get(fileId, user.id, sourceSymbol);
+  if (existingDataset) {
+    return c.json({ error: 'A dataset for this source symbol has already been imported from this file.' }, 409);
+  }
+
+  const datasetId = generateId();
+  const temporaryPath = path.join(MARKET_DATA_NORMALIZED_DIR, `${datasetId}.tmp.parquet`);
+  const normalizedPath = path.join(MARKET_DATA_NORMALIZED_DIR, `${datasetId}.parquet`);
+  const normalizedStorageKey = `normalized/${datasetId}.parquet`;
+  let normalizedResult: { rowCount: number; startTime: string; endTime: string };
+  try {
+    if (file.input_format === 'csv') {
+      const parsed = parseOhlcvCsv(buffer, file.original_filename, { timezone });
+      const selectedBars = parsed.bars.filter(bar => !sourceSymbol || bar.sourceSymbol === sourceSymbol);
+      normalizedResult = await writeOhlcvBarsToParquet(temporaryPath, selectedBars);
+    } else {
+      normalizedResult = await normalizeOhlcvParquet(buffer, temporaryPath, {
+        sourceSymbol,
+        timezone,
+        skipInvalidRows,
+      });
+    }
+    await fs.promises.rename(temporaryPath, normalizedPath);
+  } catch (error) {
+    await fs.promises.rm(temporaryPath, { force: true }).catch(() => undefined);
+    return c.json({
+      error: error instanceof Error ? error.message : 'Failed to normalize the source dataset.',
+      code: 'NORMALIZATION_FAILED',
+    }, 422);
+  }
+
+  const previousDatasets = db.prepare(
+    'SELECT source_symbol FROM market_data_file_datasets WHERE file_id = ? AND user_id = ?',
+  ).all(fileId, user.id) as Array<{ source_symbol: string | null }>;
+  const importedSymbols = new Set(previousDatasets.map(row => row.source_symbol).filter((value): value is string => Boolean(value)));
+  if (sourceSymbol) importedSymbols.add(sourceSymbol);
+  const remainingSymbols = detectedSymbols.filter(symbol => !importedSymbols.has(symbol));
+  const complete = detectedSymbols.length === 0 || remainingSymbols.length === 0;
+
+  const confirmed = JSON.parse(file.confirmed_metadata_json || '{}') as Record<string, unknown>;
+  const confirmedDatasets = (confirmed.datasets && typeof confirmed.datasets === 'object')
+    ? confirmed.datasets as Record<string, unknown>
+    : {};
+  confirmed.datasets = {
+    ...confirmedDatasets,
+    [sourceSymbol ?? '__default__']: {
+      instrument,
+      timeframe,
+      timezone: timezone ?? 'UTC',
+      skipInvalidRows,
+      rowCount: normalizedResult.rowCount,
+      startTime: normalizedResult.startTime,
+      endTime: normalizedResult.endTime,
+    },
+  };
+
+  const originalExtension = file.input_format;
+  const originalPath = path.join(MARKET_DATA_ORIGINALS_DIR, `${fileId}.${originalExtension}`);
+  const originalStorageKey = `originals/${fileId}.${originalExtension}`;
+  let originalMoved = false;
+  try {
+    if (complete) {
+      await fs.promises.rename(stagedPath, originalPath);
+      originalMoved = true;
+    }
+
+    const saveImport = db.transaction(() => {
+      db.prepare(
+        `INSERT INTO market_data_file_datasets (
+          id, user_id, file_id, data_kind, instrument, source_symbol, timeframe,
+          timezone, timestamp_unit, row_count, start_time, end_time, schema_version,
+          normalized_storage_key
+        ) VALUES (?, ?, ?, 'ohlcv', ?, ?, ?, ?, 'MILLIS', ?, ?, ?, 1, ?)`,
+      ).run(
+        datasetId,
+        user.id,
+        fileId,
+        instrument,
+        sourceSymbol,
+        timeframe,
+        timezone ?? 'UTC',
+        normalizedResult.rowCount,
+        normalizedResult.startTime,
+        normalizedResult.endTime,
+        normalizedStorageKey,
+      );
+      db.prepare(
+        `UPDATE market_data_files
+         SET import_status = ?, confirmed_metadata_json = ?, imported_at = ?, last_error = NULL,
+             original_storage_key = ?
+         WHERE id = ? AND user_id = ?`,
+      ).run(
+        complete ? 'ready' : 'needs_review',
+        JSON.stringify(confirmed),
+        complete ? new Date().toISOString() : null,
+        complete ? originalStorageKey : file.original_storage_key,
+        fileId,
+        user.id,
+      );
+    });
+    saveImport();
+  } catch (error) {
+    await fs.promises.rm(normalizedPath, { force: true }).catch(() => undefined);
+    if (originalMoved) {
+      await fs.promises.rename(originalPath, stagedPath).catch(() => undefined);
+    }
+    console.error('market data import transaction failed:', error);
+    return c.json({ error: 'Failed to commit normalized market data.' }, 500);
+  }
+
+  return c.json({
+    imported: true,
+    fileId,
+    dataset: {
+      id: datasetId,
+      instrument,
+      sourceSymbol,
+      timeframe,
+      rowCount: normalizedResult.rowCount,
+      startTime: normalizedResult.startTime,
+      endTime: normalizedResult.endTime,
+      normalizedStorageKey,
+    },
+    fileStatus: complete ? 'ready' : 'needs_review',
+    remainingSymbols,
   }, 201);
 });
 
