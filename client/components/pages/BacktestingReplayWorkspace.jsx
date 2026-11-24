@@ -19,7 +19,7 @@ const getCssColor = (name, fallback) => {
 
 const formatMoney = value => (value < 0 ? '-$' : '$') + Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatPrice = (value, decimals = 2) => Number(value).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-const { formatDateEST, formatTimeEST, getDisplayTimeZone } = require('../../utils/dateUtils');
+const { formatDateEST, formatTimeEST, getDisplayTimeZone, getDateFormat, getTimeFormat } = require('../../utils/dateUtils');
 const { getAvailableMarkets, isRangeWithinCoverage, aggregateCandles, timeframeSeconds } = require('../../utils/historicalReplay');
 
 const formatBarTime = value => {
@@ -63,6 +63,99 @@ const fromDisplayDateTimeInput = value => {
 const formatDisplayDateTimeInput = value => {
   const date = fromDisplayDateTimeInput(value);
   return date ? `${formatDateEST(date)} ${formatTimeEST(date)}` : 'Select date and time';
+};
+
+const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeFormat }) => {
+  const [open, setOpen] = useState(false);
+  const [visibleMonth, setVisibleMonth] = useState(() => {
+    const match = /^(\d{4})-(\d{2})/.exec(value || '');
+    return match ? new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1)) : new Date();
+  });
+  const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value || '');
+  const year = parts ? Number(parts[1]) : 2000;
+  const month = parts ? Number(parts[2]) : 1;
+  const day = parts ? Number(parts[3]) : 1;
+  const hour = parts ? Number(parts[4]) : 0;
+  const minute = parts ? Number(parts[5]) : 0;
+  const second = parts ? Number(parts[6] || 0) : 0;
+  const selectedDate = String(year).padStart(4, '0') + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+  const minDate = min ? min.slice(0, 10) : '';
+  const maxDate = max ? max.slice(0, 10) : '';
+  const minMonth = minDate ? Number(minDate.slice(0, 4)) * 12 + Number(minDate.slice(5, 7)) - 1 : -Infinity;
+  const maxMonth = maxDate ? Number(maxDate.slice(0, 4)) * 12 + Number(maxDate.slice(5, 7)) - 1 : Infinity;
+  const monthIndex = visibleMonth.getUTCFullYear() * 12 + visibleMonth.getUTCMonth();
+  const monthLabel = visibleMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const firstWeekday = (new Date(Date.UTC(visibleMonth.getUTCFullYear(), visibleMonth.getUTCMonth(), 1)).getUTCDay() + 6) % 7;
+  const daysInMonth = new Date(Date.UTC(visibleMonth.getUTCFullYear(), visibleMonth.getUTCMonth() + 1, 0)).getUTCDate();
+  const calendarCells = [...Array(firstWeekday).fill(null), ...Array.from({ length: daysInMonth }, (_, index) => index + 1)];
+  while (calendarCells.length % 7) calendarCells.push(null);
+  const pad = number => String(number).padStart(2, '0');
+  const candidate = (nextDate, nextHour = hour, nextMinute = minute, nextSecond = second) => nextDate + 'T' + pad(nextHour) + ':' + pad(nextMinute) + ':' + pad(nextSecond);
+  const isAllowed = nextValue => (!min || nextValue >= min) && (!max || nextValue <= max);
+  const update = nextValue => { if (isAllowed(nextValue)) onChange(nextValue); };
+  const changeDate = nextDay => {
+    const nextDate = visibleMonth.getUTCFullYear() + '-' + pad(visibleMonth.getUTCMonth() + 1) + '-' + pad(nextDay);
+    update(candidate(nextDate));
+  };
+  const setTime = (nextHour, nextMinute = minute, nextSecond = second) => update(candidate(selectedDate, nextHour, nextMinute, nextSecond));
+  const displayDate = (() => {
+    if (!parts) return 'Select date and time';
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (dateFormat === 'dmy-dot') return pad(day) + '.' + pad(month) + '.' + year;
+    if (dateFormat === 'dmy-slash') return pad(day) + '/' + pad(month) + '/' + year;
+    if (dateFormat === 'mdy-slash') return pad(month) + '/' + pad(day) + '/' + year;
+    if (dateFormat === 'ymd-dash') return year + '-' + pad(month) + '-' + pad(day);
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  })();
+  const displayHour = timeFormat === '24h' ? hour : (hour % 12 || 12);
+  const setHourDisplay = nextDisplayHour => {
+    const nextHour = timeFormat === '24h' ? nextDisplayHour : (nextDisplayHour % 12) + (hour >= 12 ? 12 : 0);
+    setTime(nextHour);
+  };
+  const setPeriod = period => setTime((hour % 12) + (period === 'PM' ? 12 : 0));
+  const monthStepAllowed = direction => monthIndex + direction >= minMonth && monthIndex + direction <= maxMonth;
+  return (
+    <div className="relative">
+      <button type="button" onClick={() => setOpen(current => !current)} className="w-full text-left bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary" aria-expanded={open}>
+        {parts ? (displayDate + ' ' + (timeFormat === '24h' ? pad(hour) + ':' + pad(minute) : pad(displayHour) + ':' + pad(minute) + ' ' + (hour >= 12 ? 'PM' : 'AM'))) : 'Select date and time'}
+      </button>
+      {open && <div className="absolute z-50 top-full left-0 mt-2 w-[min(100%,22rem)] min-w-[20rem] rounded-xl border border-border bg-bg-surface shadow-2xl p-3" role="dialog" aria-label="Choose date and time">
+        <div className="flex items-center justify-between mb-3">
+          <button type="button" disabled={!monthStepAllowed(-1)} onClick={() => setVisibleMonth(new Date(Date.UTC(visibleMonth.getUTCFullYear(), visibleMonth.getUTCMonth() - 1, 1)))} className="px-2 py-1 rounded hover:bg-bg-input disabled:opacity-30" aria-label="Previous month">‹</button>
+          <div className="text-sm font-semibold text-text-primary">{monthLabel}</div>
+          <button type="button" disabled={!monthStepAllowed(1)} onClick={() => setVisibleMonth(new Date(Date.UTC(visibleMonth.getUTCFullYear(), visibleMonth.getUTCMonth() + 1, 1)))} className="px-2 py-1 rounded hover:bg-bg-input disabled:opacity-30" aria-label="Next month">›</button>
+        </div>
+        <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-text-muted mb-1">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(label => <div key={label} className="py-1">{label}</div>)}</div>
+        <div className="grid grid-cols-7 gap-1">
+          {calendarCells.map((calendarDay, index) => {
+            if (!calendarDay) return <span key={'empty-' + index} />;
+            const dateValue = visibleMonth.getUTCFullYear() + '-' + pad(visibleMonth.getUTCMonth() + 1) + '-' + pad(calendarDay);
+            const disabled = (minDate && dateValue < minDate) || (maxDate && dateValue > maxDate);
+            const selected = dateValue === selectedDate;
+            return <button key={dateValue} type="button" disabled={Boolean(disabled)} onClick={() => changeDate(calendarDay)} className={'h-8 rounded-md text-xs ' + (selected ? 'bg-accent text-white font-semibold' : 'text-text-primary hover:bg-bg-input') + ' disabled:opacity-20 disabled:cursor-not-allowed'}>{calendarDay}</button>;
+          })}
+        </div>
+        <div className="border-t border-border mt-3 pt-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-2">Time · {timeFormat === '24h' ? '24-hour' : '12-hour'}</div>
+          <div className="grid gap-2 items-center" style={{ gridTemplateColumns: timeFormat === '24h' ? '1fr auto 1fr auto 1fr' : '1fr auto 1fr auto 1fr auto' }}>
+            <select aria-label="Hour" value={displayHour} onChange={event => setHourDisplay(Number(event.target.value))} className="min-w-0 bg-bg-input border border-border rounded-md px-2 py-2 text-sm text-text-primary">
+              {(timeFormat === '24h' ? Array.from({length:24},(_,i)=>i) : Array.from({length:12},(_,i)=>i+1)).map(value => <option key={value} value={value}>{pad(value)}</option>)}
+            </select>
+            <span className="text-text-muted">:</span>
+            <select aria-label="Minute" value={minute} onChange={event => setTime(hour,Number(event.target.value))} className="min-w-0 bg-bg-input border border-border rounded-md px-2 py-2 text-sm text-text-primary">
+              {Array.from({length:60},(_,i)=>i).map(value => <option key={value} value={value}>{pad(value)}</option>)}
+            </select>
+            <span className="text-text-muted">:</span>
+            <select aria-label="Second" value={second} onChange={event => setTime(hour,minute,Number(event.target.value))} className="min-w-0 bg-bg-input border border-border rounded-md px-2 py-2 text-sm text-text-primary">
+              {Array.from({length:60},(_,i)=>i).map(value => <option key={value} value={value}>{pad(value)}</option>)}
+            </select>
+            {timeFormat !== '24h' && <select aria-label="AM or PM" value={hour >= 12 ? 'PM' : 'AM'} onChange={event => setPeriod(event.target.value)} className="min-w-0 bg-bg-input border border-border rounded-md px-2 py-2 text-sm text-text-primary"><option>AM</option><option>PM</option></select>}
+          </div>
+        </div>
+        <div className="flex justify-end mt-3"><button type="button" onClick={() => setOpen(false)} className="px-3 py-1.5 rounded-md text-xs font-medium bg-bg-input text-text-primary hover:bg-bg-page">Done</button></div>
+      </div>}
+    </div>
+  );
 };
 
 const getIntervalSeconds = data => {
@@ -620,25 +713,11 @@ const BacktestingReplayWorkspace = () => {
           </div>
           <label className="space-y-1">
             <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">From · {getDisplayTimeZone()}</span>
-            <div className="relative">
-              <button type="button" disabled={!selectedMarket || historicalLoading} onClick={event => {
-                const picker = event.currentTarget.parentElement.querySelector('input');
-                if (picker?.showPicker) picker.showPicker();
-                else picker?.focus();
-              }} className="w-full text-left bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary disabled:opacity-50">{formatDisplayDateTimeInput(historicalStart)}</button>
-              <input type="datetime-local" step="1" min={selectedCoverage ? toDisplayDateTimeInput(selectedCoverage.start) : undefined} max={selectedCoverage ? toDisplayDateTimeInput(selectedCoverage.end) : undefined} value={historicalStart} onChange={event => handleDateChange(setHistoricalStart, event.target.value)} aria-label="From date and time" className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" tabIndex={-1} />
-            </div>
+            <ReplayDateTimePicker value={historicalStart} onChange={value => handleDateChange(setHistoricalStart, value)} min={selectedCoverage ? toDisplayDateTimeInput(selectedCoverage.start) : undefined} max={selectedCoverage ? toDisplayDateTimeInput(selectedCoverage.end) : undefined} dateFormat={getDateFormat()} timeFormat={getTimeFormat()} />
           </label>
           <label className="space-y-1">
             <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">To · {getDisplayTimeZone()}</span>
-            <div className="relative">
-              <button type="button" disabled={!selectedMarket || historicalLoading} onClick={event => {
-                const picker = event.currentTarget.parentElement.querySelector('input');
-                if (picker?.showPicker) picker.showPicker();
-                else picker?.focus();
-              }} className="w-full text-left bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary disabled:opacity-50">{formatDisplayDateTimeInput(historicalEnd)}</button>
-              <input type="datetime-local" step="1" min={selectedCoverage ? toDisplayDateTimeInput(selectedCoverage.start) : undefined} max={selectedCoverage ? toDisplayDateTimeInput(selectedCoverage.end) : undefined} value={historicalEnd} onChange={event => handleDateChange(setHistoricalEnd, event.target.value)} aria-label="To date and time" className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" tabIndex={-1} />
-            </div>
+            <ReplayDateTimePicker value={historicalEnd} onChange={value => handleDateChange(setHistoricalEnd, value)} min={selectedCoverage ? toDisplayDateTimeInput(selectedCoverage.start) : undefined} max={selectedCoverage ? toDisplayDateTimeInput(selectedCoverage.end) : undefined} dateFormat={getDateFormat()} timeFormat={getTimeFormat()} />
           </label>
           <div className="flex items-end text-xs text-text-muted">
             {historicalLoading ? 'Preparing historical data…' : selectedMarket ? 'Data loads automatically when you change a selection.' : 'Import data under Settings → Providers → Historical Futures.'}
