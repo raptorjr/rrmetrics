@@ -106,6 +106,73 @@ marketData.post('/api/market-data/files/inspect', requiresLogin, async (c) => {
     return c.json({ error: 'No valid OHLCV rows were found.', inspection }, 422);
   }
 
+  const potentialOverlaps = new Map<string, {
+    datasetId: string;
+    fileId: string;
+    filename: string;
+    instrument: string;
+    sourceSymbol: string | null;
+    timeframe: string;
+    startTime: string;
+    endTime: string;
+    rowCount: number;
+  }>();
+  if (inspection.detectedTimeframe && inspection.startTime && inspection.endTime
+    && (inspection.detectedInstrument || inspection.detectedSymbols?.length)) {
+    const sourceSymbols: Array<string | null> = inspection.detectedSymbols?.length
+      ? inspection.detectedSymbols : [null];
+    for (const sourceSymbol of sourceSymbols) {
+      const overlaps = db.prepare(
+        `SELECT d.id AS dataset_id, d.file_id, d.instrument, d.source_symbol, d.timeframe,
+                d.start_time, d.end_time, d.row_count, f.original_filename
+         FROM market_data_file_datasets d
+         JOIN market_data_files f ON f.id = d.file_id AND f.user_id = d.user_id
+         WHERE d.user_id = ? AND f.import_status = 'ready'
+           AND d.timeframe = ? AND d.start_time <= ? AND d.end_time >= ?
+           AND (? IS NULL OR d.instrument = ?)
+           AND d.source_symbol IS ?`,
+      ).all(
+        user.id,
+        inspection.detectedTimeframe,
+        inspection.endTime,
+        inspection.startTime,
+        inspection.detectedInstrument,
+        inspection.detectedInstrument,
+        sourceSymbol,
+      ) as Array<{
+        dataset_id: string;
+        file_id: string;
+        instrument: string;
+        source_symbol: string | null;
+        timeframe: string;
+        start_time: string;
+        end_time: string;
+        row_count: number;
+        original_filename: string;
+      }>;
+      for (const overlap of overlaps) {
+        potentialOverlaps.set(overlap.dataset_id, {
+          datasetId: overlap.dataset_id,
+          fileId: overlap.file_id,
+          filename: overlap.original_filename,
+          instrument: overlap.instrument,
+          sourceSymbol: overlap.source_symbol,
+          timeframe: overlap.timeframe,
+          startTime: overlap.start_time,
+          endTime: overlap.end_time,
+          rowCount: overlap.row_count,
+        });
+      }
+    }
+  }
+  const inspectionWithOverlaps = {
+    ...inspection,
+    potentialOverlaps: [...potentialOverlaps.values()],
+    warnings: potentialOverlaps.size
+      ? [...inspection.warnings, `${potentialOverlaps.size} existing source dataset(s) overlap this file's instrument, contract and date range. Both sources will be retained; choose a source explicitly when querying overlapping ranges.`]
+      : inspection.warnings,
+  };
+
   const fileId = generateId();
   const storageKey = `${fileId}.upload`;
   const stagingPath = path.join(MARKET_DATA_STAGING_DIR, storageKey);
@@ -125,7 +192,7 @@ marketData.post('/api/market-data/files/inspect', requiresLogin, async (c) => {
       extension,
       buffer.length,
       contentSha256,
-      JSON.stringify(inspection),
+      JSON.stringify(inspectionWithOverlaps),
       `staging/${storageKey}`,
     );
   } catch (error) {
@@ -143,7 +210,7 @@ marketData.post('/api/market-data/files/inspect', requiresLogin, async (c) => {
       sizeBytes: buffer.length,
       status: 'needs_review',
     },
-    inspection,
+    inspection: inspectionWithOverlaps,
     requiresReview: true,
   }, 201);
 });
