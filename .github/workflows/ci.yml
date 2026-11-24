@@ -27,15 +27,6 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Generate package lock for dependency verification
-        run: npm install --package-lock-only --ignore-scripts
-
-      - name: Upload generated package lock
-        uses: actions/upload-artifact@v4
-        with:
-          name: generated-parquet-package-lock
-          path: package-lock.json
-
       - name: Install dependencies
         run: npm ci
 
