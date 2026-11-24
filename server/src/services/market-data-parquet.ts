@@ -486,7 +486,8 @@ export async function normalizeOhlcvParquet(
     ...(layout.mapping.symbol ? [layout.mapping.symbol] : []),
   ];
 
-  async function* normalizedRows(): AsyncGenerator<Record<string, unknown>> {
+  async function* normalizedRows(): AsyncGenerator<Pick<ParquetOhlcvBar, 'timestamp' | 'open' | 'high' | 'low' | 'close' | 'volume'>> {
+    let previousTimestamp = Number.NEGATIVE_INFINITY;
     const totalRows = Number(layout.metadata.num_rows);
     for (let rowStart = 0; rowStart < totalRows; rowStart += READ_BATCH_SIZE) {
       const rowEnd = Math.min(totalRows, rowStart + READ_BATCH_SIZE);
@@ -516,6 +517,11 @@ export async function normalizeOhlcvParquet(
           if (options.skipInvalidRows) continue;
           throw error;
         }
+        if (timestamp <= previousTimestamp) {
+          if (options.skipInvalidRows) continue;
+          throw new Error('Selected source-symbol rows are duplicated or not in chronological order.');
+        }
+        previousTimestamp = timestamp;
         const bar = {
           open: numericValue(row[layout.mapping.open]),
           high: numericValue(row[layout.mapping.high]),
