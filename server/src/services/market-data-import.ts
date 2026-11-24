@@ -150,14 +150,12 @@ function detectInstrument(filename: string, symbols: string[]): string | null {
 
   for (const token of tokens) {
     for (const symbol of known) {
-      // Recognize dated futures contracts such as ESZ6, ESZ26 and NQZ6.
       const datedContract = new RegExp('^' + symbol + '[FGHJKMNQUVXZ][0-9]{1,2}$');
       if (token === symbol || datedContract.test(token)) matches.add(symbol);
     }
   }
   return matches.size === 1 ? [...matches][0] : null;
 }
-
 export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection {
   const source = buffer.toString('utf8').replace(/^\uFEFF/, '');
   if (source.includes('\u0000')) throw new Error('The uploaded file does not look like a UTF-8 CSV file.');
@@ -246,8 +244,7 @@ export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection
   }
 
   bars.sort((a, b) => a.timestamp - b.timestamp);
-  // Calculate intervals independently per source symbol. Interleaved symbols
-  // commonly share timestamps; treating those as one stream skews the median.
+  // Infer intervals separately per symbol; multiple instruments often share timestamps.
   const timestampsBySymbol = new Map<string, number[]>();
   for (const bar of bars) {
     const key = bar.sourceSymbol ?? '';
@@ -257,134 +254,9 @@ export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection
   }
   const gaps = [...timestampsBySymbol.values()].flatMap((timestamps) => {
     timestamps.sort((a, b) => a - b);
-    return timestamps.slice(1)
-      .map((timestamp, index) => timestamp - timestamps[index])
+    return timestamps.slice(1).map((timestamp, index) => timestamp - timestamps[index])
       .filter(gap => gap > 0);
   });
-  const medianGap = gaps.length ? [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)] : 0;
-  const uniqueSymbols = [...new Set(symbols)];
-  const detectedInstrument = detectInstrument(filename, uniqueSymbols);
-  if (uniqueSymbols.length > 1) warnings.push('The file contains multiple instrument symbols. Each symbol must be imported as its own dataset; no symbol data should be discarded.');
-  if (invalidRowCount) warnings.push(`${invalidRowCount} row(s) were excluded from the valid preview.`);
-  if (timezoneNeedsConfirmation) warnings.push('Timestamps without an explicit timezone need timezone confirmation before import.');
-  if (!detectedInstrument) warnings.push('Instrument could not be identified confidently; select it during review.');
-
-  return {
-    format: 'csv',
-    delimiter,
-    columns: rows[0],
-    detectedSymbols: uniqueSymbols,
-    rowCount: rows.length - 1,
-    validRowCount: bars.length,
-    invalidRowCount,
-    detectedInstrument,
-    detectedTimeframe: medianGap ? timeframeFromGap(medianGap) : null,
-    timestampUnit,
-    timezone,
-    timezoneNeedsConfirmation,
-    startTime: bars.length ? new Date(bars[0].timestamp).toISOString() : null,
-    endTime: bars.length ? new Date(bars[bars.length - 1].timestamp).toISOString() : null,
-    sample: bars.slice(0, 10),
-    errors,
-    warnings,
-  };
-}
-);
-      if (token === symbol || datedContract.test(token)) matches.add(symbol);
-    }
-  }
-  return matches.size === 1 ? [...matches][0] : null;
-}
-
-export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection {
-  const source = buffer.toString('utf8').replace(/^\uFEFF/, '');
-  if (source.includes('\u0000')) throw new Error('The uploaded file does not look like a UTF-8 CSV file.');
-
-  const delimiter = detectCsvDelimiter(source);
-  const rows = parseCsvRows(source, delimiter);
-  if (rows.length < 2) throw new Error('CSV must contain a header row and at least one data row.');
-
-  const headers = rows[0].map(normalizeHeader);
-  const findColumn = (key: string): number => {
-    const aliases = HEADER_ALIASES[key].map(normalizeHeader);
-    return headers.findIndex(header => aliases.includes(header));
-  };
-  const indexes = {
-    timestamp: findColumn('timestamp'),
-    open: findColumn('open'),
-    high: findColumn('high'),
-    low: findColumn('low'),
-    close: findColumn('close'),
-    volume: findColumn('volume'),
-    instrument: findColumn('instrument'),
-  };
-
-  const missing = ['timestamp', 'open', 'high', 'low', 'close'].filter(key => indexes[key as keyof typeof indexes] < 0);
-  if (missing.length) throw new Error(`Missing required OHLCV columns: ${missing.join(', ')}.`);
-
-  const errors: string[] = [];
-  const warnings: string[] = [];
-  const bars: OhlcvBar[] = [];
-  const symbols: string[] = [];
-  const timestamps = new Set<string>();
-  let invalidRowCount = 0;
-  let timestampUnit: CsvInspection['timestampUnit'] = null;
-  let timezone: string | null = null;
-  let timezoneNeedsConfirmation = false;
-
-  for (let rowIndex = 1; rowIndex < rows.length; rowIndex += 1) {
-    const row = rows[rowIndex];
-    const get = (index: number) => index >= 0 ? (row[index] ?? '').trim() : '';
-    const parsedTime = parseTimestamp(get(indexes.timestamp));
-    const sourceSymbol = get(indexes.instrument).toUpperCase() || null;
-    const values = {
-      open: Number(get(indexes.open)),
-      high: Number(get(indexes.high)),
-      low: Number(get(indexes.low)),
-      close: Number(get(indexes.close)),
-    };
-    const volumeText = get(indexes.volume);
-    const volume = volumeText === '' ? null : Number(volumeText);
-    const validPrices = Object.values(values).every(Number.isFinite)
-      && values.high >= Math.max(values.open, values.close, values.low)
-      && values.low <= Math.min(values.open, values.close, values.high)
-      && values.low > 0;
-    const validVolume = volume === null || (Number.isFinite(volume) && volume >= 0);
-
-    if (!parsedTime || !validPrices || !validVolume) {
-      invalidRowCount += 1;
-      if (errors.length < 10) errors.push(`Row ${rowIndex + 1}: invalid timestamp, OHLC values or volume.`);
-      continue;
-    }
-    const timestampKey = `${sourceSymbol ?? ''}\u0000${parsedTime.timestamp}`;
-    if (timestamps.has(timestampKey)) {
-      invalidRowCount += 1;
-      if (errors.length < 10) errors.push(`Row ${rowIndex + 1}: duplicate timestamp for ${sourceSymbol || 'file'}.`);
-      continue;
-    }
-
-    timestamps.add(timestampKey);
-    timestampUnit = timestampUnit ?? parsedTime.unit;
-    if (timestampUnit !== parsedTime.unit) {
-      invalidRowCount += 1;
-      timestamps.delete(timestampKey);
-      if (errors.length < 10) errors.push(`Row ${rowIndex + 1}: mixed timestamp formats or units.`);
-      continue;
-    }
-    if (parsedTime.needsTimezone) timezoneNeedsConfirmation = true;
-    if (parsedTime.timezone === 'explicit') timezone = 'explicit';
-    if (sourceSymbol) symbols.push(sourceSymbol);
-
-    bars.push({
-      timestamp: parsedTime.timestamp,
-      ...values,
-      volume,
-      sourceSymbol,
-    });
-  }
-
-  bars.sort((a, b) => a.timestamp - b.timestamp);
-  const gaps = bars.slice(1).map((bar, index) => bar.timestamp - bars[index].timestamp).filter(gap => gap > 0);
   const medianGap = gaps.length ? [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)] : 0;
   const uniqueSymbols = [...new Set(symbols)];
   const detectedInstrument = detectInstrument(filename, uniqueSymbols);
