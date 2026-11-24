@@ -9,6 +9,7 @@ import { generateId } from '../utils/id';
 import { inspectOhlcvCsv, parseOhlcvCsv } from '../services/market-data-import';
 import { inspectOhlcvParquet, normalizeOhlcvParquet, writeOhlcvBarsToParquet } from '../services/market-data-parquet';
 import { inspectTickParquet, normalizeTickParquet } from '../services/market-data-ticks';
+import { readTickParquetRange } from '../services/market-data-query';
 import { readOhlcvParquetRange } from '../services/market-data-query';
 
 type HonoEnv = {
@@ -382,6 +383,124 @@ marketData.get('/api/market-data/query', requiresLogin, async (c) => {
       rowCount: dataset.row_count,
     })),
     bars,
+  });
+});
+
+// GET /api/market-data/ticks/query — source-aware tick-event range query.
+marketData.get('/api/market-data/ticks/query', requiresLogin, async (c) => {
+  const user = c.get('user');
+  const db = c.get('db');
+  const instrument = c.req.query('instrument')?.trim().toUpperCase() || null;
+  const sourceSymbol = c.req.query('sourceSymbol')?.trim().toUpperCase() || null;
+  const datasetId = c.req.query('datasetId')?.trim() || null;
+  const startValue = c.req.query('start');
+  const endValue = c.req.query('end');
+  const startTime = startValue ? Date.parse(startValue) : Number.NaN;
+  const endTime = endValue ? Date.parse(endValue) : Number.NaN;
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime < startTime) {
+    return c.json({ error: 'Provide a valid start and end timestamp for the tick query.' }, 400);
+  }
+  if (!datasetId && !instrument) {
+    return c.json({ error: 'Instrument is required unless a datasetId is selected.' }, 400);
+  }
+
+  const baseQuery = \`SELECT d.id, d.file_id, d.instrument, d.source_symbol, d.timeframe,
+      d.row_count, d.start_time, d.end_time, d.normalized_storage_key,
+      f.original_filename, f.provider_id
+    FROM market_data_file_datasets d
+    JOIN market_data_files f ON f.id = d.file_id AND f.user_id = d.user_id
+    WHERE d.user_id = ? AND f.import_status = 'ready'
+      AND d.data_kind = 'ticks' AND d.timeframe = 'tick'\`;
+  const datasets = datasetId
+    ? db.prepare(\`\${baseQuery} AND d.id = ?\`).all(user.id, datasetId) as Array<any>
+    : db.prepare(
+      \`\${baseQuery}
+       AND d.instrument = ?
+       AND d.start_time <= ? AND d.end_time >= ?
+       AND (? IS NULL OR d.source_symbol = ?)
+       ORDER BY d.start_time\`,
+    ).all(
+      user.id, instrument,
+      new Date(endTime).toISOString(), new Date(startTime).toISOString(),
+      sourceSymbol, sourceSymbol,
+    ) as Array<any>;
+
+  if (!datasets.length) return c.json({ error: 'No matching historical tick datasets were found.' }, 404);
+  if (datasetId && ((instrument && datasets[0].instrument !== instrument)
+    || (sourceSymbol && datasets[0].source_symbol !== sourceSymbol))) {
+    return c.json({ error: 'The selected tick dataset does not match the requested instrument/source symbol.' }, 400);
+  }
+
+  const symbols = [...new Set(datasets.map(dataset => dataset.source_symbol ?? '__none__'))];
+  if (!datasetId && !sourceSymbol && symbols.length > 1) {
+    return c.json({
+      error: 'Multiple tick source symbols are available. Select a sourceSymbol or datasetId.',
+      code: 'SOURCE_SYMBOL_REQUIRED',
+      sourceSymbols: symbols.map(value => value === '__none__' ? null : value),
+      datasets: datasets.map(dataset => ({
+        id: dataset.id, sourceSymbol: dataset.source_symbol,
+        startTime: dataset.start_time, endTime: dataset.end_time,
+      })),
+    }, 409);
+  }
+
+  if (!datasetId && datasets.length > 1) {
+    const ordered = [...datasets].sort((a, b) => a.start_time.localeCompare(b.start_time));
+    for (let index = 1; index < ordered.length; index += 1) {
+      if (ordered[index].start_time <= ordered[index - 1].end_time) {
+        return c.json({
+          error: 'Overlapping tick source datasets are available. Select a datasetId to avoid silently merging event streams.',
+          code: 'SOURCE_OVERLAP_REQUIRES_SELECTION',
+          datasets: ordered.map(dataset => ({
+            id: dataset.id, fileId: dataset.file_id, filename: dataset.original_filename,
+            sourceSymbol: dataset.source_symbol, startTime: dataset.start_time, endTime: dataset.end_time,
+          })),
+        }, 409);
+      }
+    }
+  }
+
+  const ticks = [];
+  try {
+    for (const dataset of datasets) {
+      const storageKey = String(dataset.normalized_storage_key);
+      if (!storageKey.startsWith('normalized/')) throw new Error('Normalized tick path failed validation.');
+      const name = storageKey.slice('normalized/'.length);
+      if (!name || path.basename(name) !== name || name.includes('..')) {
+        throw new Error('Normalized tick path failed validation.');
+      }
+      const normalizedPath = path.join(MARKET_DATA_NORMALIZED_DIR, name);
+      ticks.push(...await readTickParquetRange(normalizedPath, startTime, endTime));
+    }
+  } catch (error) {
+    console.error('market data tick range query failed:', error);
+    return c.json({ error: 'Unable to read one or more normalized tick datasets.' }, 500);
+  }
+
+  ticks.sort((a, b) => {
+    const left = BigInt(a.timestampNs);
+    const right = BigInt(b.timestampNs);
+    if (left < right) return -1;
+    if (left > right) return 1;
+    return a.sequence - b.sequence;
+  });
+  if (ticks.length > 2_000_000) {
+    return c.json({ error: 'The selected range contains too many tick events. Narrow the date range and try again.' }, 413);
+  }
+
+  return c.json({
+    dataKind: 'ticks',
+    instrument: datasets[0].instrument,
+    sourceSymbol: sourceSymbol ?? datasets[0].source_symbol,
+    startTime: new Date(startTime).toISOString(),
+    endTime: new Date(endTime).toISOString(),
+    totalTicks: ticks.length,
+    sources: datasets.map(dataset => ({
+      datasetId: dataset.id, fileId: dataset.file_id, filename: dataset.original_filename,
+      sourceSymbol: dataset.source_symbol, startTime: dataset.start_time,
+      endTime: dataset.end_time, rowCount: dataset.row_count,
+    })),
+    ticks,
   });
 });
 
