@@ -20,7 +20,7 @@ const getCssColor = (name, fallback) => {
 const formatMoney = value => (value < 0 ? '-$' : '$') + Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatPrice = (value, decimals = 2) => Number(value).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 const { formatDateEST, formatTimeEST, getDisplayTimeZone } = require('../../utils/dateUtils');
-const { getAvailableMarkets, aggregateCandles, timeframeSeconds } = require('../../utils/historicalReplay');
+const { getAvailableMarkets, isRangeWithinCoverage, aggregateCandles, timeframeSeconds } = require('../../utils/historicalReplay');
 
 const formatBarTime = value => {
   const date = new Date(value * 1000);
@@ -160,6 +160,7 @@ const BacktestingReplayWorkspace = () => {
   const [historicalTimeframe, setHistoricalTimeframe] = useState('1m');
   const [historicalStart, setHistoricalStart] = useState('');
   const [historicalEnd, setHistoricalEnd] = useState('');
+  const [selectedCoverageIndex, setSelectedCoverageIndex] = useState(0);
   const [replayLayout, setReplayLayout] = useState('single');
   const [contextTimeframes, setContextTimeframes] = useState(['5m', '15m']);
   const chartContainerRef = useRef(null);
@@ -177,6 +178,7 @@ const BacktestingReplayWorkspace = () => {
   const selectedMarket = useMemo(() => availableMarkets.find(market => market.key === selectedMarketKey) || null, [availableMarkets, selectedMarketKey]);
   const historicalTimeframes = selectedMarket?.availableTimeframes || [];
   const baseTimeframe = selectedMarket?.baseTimeframe || '';
+  const selectedCoverage = selectedMarket?.coverage[selectedCoverageIndex] || selectedMarket?.coverage[0] || null;
 
   useEffect(() => {
     let cancelled = false;
@@ -206,10 +208,10 @@ const BacktestingReplayWorkspace = () => {
     if (!selectedMarket) return;
     setTicker(selectedMarket.instrument);
     const first = selectedMarket.coverage[0];
-    const last = selectedMarket.coverage[selectedMarket.coverage.length - 1];
-    if (first && last) {
+    setSelectedCoverageIndex(0);
+    if (first) {
       setHistoricalStart(toDisplayDateTimeInput(first.start));
-      setHistoricalEnd(toDisplayDateTimeInput(last.end));
+      setHistoricalEnd(toDisplayDateTimeInput(first.end));
     }
     if (!selectedMarket.availableTimeframes.includes(historicalTimeframe)) setHistoricalTimeframe(selectedMarket.availableTimeframes[0] || '');
   }, [selectedMarketKey, historicalDatasets.length]);
@@ -218,7 +220,7 @@ const BacktestingReplayWorkspace = () => {
     if (!selectedMarket || !baseTimeframe || !historicalStart || !historicalEnd) return undefined;
     const startTime = fromDisplayDateTimeInput(historicalStart);
     const endTime = fromDisplayDateTimeInput(historicalEnd);
-    if (!startTime || !endTime || !Number.isFinite(startTime.getTime()) || !Number.isFinite(endTime.getTime()) || endTime < startTime) return undefined;
+    if (!startTime || !endTime || !Number.isFinite(startTime.getTime()) || !Number.isFinite(endTime.getTime()) || !isRangeWithinCoverage(startTime.getTime(), endTime.getTime(), selectedCoverage)) return undefined;
     let cancelled = false;
     const timer = setTimeout(async () => {
       setHistoricalLoading(true);
@@ -249,7 +251,7 @@ const BacktestingReplayWorkspace = () => {
       }
     }, 350);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [selectedMarketKey, baseTimeframe, historicalTimeframe, historicalStart, historicalEnd, historicalDatasets.length]);
+  }, [selectedMarketKey, baseTimeframe, historicalTimeframe, historicalStart, historicalEnd, selectedCoverage, historicalDatasets.length]);
   const spec = getInstrumentSpec(ticker);
   const currentCandle = candles[currentIndex] || candles[0];
   const replayTime = currentCandle ? currentCandle.time + timeframeSeconds(historicalTimeframe) : 0;
@@ -472,7 +474,32 @@ const BacktestingReplayWorkspace = () => {
     setTicker(market.instrument);
   };
 
-  const handleDateChange = (setter, value) => { setter(value); resetForMarketChange(); };
+  const handleCoverageChange = event => {
+    const index = Number(event.target.value);
+    const range = selectedMarket?.coverage[index];
+    if (!range) return;
+    setSelectedCoverageIndex(index);
+    setHistoricalStart(toDisplayDateTimeInput(range.start));
+    setHistoricalEnd(toDisplayDateTimeInput(range.end));
+    resetForMarketChange();
+  };
+
+  const handleDateChange = (setter, value) => {
+    const nextDate = fromDisplayDateTimeInput(value);
+    if (!nextDate || !selectedCoverage
+      || nextDate.getTime() < selectedCoverage.start
+      || nextDate.getTime() > selectedCoverage.end) return;
+    if (setter === setHistoricalStart) {
+      setHistoricalStart(value);
+      const currentEnd = fromDisplayDateTimeInput(historicalEnd);
+      if (currentEnd && nextDate > currentEnd) setHistoricalEnd(value);
+    } else {
+      setHistoricalEnd(value);
+      const currentStart = fromDisplayDateTimeInput(historicalStart);
+      if (currentStart && nextDate < currentStart) setHistoricalStart(value);
+    }
+    resetForMarketChange();
+  };
   const validateLevels = (direction, entryPrice, stopPrice, targetPrice) => {
     if (stopPrice != null && (direction === 'long' ? stopPrice >= entryPrice : stopPrice <= entryPrice)) {
       return 'The stop-loss must be below entry for a long, and above entry for a short.';
@@ -579,10 +606,16 @@ const BacktestingReplayWorkspace = () => {
               <option value="split3" disabled={contextOptions.length < 2}>3 charts</option>
             </select>
           </label>
+          {selectedMarket?.coverage.length > 1 && <label className="space-y-1">
+            <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">Continuous data period</span>
+            <select value={selectedCoverageIndex} onChange={handleCoverageChange} disabled={historicalLoading} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
+              {selectedMarket.coverage.map((range, index) => <option key={index} value={index}>{formatDateEST(range.start)} – {formatDateEST(range.end)}</option>)}
+            </select>
+          </label>}
           <div className="space-y-1">
             <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">Available data</span>
             <div className="bg-bg-input border border-border rounded-lg px-3 py-2 text-xs text-text-secondary">
-              {selectedMarket ? selectedMarket.coverage.map(range => formatDateEST(range.start) + ' – ' + formatDateEST(range.end)).join(' · ') : 'No historical data'}
+              {selectedCoverage ? formatDateEST(selectedCoverage.start) + ' – ' + formatDateEST(selectedCoverage.end) : 'No historical data'}
             </div>
           </div>
           <label className="space-y-1">
@@ -593,7 +626,7 @@ const BacktestingReplayWorkspace = () => {
                 if (picker?.showPicker) picker.showPicker();
                 else picker?.focus();
               }} className="w-full text-left bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary disabled:opacity-50">{formatDisplayDateTimeInput(historicalStart)}</button>
-              <input type="datetime-local" step="1" min={selectedMarket ? toDisplayDateTimeInput(selectedMarket.start) : undefined} max={selectedMarket ? toDisplayDateTimeInput(selectedMarket.end) : undefined} value={historicalStart} onChange={event => handleDateChange(setHistoricalStart, event.target.value)} aria-label="From date and time" className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" tabIndex={-1} />
+              <input type="datetime-local" step="1" min={selectedCoverage ? toDisplayDateTimeInput(selectedCoverage.start) : undefined} max={selectedCoverage ? toDisplayDateTimeInput(selectedCoverage.end) : undefined} value={historicalStart} onChange={event => handleDateChange(setHistoricalStart, event.target.value)} aria-label="From date and time" className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" tabIndex={-1} />
             </div>
           </label>
           <label className="space-y-1">
@@ -611,7 +644,7 @@ const BacktestingReplayWorkspace = () => {
             {historicalLoading ? 'Preparing historical data…' : selectedMarket ? 'Data loads automatically when you change a selection.' : 'Import data under Settings → Providers → Historical Futures.'}
           </div>
         </div>
-        {selectedMarket?.coverage.length > 1 && <p className="text-[11px] text-amber-500">This market has separate coverage periods. A selected range may contain gaps where no historical bars are available.</p>}
+        {selectedMarket?.coverage.length > 1 && <p className="text-[11px] text-text-muted">Choose a continuous data period. The date controls are restricted to that period, so replay cannot cross a known coverage gap.</p>}
         {!availableMarkets.length && <div className="rounded-lg border border-border bg-bg-page px-3 py-4 text-sm text-text-muted">No historical OHLCV markets are available yet. Add data under Settings → Providers → Historical Futures. Available markets and periods will appear here automatically.</div>}
         {importError && <div className="text-xs text-negative">{importError}</div>}
       </div>
