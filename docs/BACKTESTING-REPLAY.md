@@ -46,7 +46,7 @@ Historical source files and normalized datasets are managed by the central Histo
 ## Data and replay roadmap
 
 1. Centralize historical data ingestion, ownership, normalization and range queries under Settings → Providers → Historical Futures. **Implemented.**
-2. Make replay selection catalogue-driven: available markets, actual base-resolution coverage and only supported/native-or-aggregatable timeframes. Automatically query data when the user's selection changes. **Initial implementation added.**
+2. Make replay selection catalogue-driven: available markets, actual base-resolution coverage and only supported/native-or-aggregatable timeframes. Automatically query data when the user's selection changes. **Implemented in the initial replay UI; date controls are now constrained to one continuous coverage interval. Runtime validation against each user's installed datasets remains necessary.**
 3. Add multi-panel replay layouts with independent timeframes and one synchronized replay clock. **Initial 1/2/3-panel layouts added; context charts reveal data only through the current replay time.**
 4. Add deterministic higher-timeframe aggregation from the best available lower-timeframe source. Respect exchange/session candle boundaries and never expose incomplete future information during replay. **UTC-bucket aggregation implemented; exchange-specific session boundary configuration remains follow-up work.**
 5. Integrate tick replay and practical tick-driven execution using the project's agreed accuracy/complexity trade-off.
