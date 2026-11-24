@@ -6,6 +6,8 @@
 - Tile visibility and order remain shared across breakpoints, so hiding, showing, adding, or reordering a tile is consistent on all screen sizes.
 - Existing dashboards retain their saved layout as the 8-column desktop layout. Initial 4- and 2-column arrangements are generated from that layout and persisted when the collection is saved; subsequent edits are breakpoint-specific.
 - Added automated layout tests for collision-free placement, legacy dashboard migration, and independent saved positions.
+- Corrected initial server loading so a delayed response selects the breakpoint that is active when loading completes, even if the browser width changed during the request.
+- Kept minimum-area resize corrections aligned to whole breakpoint columns, preventing fractional logical widths at narrow sizes.
 
 # Fork changes
 
