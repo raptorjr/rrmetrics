@@ -113,4 +113,4 @@ const getESTOffset = (date) => {
   return diffHours === -4 ? '-04:00' : '-05:00';
 };
 
-module.exports = { formatDuration, EST_TZ, toEST, getDisplayTimeZone, formatDateEST, formatTimeEST, formatFullDateEST, getESTOffset };
+module.exports = { formatDuration, EST_TZ, toEST, getDisplayTimeZone, getDateFormat, getTimeFormat, formatDateEST, formatTimeEST, formatFullDateEST, getESTOffset };
