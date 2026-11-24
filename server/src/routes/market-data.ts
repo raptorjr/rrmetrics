@@ -8,6 +8,7 @@ import { requiresLogin } from '../middleware/auth';
 import { generateId } from '../utils/id';
 import { inspectOhlcvCsv, parseOhlcvCsv } from '../services/market-data-import';
 import { inspectOhlcvParquet, normalizeOhlcvParquet, writeOhlcvBarsToParquet } from '../services/market-data-parquet';
+import { inspectTickParquet, normalizeTickParquet } from '../services/market-data-ticks';
 import { readOhlcvParquetRange } from '../services/market-data-query';
 
 type HonoEnv = {
@@ -18,6 +19,19 @@ type HonoEnv = {
 const marketData = new Hono<HonoEnv>();
 const MAX_MARKET_DATA_UPLOAD_BYTES = 100 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = new Set(['csv', 'parquet']);
+
+async function inspectParquetMarketData(buffer: Uint8Array, filename: string) {
+  try {
+    const inspection = await inspectOhlcvParquet(buffer, filename);
+    return { ...inspection, dataKind: 'ohlcv' as const };
+  } catch (ohlcvError) {
+    try {
+      return await inspectTickParquet(buffer, filename);
+    } catch {
+      throw ohlcvError;
+    }
+  }
+}
 
 function getOrCreateHistoricalProvider(db: AuthContext['db'], userId: string) {
   const existing = db.prepare(
@@ -94,8 +108,8 @@ marketData.post('/api/market-data/files/inspect', requiresLogin, async (c) => {
   let inspection;
   try {
     inspection = extension === 'csv'
-      ? inspectOhlcvCsv(buffer, file.name)
-      : await inspectOhlcvParquet(buffer, file.name);
+      ? { ...inspectOhlcvCsv(buffer, file.name), dataKind: 'ohlcv' }
+      : await inspectParquetMarketData(buffer, file.name);
   } catch (error) {
     return c.json({
       error: error instanceof Error ? error.message : 'Unable to inspect market-data file.',
@@ -223,19 +237,21 @@ marketData.get('/api/market-data/datasets', requiresLogin, async (c) => {
   const instrument = c.req.query('instrument')?.trim().toUpperCase() || null;
   const timeframe = c.req.query('timeframe')?.trim() || null;
   const sourceSymbol = c.req.query('sourceSymbol')?.trim().toUpperCase() || null;
+  const dataKind = c.req.query('dataKind') === 'ticks' ? 'ticks' : 'ohlcv';
   const datasets = db.prepare(
     `SELECT d.id, d.file_id, d.data_kind, d.instrument, d.source_symbol, d.timeframe,
             d.timezone, d.row_count, d.start_time, d.end_time, d.created_at,
             f.original_filename, f.provider_id, f.imported_at
      FROM market_data_file_datasets d
      JOIN market_data_files f ON f.id = d.file_id AND f.user_id = d.user_id
-     WHERE d.user_id = ? AND f.import_status = 'ready' AND d.data_kind = 'ohlcv'
+     WHERE d.user_id = ? AND f.import_status = 'ready' AND d.data_kind = ?
        AND (? IS NULL OR d.instrument = ?)
        AND (? IS NULL OR d.timeframe = ?)
        AND (? IS NULL OR d.source_symbol = ?)
      ORDER BY d.instrument, d.timeframe, d.source_symbol, d.start_time`,
   ).all(
     user.id,
+    dataKind,
     instrument, instrument,
     timeframe, timeframe,
     sourceSymbol, sourceSymbol,
@@ -425,8 +441,8 @@ marketData.post('/api/market-data/files/:fileId/import', requiresLogin, async (c
   let inspection;
   try {
     inspection = file.input_format === 'csv'
-      ? inspectOhlcvCsv(buffer, file.original_filename)
-      : await inspectOhlcvParquet(buffer, file.original_filename);
+      ? { ...inspectOhlcvCsv(buffer, file.original_filename), dataKind: 'ohlcv' }
+      : await inspectParquetMarketData(buffer, file.original_filename);
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : 'Unable to re-inspect source file.' }, 422);
   }
@@ -442,7 +458,7 @@ marketData.post('/api/market-data/files/:fileId/import', requiresLogin, async (c
       detectedSymbols,
     }, 400);
   }
-  if (sourceSymbol && !detectedSymbols.includes(sourceSymbol)) {
+  if (sourceSymbol && detectedSymbols.length > 0 && !detectedSymbols.includes(sourceSymbol)) {
     return c.json({ error: 'The selected source symbol was not detected in this file.' }, 400);
   }
 
@@ -453,8 +469,15 @@ marketData.post('/api/market-data/files/:fileId/import', requiresLogin, async (c
     ? confirmation.timeframe.trim()
     : inspection.detectedTimeframe;
   if (!instrument) return c.json({ error: 'Confirm the canonical instrument before importing.' }, 400);
-  if (!timeframe || !/^\d+(?:s|m|h|d)$/.test(timeframe)) {
-    return c.json({ error: 'Confirm a supported timeframe (for example 1m or 5m) before importing.' }, 400);
+  const validTimeframe = inspection.dataKind === 'ticks'
+    ? timeframe === 'tick'
+    : Boolean(timeframe && /^\d+(?:s|m|h|d)$/.test(timeframe));
+  if (!validTimeframe) {
+    return c.json({
+      error: inspection.dataKind === 'ticks'
+        ? 'Tick datasets must use the tick timeframe.'
+        : 'Confirm a supported timeframe (for example 1m or 5m) before importing.',
+    }, 400);
   }
 
   const timezone = typeof confirmation.timezone === 'string' && confirmation.timezone.trim()
@@ -502,9 +525,15 @@ marketData.post('/api/market-data/files/:fileId/import', requiresLogin, async (c
   const temporaryPath = path.join(MARKET_DATA_NORMALIZED_DIR, `${datasetId}.tmp.parquet`);
   const normalizedPath = path.join(MARKET_DATA_NORMALIZED_DIR, `${datasetId}.parquet`);
   const normalizedStorageKey = `normalized/${datasetId}.parquet`;
-  let normalizedResult: { rowCount: number; startTime: string; endTime: string };
+  let normalizedResult: { rowCount: number; startTime: string; endTime: string; sourceSymbol?: string | null };
   try {
-    if (file.input_format === 'csv') {
+    if (inspection.dataKind === 'ticks') {
+      normalizedResult = await normalizeTickParquet(buffer, temporaryPath, {
+        sourceSymbol,
+        timezone,
+        skipInvalidRows,
+      });
+    } else if (file.input_format === 'csv') {
       const parsed = parseOhlcvCsv(buffer, file.original_filename, { timezone });
       const selectedBars = parsed.bars.filter(bar => !sourceSymbol || bar.sourceSymbol === sourceSymbol);
       normalizedResult = await writeOhlcvBarsToParquet(temporaryPath, selectedBars);
@@ -570,15 +599,17 @@ marketData.post('/api/market-data/files/:fileId/import', requiresLogin, async (c
           id, user_id, file_id, data_kind, instrument, source_symbol, timeframe,
           timezone, timestamp_unit, row_count, start_time, end_time, schema_version,
           normalized_storage_key
-        ) VALUES (?, ?, ?, 'ohlcv', ?, ?, ?, ?, 'MILLIS', ?, ?, ?, 1, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
       ).run(
         datasetId,
         user.id,
         fileId,
+        inspection.dataKind || 'ohlcv',
         instrument,
         sourceSymbol,
         timeframe,
         timezone ?? 'UTC',
+        inspection.dataKind === 'ticks' ? inspection.timestampUnit : 'MILLIS',
         normalizedResult.rowCount,
         normalizedResult.startTime,
         normalizedResult.endTime,
@@ -617,6 +648,7 @@ marketData.post('/api/market-data/files/:fileId/import', requiresLogin, async (c
     fileId,
     dataset: {
       id: datasetId,
+      dataKind: inspection.dataKind || 'ohlcv',
       instrument,
       sourceSymbol,
       timeframe,
