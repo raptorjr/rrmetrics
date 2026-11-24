@@ -341,10 +341,12 @@ export async function inspectOhlcvParquet(
     for (const [gap, count] of histogram) gaps.set(gap, (gaps.get(gap) ?? 0) + count);
   }
   const medianGap = medianFromHistogram(gaps);
-  const detectedTimeframe = medianGap
-    ? medianGap >= 86_400_000 ? `${Math.round(medianGap / 86_400_000)}d`
-      : medianGap >= 3_600_000 ? `${Math.round(medianGap / 3_600_000)}h`
-        : `${Math.max(1, Math.round(medianGap / 60_000))}m`
+  const gapSeconds = medianGap ? Math.round(medianGap / 1000) : 0;
+  const detectedTimeframe = gapSeconds
+    ? gapSeconds % 86_400 === 0 ? `${gapSeconds / 86_400}d`
+      : gapSeconds % 3_600 === 0 ? `${gapSeconds / 3_600}h`
+        : gapSeconds % 60 === 0 ? `${gapSeconds / 60}m`
+          : `${gapSeconds}s`
     : null;
 
   if (detectedSymbols.length > 1) {
@@ -429,7 +431,7 @@ export async function writeOhlcvBarsToParquet(
       writer: fileWriter(destinationPath),
       rows: writerRows(),
       columns: [
-        { name: 'timestamp', type: 'TIMESTAMP' },
+        { name: 'timestamp', type: 'TIMESTAMP', columnIndex: true },
         { name: 'open', type: 'DOUBLE' },
         { name: 'high', type: 'DOUBLE' },
         { name: 'low', type: 'DOUBLE' },
@@ -521,7 +523,6 @@ export async function normalizeOhlcvParquet(
           if (options.skipInvalidRows) continue;
           throw new Error('Selected source-symbol rows are duplicated or not in chronological order.');
         }
-        previousTimestamp = timestamp;
         const bar = {
           open: numericValue(row[layout.mapping.open]),
           high: numericValue(row[layout.mapping.high]),
@@ -539,6 +540,7 @@ export async function normalizeOhlcvParquet(
           if (options.skipInvalidRows) continue;
           throw new Error(`Invalid OHLCV values at source row ${rowStart + rows.indexOf(row) + 1}.`);
         }
+        previousTimestamp = timestamp;
         yield {
           timestamp,
           open: bar.open!,

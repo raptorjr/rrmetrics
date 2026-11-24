@@ -60,3 +60,43 @@ test('rejects Parquet files that do not contain OHLCV columns', async () => {
   ]);
   await assert.rejects(() => inspectOhlcvParquet(buffer, 'NQZ6_ticks.parquet'), /required OHLCV columns/);
 });
+
+
+test('infers sub-minute Parquet intervals accurately', async () => {
+  const buffer = makeParquet([
+    { name: 'ts', type: 'TIMESTAMP', data: [
+      new Date('2026-11-09T14:30:00Z'),
+      new Date('2026-11-09T14:30:30Z'),
+      new Date('2026-11-09T14:31:00Z'),
+    ] },
+    { name: 'open', type: 'DOUBLE', data: [25000, 25001, 25002] },
+    { name: 'high', type: 'DOUBLE', data: [25002, 25003, 25004] },
+    { name: 'low', type: 'DOUBLE', data: [24999, 25000, 25001] },
+    { name: 'close', type: 'DOUBLE', data: [25001, 25002, 25003] },
+  ]);
+  const result = await inspectOhlcvParquet(buffer, 'NQ_30s.parquet');
+  assert.equal(result.detectedTimeframe, '30s');
+});
+
+test('skipping invalid rows does not discard a valid row at the same timestamp', async () => {
+  const buffer = makeParquet([
+    { name: 'ts', type: 'TIMESTAMP', data: [
+      new Date('2026-11-09T14:30:00Z'),
+      new Date('2026-11-09T14:31:00Z'),
+      new Date('2026-11-09T14:31:00Z'),
+      new Date('2026-11-09T14:32:00Z'),
+    ] },
+    { name: 'open', type: 'DOUBLE', data: [25000, 25001, 25001, 25002] },
+    { name: 'high', type: 'DOUBLE', data: [25002, 25000, 25003, 25004] },
+    { name: 'low', type: 'DOUBLE', data: [24999, 25000, 25000, 25001] },
+    { name: 'close', type: 'DOUBLE', data: [25001, 25002, 25002, 25003] },
+  ]);
+  const directory = await import('node:fs/promises').then(fs => fs.mkdtemp('/tmp/rrm-parquet-'));
+  const destination = `${directory}/normalized.parquet`;
+  try {
+    const result = await normalizeOhlcvParquet(buffer, destination, { skipInvalidRows: true });
+    assert.equal(result.rowCount, 3);
+  } finally {
+    await import('node:fs/promises').then(fs => fs.rm(directory, { recursive: true, force: true }));
+  }
+});
