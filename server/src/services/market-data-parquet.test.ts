@@ -1,0 +1,62 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { parquetWriteBuffer } from 'hyparquet-writer';
+import { inspectOhlcvParquet } from './market-data-parquet';
+
+function makeParquet(columns: Array<{ name: string; data: unknown[]; type: string }>): Buffer {
+  return Buffer.from(parquetWriteBuffer({ columnData: columns as never }));
+}
+
+test('inspects Parquet OHLCV and recognizes a dated futures filename', async () => {
+  const buffer = makeParquet([
+    { name: 'ts', type: 'TIMESTAMP', data: [
+      new Date('2026-11-09T14:30:00Z'),
+      new Date('2026-11-09T14:31:00Z'),
+      new Date('2026-11-09T14:32:00Z'),
+    ] },
+    { name: 'open', type: 'DOUBLE', data: [25000, 25001, 25002] },
+    { name: 'high', type: 'DOUBLE', data: [25002, 25003, 25004] },
+    { name: 'low', type: 'DOUBLE', data: [24999, 25000, 25001] },
+    { name: 'close', type: 'DOUBLE', data: [25001, 25002, 25003] },
+    { name: 'volume', type: 'DOUBLE', data: [100, 120, 90] },
+  ]);
+  const result = await inspectOhlcvParquet(buffer, 'NQZ26_1m.parquet');
+  assert.equal(result.rowCount, 3);
+  assert.equal(result.validRowCount, 3);
+  assert.equal(result.detectedInstrument, 'NQ');
+  assert.equal(result.detectedTimeframe, '1m');
+  assert.equal(result.timezoneNeedsConfirmation, false);
+  assert.equal(result.sample.length, 3);
+});
+
+test('allows matching timestamps across separate source symbols', async () => {
+  const buffer = makeParquet([
+    { name: 'ts', type: 'TIMESTAMP', data: [
+      new Date('2026-11-09T14:30:00Z'),
+      new Date('2026-11-09T14:30:00Z'),
+      new Date('2026-11-09T14:31:00Z'),
+      new Date('2026-11-09T14:31:00Z'),
+    ] },
+    { name: 'symbol', type: 'STRING', data: ['NQZ6', 'ESZ6', 'NQZ6', 'ESZ6'] },
+    { name: 'open', type: 'DOUBLE', data: [25000, 6000, 25001, 6001] },
+    { name: 'high', type: 'DOUBLE', data: [25002, 6002, 25003, 6003] },
+    { name: 'low', type: 'DOUBLE', data: [24999, 5999, 25000, 6000] },
+    { name: 'close', type: 'DOUBLE', data: [25001, 6001, 25002, 6002] },
+  ]);
+  const result = await inspectOhlcvParquet(buffer, 'multi-symbol.parquet');
+  assert.equal(result.validRowCount, 4);
+  assert.equal(result.invalidRowCount, 0);
+  assert.deepEqual(result.detectedSymbols, ['NQZ6', 'ESZ6']);
+  assert.equal(result.detectedInstrument, null);
+  assert.equal(result.detectedTimeframe, '1m');
+  assert.ok(result.warnings.some(warning => warning.includes('multiple instrument symbols')));
+});
+
+test('rejects Parquet files that do not contain OHLCV columns', async () => {
+  const buffer = makeParquet([
+    { name: 'ts', type: 'TIMESTAMP', data: [new Date('2026-11-09T14:30:00Z')] },
+    { name: 'price', type: 'DOUBLE', data: [25000] },
+    { name: 'volume', type: 'INT32', data: [1] },
+  ]);
+  await assert.rejects(() => inspectOhlcvParquet(buffer, 'NQZ6_ticks.parquet'), /required OHLCV columns/);
+});
