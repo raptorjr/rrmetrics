@@ -353,7 +353,11 @@ marketData.get('/api/market-data/query', requiresLogin, async (c) => {
   const db = c.get('db');
   const instrument = c.req.query('instrument')?.trim().toUpperCase() || null;
   const timeframe = c.req.query('timeframe')?.trim() || null;
-  const sourceSymbol = c.req.query('sourceSymbol')?.trim().toUpperCase() || null;
+  const sourceSymbolParam = c.req.query('sourceSymbol');
+  const sourceSymbolRequested = sourceSymbolParam !== undefined;
+  const sourceSymbol = sourceSymbolRequested && sourceSymbolParam === '__none__'
+    ? null
+    : sourceSymbolParam?.trim().toUpperCase() || null;
   const datasetId = c.req.query('datasetId')?.trim() || null;
   const startValue = c.req.query('start');
   const endValue = c.req.query('end');
@@ -383,7 +387,7 @@ marketData.get('/api/market-data/query', requiresLogin, async (c) => {
     ).all(
       user.id, instrument, timeframe,
       new Date(endTime).toISOString(), new Date(startTime).toISOString(),
-      sourceSymbol, sourceSymbol,
+      sourceSymbolRequested ? 1 : 0, sourceSymbol,
     ) as Array<any>;
 
   if (!datasets.length) return c.json({ error: 'No matching historical market-data datasets were found.' }, 404);
@@ -393,7 +397,7 @@ marketData.get('/api/market-data/query', requiresLogin, async (c) => {
   }
 
   const sourceSymbols = [...new Set(datasets.map(dataset => dataset.source_symbol ?? '__none__'))];
-  if (!datasetId && !sourceSymbol && sourceSymbols.length > 1) {
+  if (!datasetId && !sourceSymbolRequested && sourceSymbols.length > 1) {
     return c.json({
       error: 'Multiple contract/source symbols are available. Select a sourceSymbol or datasetId; contracts are never silently merged.',
       code: 'SOURCE_SYMBOL_REQUIRED',
