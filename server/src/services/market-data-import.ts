@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { wallClockToUtc } from './market-data-time';
 
 export interface OhlcvBar {
   timestamp: number;
@@ -106,7 +107,7 @@ function normalizeHeader(value: string): string {
   return value.trim().toLowerCase().replace(/[\s_-]+/g, '');
 }
 
-function parseTimestamp(value: string): { timestamp: number; unit: CsvInspection['timestampUnit']; timezone: string | null; needsTimezone: boolean } | null {
+function parseTimestamp(value: string, confirmedTimezone?: string | null): { timestamp: number; unit: CsvInspection['timestampUnit']; timezone: string | null; needsTimezone: boolean } | null {
   const input = value.trim();
   if (!input) return null;
 
@@ -122,13 +123,13 @@ function parseTimestamp(value: string): { timestamp: number; unit: CsvInspection
   }
 
   const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(input);
-  const parsed = Date.parse(hasZone ? input : `${input}Z`);
+  const parsed = Date.parse(hasZone ? input : `${input.replace(' ', 'T')}Z`);
   if (!Number.isFinite(parsed)) return null;
   return {
-    timestamp: parsed,
+    timestamp: !hasZone && confirmedTimezone ? wallClockToUtc(new Date(parsed), confirmedTimezone) : parsed,
     unit: 'iso',
-    timezone: hasZone ? 'explicit' : null,
-    needsTimezone: !hasZone,
+    timezone: hasZone ? 'explicit' : confirmedTimezone ?? null,
+    needsTimezone: !hasZone && !confirmedTimezone,
   };
 }
 
@@ -156,7 +157,9 @@ function detectInstrument(filename: string, symbols: string[]): string | null {
   }
   return matches.size === 1 ? [...matches][0] : null;
 }
-export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection {
+export interface CsvParseResult { inspection: CsvInspection; bars: OhlcvBar[]; }
+
+export function parseOhlcvCsv(buffer: Buffer, filename: string, options: { timezone?: string | null } = {}): CsvParseResult {
   const source = buffer.toString('utf8').replace(/^\uFEFF/, '');
   if (source.includes('\u0000')) throw new Error('The uploaded file does not look like a UTF-8 CSV file.');
 
@@ -195,7 +198,7 @@ export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection
   for (let rowIndex = 1; rowIndex < rows.length; rowIndex += 1) {
     const row = rows[rowIndex];
     const get = (index: number) => index >= 0 ? (row[index] ?? '').trim() : '';
-    const parsedTime = parseTimestamp(get(indexes.timestamp));
+    const parsedTime = parseTimestamp(get(indexes.timestamp), options.timezone);
     const sourceSymbol = get(indexes.instrument).toUpperCase() || null;
     const values = {
       open: Number(get(indexes.open)),
@@ -232,7 +235,7 @@ export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection
       continue;
     }
     if (parsedTime.needsTimezone) timezoneNeedsConfirmation = true;
-    if (parsedTime.timezone === 'explicit') timezone = 'explicit';
+    if (parsedTime.timezone) timezone = parsedTime.timezone;
     if (sourceSymbol) symbols.push(sourceSymbol);
 
     bars.push({
@@ -265,7 +268,7 @@ export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection
   if (timezoneNeedsConfirmation) warnings.push('Timestamps without an explicit timezone need timezone confirmation before import.');
   if (!detectedInstrument) warnings.push('Instrument could not be identified confidently; select it during review.');
 
-  return {
+  const inspection: CsvInspection = {
     format: 'csv',
     delimiter,
     columns: rows[0],
@@ -284,4 +287,11 @@ export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection
     errors,
     warnings,
   };
+  return { inspection, bars };
+}
+}
+
+
+export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection {
+  return parseOhlcvCsv(buffer, filename).inspection;
 }

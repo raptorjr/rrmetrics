@@ -7,6 +7,7 @@ import {
 } from 'hyparquet';
 import type { AsyncBuffer, FileMetaData } from 'hyparquet';
 import { compressors } from 'hyparquet-compressors';
+import { wallClockToUtc } from './market-data-time';
 import { fileWriter, parquetWriteRows } from 'hyparquet-writer';
 
 const READ_BATCH_SIZE = 50_000;
@@ -376,45 +377,6 @@ export async function inspectOhlcvParquet(
   };
 }
 
-function wallClockToUtc(value: Date, timezone: string): number {
-  const wallClock = {
-    year: value.getUTCFullYear(),
-    month: value.getUTCMonth() + 1,
-    day: value.getUTCDate(),
-    hour: value.getUTCHours(),
-    minute: value.getUTCMinutes(),
-    second: value.getUTCSeconds(),
-    millisecond: value.getUTCMilliseconds(),
-  };
-  const target = Date.UTC(wallClock.year, wallClock.month - 1, wallClock.day, wallClock.hour, wallClock.minute, wallClock.second);
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hourCycle: 'h23',
-  });
-  let guess = target;
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const parts = Object.fromEntries(formatter.formatToParts(new Date(guess)).map(part => [part.type, part.value]));
-    const represented = Date.UTC(
-      Number(parts.year),
-      Number(parts.month) - 1,
-      Number(parts.day),
-      Number(parts.hour),
-      Number(parts.minute),
-      Number(parts.second),
-    );
-    const difference = target - represented;
-    if (!difference) break;
-    guess += difference;
-  }
-  return guess + wallClock.millisecond;
-}
-
 function timestampForImport(value: unknown, unit: string, timezoneNeedsConfirmation: boolean, timezone?: string | null): number {
   const timestamp = timestampToMilliseconds(value, unit);
   if (timestamp === null) throw new Error('Parquet row contains an invalid timestamp.');
@@ -428,6 +390,70 @@ function timestampForImport(value: unknown, unit: string, timezoneNeedsConfirmat
     }
   }
   return timestamp;
+}
+
+export async function writeOhlcvBarsToParquet(
+  destinationPath: string,
+  rows: Iterable<Pick<ParquetOhlcvBar, 'timestamp' | 'open' | 'high' | 'low' | 'close' | 'volume'>> |
+    AsyncIterable<Pick<ParquetOhlcvBar, 'timestamp' | 'open' | 'high' | 'low' | 'close' | 'volume'>>,
+): Promise<{ rowCount: number; startTime: string; endTime: string }> {
+  let rowCount = 0;
+  let startTime = Number.POSITIVE_INFINITY;
+  let endTime = Number.NEGATIVE_INFINITY;
+  let previousTimestamp = Number.NEGATIVE_INFINITY;
+
+  async function* writerRows(): AsyncGenerator<Record<string, unknown>> {
+    for await (const bar of rows) {
+      if (!Number.isSafeInteger(bar.timestamp) || bar.timestamp <= previousTimestamp) {
+        throw new Error('Normalized OHLCV rows must have unique, ascending millisecond timestamps.');
+      }
+      if (!isValidBar(bar)) throw new Error(`Invalid normalized OHLCV values at row ${rowCount + 1}.`);
+      previousTimestamp = bar.timestamp;
+      rowCount += 1;
+      startTime = Math.min(startTime, bar.timestamp);
+      endTime = Math.max(endTime, bar.timestamp);
+      yield {
+        timestamp: new Date(bar.timestamp),
+        open: bar.open,
+        high: bar.high,
+        low: bar.low,
+        close: bar.close,
+        volume: bar.volume,
+      };
+    }
+  }
+
+  await fs.promises.mkdir(path.dirname(destinationPath), { recursive: true });
+  try {
+    await parquetWriteRows({
+      writer: fileWriter(destinationPath),
+      rows: writerRows(),
+      columns: [
+        { name: 'timestamp', type: 'TIMESTAMP' },
+        { name: 'open', type: 'DOUBLE' },
+        { name: 'high', type: 'DOUBLE' },
+        { name: 'low', type: 'DOUBLE' },
+        { name: 'close', type: 'DOUBLE' },
+        { name: 'volume', type: 'DOUBLE' },
+      ],
+      rowGroupSize: 50_000,
+      codec: 'SNAPPY',
+      createdBy: 'RR Metrics historical market data',
+    });
+  } catch (error) {
+    await fs.promises.rm(destinationPath, { force: true }).catch(() => undefined);
+    throw error;
+  }
+
+  if (!rowCount || !Number.isFinite(startTime) || !Number.isFinite(endTime)) {
+    await fs.promises.rm(destinationPath, { force: true });
+    throw new Error('No valid OHLCV rows were supplied for normalization.');
+  }
+  return {
+    rowCount,
+    startTime: new Date(startTime).toISOString(),
+    endTime: new Date(endTime).toISOString(),
+  };
 }
 
 export async function normalizeOhlcvParquet(
@@ -459,11 +485,6 @@ export async function normalizeOhlcvParquet(
     ...(layout.mapping.volume ? [layout.mapping.volume] : []),
     ...(layout.mapping.symbol ? [layout.mapping.symbol] : []),
   ];
-
-  let rowCount = 0;
-  let startTime = Number.POSITIVE_INFINITY;
-  let endTime = Number.NEGATIVE_INFINITY;
-  let previousTimestamp = Number.NEGATIVE_INFINITY;
 
   async function* normalizedRows(): AsyncGenerator<Record<string, unknown>> {
     const totalRows = Number(layout.metadata.num_rows);
@@ -512,15 +533,8 @@ export async function normalizeOhlcvParquet(
           if (options.skipInvalidRows) continue;
           throw new Error(`Invalid OHLCV values at source row ${rowStart + rows.indexOf(row) + 1}.`);
         }
-        if (timestamp <= previousTimestamp) {
-          throw new Error('Selected source-symbol rows are duplicated or not in chronological order.');
-        }
-        previousTimestamp = timestamp;
-        rowCount += 1;
-        startTime = Math.min(startTime, timestamp);
-        endTime = Math.max(endTime, timestamp);
         yield {
-          timestamp: new Date(timestamp),
+          timestamp,
           open: bar.open!,
           high: bar.high!,
           low: bar.low!,
@@ -531,32 +545,6 @@ export async function normalizeOhlcvParquet(
     }
   }
 
-  await fs.promises.mkdir(path.dirname(destinationPath), { recursive: true });
-  await parquetWriteRows({
-    writer: fileWriter(destinationPath),
-    rows: normalizedRows(),
-    columns: [
-      { name: 'timestamp', type: 'TIMESTAMP' },
-      { name: 'open', type: 'DOUBLE' },
-      { name: 'high', type: 'DOUBLE' },
-      { name: 'low', type: 'DOUBLE' },
-      { name: 'close', type: 'DOUBLE' },
-      { name: 'volume', type: 'DOUBLE' },
-    ],
-    rowGroupSize: 50_000,
-    codec: 'SNAPPY',
-    createdBy: 'RR Metrics historical market data',
-  });
-
-  if (!rowCount || !Number.isFinite(startTime) || !Number.isFinite(endTime)) {
-    await fs.promises.rm(destinationPath, { force: true });
-    throw new Error('No valid OHLCV rows remain after applying the selected source symbol.');
-  }
-
-  return {
-    rowCount,
-    startTime: new Date(startTime).toISOString(),
-    endTime: new Date(endTime).toISOString(),
-    sourceSymbol,
-  };
+  const result = await writeOhlcvBarsToParquet(destinationPath, normalizedRows());
+  return { ...result, sourceSymbol };
 }
