@@ -60,10 +60,6 @@ const fromDisplayDateTimeInput = value => {
   return new Date(timestamp);
 };
 
-const formatDisplayDateTimeInput = value => {
-  const date = fromDisplayDateTimeInput(value);
-  return date ? `${formatDateEST(date)} ${formatTimeEST(date)}` : 'Select date and time';
-};
 const getIntervalSeconds = data => {
   const gaps = [];
   for (let index = 1; index < Math.min(data.length, 30); index += 1) {
@@ -136,8 +132,6 @@ const BacktestingReplayWorkspace = () => {
   const [ticker, setTicker] = useState('NQ');
   const [candles, setCandles] = useState([]);
   const [marketBaseCandles, setMarketBaseCandles] = useState([]);
-  const [isDemoData, setIsDemoData] = useState(false);
-  const [dataLabel, setDataLabel] = useState('No historical data selected');
   const [currentIndex, setCurrentIndex] = useState(80);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
@@ -155,7 +149,6 @@ const BacktestingReplayWorkspace = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [importError, setImportError] = useState('');
-  const [dataSource, setDataSource] = useState('historical');
   const [historicalDatasets, setHistoricalDatasets] = useState([]);
   const [selectedMarketKey, setSelectedMarketKey] = useState('');
   const [historicalLoading, setHistoricalLoading] = useState(false);
@@ -177,7 +170,6 @@ const BacktestingReplayWorkspace = () => {
 
   const availableMarkets = useMemo(() => getAvailableMarkets(historicalDatasets), [historicalDatasets]);
   const selectedMarket = useMemo(() => availableMarkets.find(market => market.key === selectedMarketKey) || null, [availableMarkets, selectedMarketKey]);
-  const tickerDatasets = selectedMarket?.datasets || [];
   const historicalTimeframes = selectedMarket?.availableTimeframes || [];
   const baseTimeframe = selectedMarket?.baseTimeframe || '';
 
@@ -240,9 +232,6 @@ const BacktestingReplayWorkspace = () => {
         setCandles(normalized);
         setCurrentIndex(Math.min(80, normalized.length - 1));
         currentIndexRef.current = Math.min(80, normalized.length - 1);
-        setIsDemoData(false);
-        setDataSource('historical');
-        setDataLabel(selectedMarket.label + ' · ' + historicalTimeframe + ' · ' + normalized.length.toLocaleString() + ' bars');
         setIsPlaying(false);
         setPosition(null); positionRef.current = null;
         setPendingOrder(null); pendingOrderRef.current = null;
