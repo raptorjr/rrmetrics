@@ -278,6 +278,9 @@ const HistoricalFuturesProviderPanel = () => {
                   <div className="mt-1 text-xs text-text-tertiary">
                     {file.input_format.toUpperCase()} · {formatBytes(file.file_size_bytes)} · uploaded {formatDate(file.created_at)}
                   </div>
+                  {file.last_error && (
+                    <div className="mt-1 text-xs text-danger">{file.last_error}</div>
+                  )}
                   {file.datasets?.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {file.datasets.map(dataset => (

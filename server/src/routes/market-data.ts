@@ -699,8 +699,8 @@ marketData.delete('/api/market-data/files/:fileId', requiresLogin, async (c) => 
     const overlap = db.prepare(
       `SELECT COUNT(*) AS count FROM market_data_file_datasets
        WHERE user_id = ? AND file_id <> ? AND instrument = ? AND timeframe = ?
-         AND start_time <= ? AND end_time >= ?`,
-    ).get(user.id, fileId, dataset.instrument, dataset.timeframe, dataset.end_time, dataset.start_time) as { count: number };
+         AND source_symbol IS ? AND start_time <= ? AND end_time >= ?`,
+    ).get(user.id, fileId, dataset.instrument, dataset.timeframe, dataset.source_symbol, dataset.end_time, dataset.start_time) as { count: number };
     overlappingDatasetsRetained += overlap.count;
   }
 
