@@ -153,3 +153,12 @@ The supplied `es-nq-tick-sample-2026-11-09.zip` contains:
 The supplied Parquet files use Zstandard compression (Parquet codec 6). The one-minute bar schema is `ts, open, high, low, close, volume, trade_count`; the trade schema is `ts, price, volume, bid_sz, ask_sz, trade_count, symbol, exchange`. Timestamp fields are UTC timestamp values, prices are doubles, and count/volume fields are unsigned 32-bit integers.
 
 The first provider release remains OHLCV-only. Do not import tick files as candles or discard their event-level detail; tick ingestion remains a separate later capability. The manifest's file sizes and SHA-256 values were checked against all eight listed archive files. Actual Parquet decoding and bar/tick reconciliation still require a Parquet reader in the project runtime.
+
+
+## Confirmed import and source deletion API
+
+The inspect endpoint accepts both CSV and Parquet OHLCV files. Confirmation is submitted to `POST /api/market-data/files/:fileId/import`. Files containing multiple source symbols are imported one symbol at a time; the file remains in review until every detected symbol has its own dataset record. A timezone-less timestamp requires an IANA timezone confirmation. Invalid rows are not skipped unless the request explicitly sets `skipInvalidRows: true`.
+
+Normalized datasets are written as source-owned Parquet files with millisecond UTC timestamps. The original upload remains staged until all detected symbols have been imported, then it is moved to the originals directory. Dataset metadata remains linked to the originating file.
+
+File deletion first returns an impact preview (HTTP 409 with `requiresConfirmation`). The caller must repeat the request with `?confirm=true`. The delete operation tombstones the selected original and normalized source files, then deletes only that file's market-data catalogue hierarchy. Other source files with overlapping instrument/timeframe coverage are reported and retained.

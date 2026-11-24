@@ -237,7 +237,8 @@ marketData.post('/api/market-data/files/:fileId/import', requiresLogin, async (c
 
   const timezone = typeof confirmation.timezone === 'string' && confirmation.timezone.trim()
     ? confirmation.timezone.trim()
-    : inspection.timezoneNeedsConfirmation ? null : inspection.timezone;
+    : inspection.timezone === 'explicit' ? 'UTC'
+      : inspection.timezoneNeedsConfirmation ? null : inspection.timezone ?? 'UTC';
   if (inspection.timezoneNeedsConfirmation && !timezone) {
     return c.json({ error: 'Confirm the source timezone before importing.', code: 'TIMEZONE_REQUIRED' }, 400);
   }
