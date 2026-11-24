@@ -1,7 +1,7 @@
 const React = require('react');
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
 const { authFetch } = require('../../helper.js');
-import { createChart, CandlestickSeries, ColorType, LineStyle } from 'lightweight-charts';
+const ReplayTradeCanvasGrid = require('./ReplayTradeCanvasGrid').default;
 const {
   getInstrumentSpec,
   normalizeOhlcvRows,
@@ -196,69 +196,6 @@ const formatInterval = seconds => seconds < 60
     ? (seconds / 60) + ' minute' + (seconds === 60 ? '' : 's')
     : (seconds / 3600) + ' hour' + (seconds === 3600 ? '' : 's');
 
-const ReplayContextChart = ({ candles, replayTime, ticker, timeframe, baseTimeframe, height = 280 }) => {
-  const containerRef = useRef(null);
-  const chartRef = useRef(null);
-  const seriesRef = useRef(null);
-  const previousVisibleCountRef = useRef(0);
-  const visibleCandles = useMemo(() => aggregateCandles(candles.filter(candle => candle.time + timeframeSeconds(baseTimeframe) <= replayTime), timeframe), [candles, replayTime, timeframe]);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return undefined;
-    const border = getCssColor('--border', '#334155');
-    const chart = createChart(container, {
-      width: Math.max(container.clientWidth, 240), height,
-      layout: { background: { type: ColorType.Solid, color: getCssColor('--bg-surface', '#111827') }, textColor: getCssColor('--text-secondary', '#cbd5e1') },
-      attributionLogo: true,
-      grid: { vertLines: { color: border }, horzLines: { color: border } },
-      rightPriceScale: { borderColor: border },
-      timeScale: { borderColor: border, timeVisible: true, secondsVisible: timeframeSeconds(timeframe) < 60, rightOffset: 5, barSpacing: 6 },
-      crosshair: { mode: 0 }, handleScroll: true, handleScale: true,
-    });
-    const series = chart.addSeries(CandlestickSeries, {
-      upColor: getCssColor('--positive', '#22c55e'), downColor: getCssColor('--negative', '#ef4444'),
-      borderVisible: false, wickUpColor: getCssColor('--positive', '#22c55e'), wickDownColor: getCssColor('--negative', '#ef4444'),
-      priceFormat: { type: 'price', precision: getInstrumentSpec(ticker).decimals, minMove: getInstrumentSpec(ticker).tickSize },
-    });
-    chartRef.current = chart; seriesRef.current = series;
-    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(entries => {
-      const width = entries[0]?.contentRect.width;
-      if (width > 0) chart.applyOptions({ width: Math.floor(width) });
-    }) : null;
-    if (observer) observer.observe(container);
-    return () => { if (observer) observer.disconnect(); chart.remove(); chartRef.current = null; seriesRef.current = null; };
-  }, []);
-
-  useEffect(() => {
-    if (!seriesRef.current) return;
-    const timeScale = chartRef.current?.timeScale();
-    const previousRange = timeScale?.getVisibleLogicalRange();
-    const previousLastIndex = previousVisibleCountRef.current - 1;
-    const wasFollowingLatest = !previousRange || previousRange.to >= previousLastIndex - 1;
-    seriesRef.current.setData(visibleCandles);
-    if (timeScale && visibleCandles.length) {
-      if (previousVisibleCountRef.current === 0) timeScale.fitContent();
-      else if (wasFollowingLatest) timeScale.scrollToRealTime();
-      else if (previousRange) timeScale.setVisibleLogicalRange(previousRange);
-    }
-    previousVisibleCountRef.current = visibleCandles.length;
-  }, [visibleCandles]);
-
-  useEffect(() => {
-    if (!seriesRef.current) return;
-    const spec = getInstrumentSpec(ticker);
-    seriesRef.current.applyOptions({ priceFormat: { type: 'price', precision: spec.decimals, minMove: spec.tickSize } });
-  }, [ticker]);
-
-  return (
-    <div className='min-w-0 rounded-lg border border-border overflow-hidden'>
-      <div className='px-3 py-2 border-b border-border text-xs font-semibold text-text-secondary'>{ticker} · {timeframe} <span className='font-normal text-text-muted'>· context</span></div>
-      <div ref={containerRef} style={{ height }} className='w-full' />
-    </div>
-  );
-};
-
 const BacktestingReplayWorkspace = () => {
   const [ticker, setTicker] = useState('NQ');
   const [candles, setCandles] = useState([]);
@@ -289,11 +226,6 @@ const BacktestingReplayWorkspace = () => {
   const [selectedCoverageIndex, setSelectedCoverageIndex] = useState(0);
   const [replayLayout, setReplayLayout] = useState('single');
   const [contextTimeframes, setContextTimeframes] = useState(['5m', '15m']);
-  const chartContainerRef = useRef(null);
-  const chartRef = useRef(null);
-  const seriesRef = useRef(null);
-  const priceLinesRef = useRef([]);
-  const previousIndexRef = useRef(80);
   const currentIndexRef = useRef(80);
   const candlesRef = useRef(candles);
   const positionRef = useRef(null);
@@ -408,123 +340,6 @@ const BacktestingReplayWorkspace = () => {
   useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
   useEffect(() => { positionRef.current = position; }, [position]);
   useEffect(() => { pendingOrderRef.current = pendingOrder; }, [pendingOrder]);
-
-  useEffect(() => {
-    const container = chartContainerRef.current;
-    if (!container) return undefined;
-
-    const border = getCssColor('--border', '#334155');
-    const chart = createChart(container, {
-      width: Math.max(container.clientWidth, 320),
-      height: 430,
-      layout: {
-        background: { type: ColorType.Solid, color: getCssColor('--bg-surface', '#111827') },
-        textColor: getCssColor('--text-secondary', '#cbd5e1'),
-      },
-      attributionLogo: true,
-      grid: {
-        vertLines: { color: border },
-        horzLines: { color: border },
-      },
-      rightPriceScale: { borderColor: border },
-      timeScale: {
-        borderColor: border,
-        timeVisible: true,
-        secondsVisible: intervalSeconds < 60,
-        rightOffset: 8,
-        barSpacing: 8,
-      },
-      crosshair: { mode: 0 },
-      handleScroll: true,
-      handleScale: true,
-    });
-    const series = chart.addSeries(CandlestickSeries, {
-      upColor: getCssColor('--positive', '#22c55e'),
-      downColor: getCssColor('--negative', '#ef4444'),
-      borderVisible: false,
-      wickUpColor: getCssColor('--positive', '#22c55e'),
-      wickDownColor: getCssColor('--negative', '#ef4444'),
-      priceFormat: { type: 'price', precision: spec.decimals, minMove: spec.tickSize },
-    });
-    chartRef.current = chart;
-    seriesRef.current = series;
-
-    const resizeObserver = typeof ResizeObserver !== 'undefined'
-      ? new ResizeObserver(entries => {
-        const entry = entries[0];
-        if (entry && entry.contentRect.width > 0) {
-          chart.applyOptions({ width: Math.floor(entry.contentRect.width) });
-        }
-      })
-      : null;
-    if (resizeObserver) resizeObserver.observe(container);
-
-    return () => {
-      if (resizeObserver) resizeObserver.disconnect();
-      chart.remove();
-      chartRef.current = null;
-      seriesRef.current = null;
-      priceLinesRef.current = [];
-    };
-  }, []);
-
-  useEffect(() => {
-    if (chartRef.current) chartRef.current.timeScale().applyOptions({ secondsVisible: intervalSeconds < 60 });
-  }, [intervalSeconds]);
-
-  useEffect(() => {
-    if (!seriesRef.current) return;
-    seriesRef.current.setData(candles.slice(0, currentIndex + 1));
-    previousIndexRef.current = currentIndex;
-    if (chartRef.current) chartRef.current.timeScale().fitContent();
-  }, [candles]);
-
-  useEffect(() => {
-    if (!seriesRef.current || !candles[currentIndex]) return;
-    const previousIndex = previousIndexRef.current;
-    if (currentIndex === previousIndex + 1) {
-      const timeScale = chartRef.current?.timeScale();
-      const visibleRange = timeScale?.getVisibleLogicalRange();
-      const wasFollowingLatest = !visibleRange || visibleRange.to >= previousIndex - 1;
-      seriesRef.current.update(candles[currentIndex]);
-      if (timeScale) {
-        if (wasFollowingLatest) timeScale.scrollToRealTime();
-        else timeScale.setVisibleLogicalRange(visibleRange);
-      }
-    } else {
-      seriesRef.current.setData(candles.slice(0, currentIndex + 1));
-    }
-    previousIndexRef.current = currentIndex;
-  }, [currentIndex]);
-
-  useEffect(() => {
-    if (!seriesRef.current) return;
-    priceLinesRef.current.forEach(line => seriesRef.current.removePriceLine(line));
-    priceLinesRef.current = [];
-    if (!position && !pendingOrder) return;
-    const lines = [];
-    if (pendingOrder) lines.push({ price: pendingOrder.triggerPrice, color: '#f59e0b', title: pendingOrder.type === 'limit' ? 'LIMIT ENTRY' : 'STOP ENTRY' });
-    if (position) lines.push({ price: position.entryPrice, color: '#60a5fa', title: position.direction === 'long' ? 'LONG ENTRY' : 'SHORT ENTRY' });
-    if (position && position.stopPrice != null) lines.push({ price: position.stopPrice, color: '#ef4444', title: 'STOP' });
-    if (position && position.targetPrice != null) lines.push({ price: position.targetPrice, color: '#22c55e', title: 'TARGET' });
-    lines.forEach(item => {
-      priceLinesRef.current.push(seriesRef.current.createPriceLine({
-        price: item.price,
-        color: item.color,
-        lineWidth: 1,
-        lineStyle: LineStyle.Dashed,
-        axisLabelVisible: true,
-        title: item.title,
-      }));
-    });
-  }, [position, pendingOrder]);
-
-  useEffect(() => {
-    if (!seriesRef.current) return;
-    seriesRef.current.applyOptions({
-      priceFormat: { type: 'price', precision: spec.decimals, minMove: spec.tickSize },
-    });
-  }, [ticker]);
 
   const closePosition = useCallback((activePosition, exitPrice, exitTime, reason) => {
     const pnl = calculateTradePnl(activePosition, exitPrice, spec.pointValue);
@@ -778,26 +593,16 @@ const BacktestingReplayWorkspace = () => {
               <div className="text-text-muted text-[11px]">Last revealed close</div>
             </div>
           </div>
-          <div className={replayLayout === 'single' ? 'grid grid-cols-1 gap-3' : replayLayout === 'split2' ? 'grid grid-cols-1 xl:grid-cols-2 gap-3' : 'grid grid-cols-1 xl:grid-cols-3 gap-3'}>
-            <div className="min-w-0">
-              <div className="mb-2 text-xs font-semibold text-text-secondary">{ticker} · {historicalTimeframe} <span className="font-normal text-text-muted">· execution</span></div>
-              <div ref={chartContainerRef} className="w-full h-[430px]" />
-            </div>
-            {replayLayout !== 'single' && contextChartCandles.slice(0, replayLayout === 'split2' ? 1 : 2).map(item => (
-              <div key={item.timeframe} className="min-w-0">
-                <div className="mb-2">
-                  <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Context timeframe</label>
-                  <select value={item.timeframe} onChange={event => setContextTimeframes(previous => previous.map(value => value === item.timeframe ? event.target.value : value))} className="w-full bg-bg-input border border-border rounded-lg px-2 py-1.5 text-xs text-text-primary">
-                    {contextOptions.map(value => <option key={value} value={value}>{value}</option>)}
-                  </select>
-                </div>
-                <ReplayContextChart candles={item.candles} replayTime={replayTime} ticker={ticker} timeframe={item.timeframe} baseTimeframe={baseTimeframe} height={430} />
-              </div>
-            ))}
-          </div>
-          <div className="px-3 py-2 border-t border-border text-[10px] text-text-muted">
-            TradingView Lightweight Charts™ · Copyright (c) 2025 TradingView, Inc. · <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer" className="text-accent hover:underline">tradingview.com</a>
-          </div>
+          <ReplayTradeCanvasGrid
+            ticker={ticker}
+            timeframe={historicalTimeframe}
+            baseCandles={marketBaseCandles}
+            replayTime={replayTime}
+            baseTimeframe={baseTimeframe}
+            position={position}
+            pendingOrder={pendingOrder}
+            replayLayout={replayLayout}
+          />
           <div className="px-4 py-3 border-t border-border flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => setIsPlaying(value => !value)} disabled={!candles.length || (!isPlaying && currentIndex >= candles.length - 1)} aria-label={isPlaying ? 'Pause replay' : 'Play replay'} className="w-10 h-10 inline-flex items-center justify-center rounded-lg bg-accent text-accent-text text-sm font-semibold disabled:opacity-40">{isPlaying ? 'Ⅱ' : '▶'}</button>
             <button type="button" onClick={advanceOne} disabled={!candles.length || currentIndex >= candles.length - 1} className="px-3 py-2 rounded-lg border border-border text-sm text-text-secondary hover:text-text-primary">Step +1</button>
