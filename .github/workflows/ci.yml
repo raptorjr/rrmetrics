@@ -30,15 +30,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Bundle market-data services for real Parquet smoke test
-        run: tar -czf /tmp/market-data-service-smoke.tgz -C node_modules hyparquet hyparquet-writer hyparquet-compressors fzstd hysnappy typescript -C .. server/src/services/market-data-parquet.ts server/src/services/market-data-time.ts server/src/services/market-data-query.ts
-
-      - name: Upload market-data smoke bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: market-data-service-smoke
-          path: /tmp/market-data-service-smoke.tgz
-          retention-days: 1
 
 
       - name: Type-check server
