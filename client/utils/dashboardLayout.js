@@ -82,9 +82,13 @@ const getResizedTileGeometry = ({
   let nextH = clamp(size.h + heightDelta, minH, Math.min(maxH, heightLimit));
   if (nextW * nextH < minArea) {
     if (widthDelta < 0 && nextH < maxH) nextH = Math.min(maxH, Math.ceil(minArea / nextW));
-    else if (heightDelta < 0 && nextW < maxW) nextW = Math.min(maxW, Math.ceil(minArea / nextH));
-    else if (nextW < maxW) nextW = Math.min(maxW, Math.ceil(minArea / nextH));
-    else nextH = Math.min(maxH, Math.ceil(minArea / nextW));
+    else if (heightDelta < 0 && nextW < maxW) {
+      const requiredWidth = Math.ceil(minArea / nextH);
+      nextW = Math.min(maxW, Math.ceil(requiredWidth / breakpointScale) * breakpointScale);
+    } else if (nextW < maxW) {
+      const requiredWidth = Math.ceil(minArea / nextH);
+      nextW = Math.min(maxW, Math.ceil(requiredWidth / breakpointScale) * breakpointScale);
+    } else nextH = Math.min(maxH, Math.ceil(minArea / nextW));
   }
 
   return {
