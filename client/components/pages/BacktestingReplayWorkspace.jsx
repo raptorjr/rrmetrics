@@ -209,7 +209,7 @@ const BacktestingReplayWorkspace = () => {
   const currentCandle = candles[currentIndex] || candles[0];
   const currentPrice = currentCandle ? currentCandle.close : 0;
   const intervalSeconds = useMemo(() => getIntervalSeconds(candles), [candles]);
-  const intervalLabel = formatInterval(intervalSeconds);
+  const intervalLabel = historicalTimeframe || formatInterval(intervalSeconds);
   const stats = useMemo(() => calculateTradeStats(closedTrades), [closedTrades]);
   const unrealizedPnl = position ? calculateTradePnl(position, currentPrice, spec.pointValue) : 0;
   const initialIndex = Math.min(80, Math.max(0, candles.length - 1));
@@ -494,146 +494,42 @@ const BacktestingReplayWorkspace = () => {
   return (
     <div className="space-y-4">
       <div className="bg-bg-surface border border-border rounded-xl p-4 space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Instrument</label>
-              <select value={ticker} onChange={handleTickerChange} className="bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
-                <option value="NQ">NQ</option>
-                <option value="MNQ">MNQ</option>
-                <option value="ES">ES</option>
-                <option value="MES">MES</option>
-                <option value="GC">GC</option>
-                <option value="MGC">MGC</option>
-              </select>
-            </div>
-            <div>
-              <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Chart interval</span>
-              <span className="inline-flex px-3 py-2 rounded-lg border border-border bg-bg-input text-sm text-text-secondary">{intervalLabel}</span>
-            </div>
-            <div className="min-w-0">
-              <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Market data</span>
-              <span className="block max-w-[260px] truncate text-sm text-text-secondary" title={dataLabel}>{dataLabel}</span>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <label className="space-y-1">
+            <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">Market / ticker</span>
+            <select value={selectedMarketKey} onChange={handleMarketChange} disabled={!availableMarkets.length || historicalLoading} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
+              {!availableMarkets.length && <option value="">No historical markets available</option>}
+              {availableMarkets.map(market => <option key={market.key} value={market.key}>{market.label}</option>)}
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">Chart timeframe</span>
+            <select value={historicalTimeframe} onChange={event => { setHistoricalTimeframe(event.target.value); resetForMarketChange(); }} disabled={!historicalTimeframes.length || historicalLoading} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
+              {historicalTimeframes.map(value => <option key={value} value={value}>{value}{value === baseTimeframe ? ' · source' : ' · aggregated'}</option>)}
+            </select>
+          </label>
+          <div className="space-y-1">
+            <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">Available data</span>
+            <div className="bg-bg-input border border-border rounded-lg px-3 py-2 text-xs text-text-secondary">
+              {selectedMarket ? selectedMarket.coverage.map(range => formatDateEST(range.start) + ' – ' + formatDateEST(range.end)).join(' · ') : 'No historical data'}
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => { setHistoricalPanelOpen(value => !value); setImportError(''); }} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-bg-input text-sm text-text-primary hover:border-accent">
-              {historicalPanelOpen ? 'Close historical data' : 'Load historical data'}
-            </button>
+          <label className="space-y-1">
+            <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">From · {getDisplayTimeZone()}</span>
+            <input type="datetime-local" step="1" min={selectedMarket ? toDisplayDateTimeInput(selectedMarket.start) : undefined} max={selectedMarket ? toDisplayDateTimeInput(selectedMarket.end) : undefined} value={historicalStart} onChange={event => handleDateChange(setHistoricalStart, event.target.value)} disabled={!selectedMarket || historicalLoading} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary" />
+          </label>
+          <label className="space-y-1">
+            <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">To · {getDisplayTimeZone()}</span>
+            <input type="datetime-local" step="1" min={selectedMarket ? toDisplayDateTimeInput(selectedMarket.start) : undefined} max={selectedMarket ? toDisplayDateTimeInput(selectedMarket.end) : undefined} value={historicalEnd} onChange={event => handleDateChange(setHistoricalEnd, event.target.value)} disabled={!selectedMarket || historicalLoading} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary" />
+          </label>
+          <div className="flex items-end text-xs text-text-muted">
+            {historicalLoading ? 'Preparing historical data…' : selectedMarket ? 'Data loads automatically when you change a selection.' : 'Import data under Settings → Providers → Historical Futures.'}
           </div>
         </div>
-        {historicalPanelOpen && (
-          <div className="rounded-lg border border-border bg-bg-page/50 p-3 space-y-3">
-            <div>
-              <div className="text-sm font-semibold text-text-primary">Historical Futures</div>
-              <div className="text-xs text-text-muted mt-0.5">Select a stored source and date range. Data is loaded through RR Metrics' central market-data API.</div>
-            </div>
-            <button type="button" onClick={async () => {
-              setHistoricalLoading(true);
-              try {
-                const response = await authFetch('/api/market-data/datasets');
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'Unable to refresh historical sources.');
-                setHistoricalDatasets(data.datasets || []);
-                setImportError('');
-              } catch (refreshError) {
-                setImportError(refreshError.message || 'Unable to refresh historical sources.');
-              } finally {
-                setHistoricalLoading(false);
-              }
-            }} disabled={historicalLoading} className="text-xs text-accent hover:underline disabled:opacity-50">
-              {historicalLoading ? 'Refreshing…' : 'Refresh sources'}
-            </button>
-            {tickerDatasets.length === 0 ? (
-              <div className="rounded-lg border border-border bg-bg-surface px-3 py-4 text-xs text-text-muted">
-                No historical datasets are available for {ticker}. Add CSV or Parquet files under Settings → Providers → Historical Futures first.
-              </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                  <label className="space-y-1">
-                    <span className="block text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Timeframe</span>
-                    <select value={historicalTimeframe} onChange={event => { setHistoricalTimeframe(event.target.value); setHistoricalDatasetId(''); }} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
-                      {historicalTimeframes.map(value => <option key={value} value={value}>{value}</option>)}
-                    </select>
-                  </label>
-                  {historicalSymbols.length > 1 && (
-                    <label className="space-y-1">
-                      <span className="block text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Contract / source symbol</span>
-                      <select value={historicalSourceSymbol} onChange={event => { setHistoricalSourceSymbol(event.target.value); setHistoricalDatasetId(''); }} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
-                        {historicalSymbols.map(value => <option key={value} value={value}>{value}</option>)}
-                      </select>
-                    </label>
-                  )}
-                  <label className="space-y-1 sm:col-span-2">
-                    <span className="block text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Source selection</span>
-                    <select value={historicalDatasetId} onChange={event => {
-                      const id = event.target.value;
-                      setHistoricalDatasetId(id);
-                      const dataset = filteredHistoricalDatasets.find(item => item.id === id);
-                      if (dataset) {
-                        if (dataset.source_symbol) setHistoricalSourceSymbol(dataset.source_symbol);
-                        setHistoricalTimeframe(dataset.timeframe);
-                      }
-                    }} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
-                      <option value="">Combine non-overlapping files for this contract</option>
-                      {filteredHistoricalDatasets.map(dataset => (
-                        <option key={dataset.id} value={dataset.id}>
-                          {dataset.original_filename} · {dataset.source_symbol || dataset.instrument} · {new Date(dataset.start_time).toLocaleDateString()} – {new Date(dataset.end_time).toLocaleDateString()}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="space-y-1">
-                    <span className="block text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">From · ${getDisplayTimeZone()}</span>
-                    <div className="relative">
-                      <button type="button" onClick={event => {
-                        const picker = event.currentTarget.parentElement.querySelector('input');
-                        if (picker?.showPicker) picker.showPicker();
-                        else picker?.focus();
-                      }} className="w-full text-left bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
-                        {formatDisplayDateTimeInput(historicalStart)}
-                      </button>
-                      <input type="datetime-local" step="1" value={historicalStart} onChange={event => setHistoricalStart(event.target.value)} aria-label="From date and time" className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" tabIndex={-1} />
-                    </div>
-                  </label>
-                  <label className="space-y-1">
-                    <span className="block text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">To · ${getDisplayTimeZone()}</span>
-                    <div className="relative">
-                      <button type="button" onClick={event => {
-                        const picker = event.currentTarget.parentElement.querySelector('input');
-                        if (picker?.showPicker) picker.showPicker();
-                        else picker?.focus();
-                      }} className="w-full text-left bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
-                        {formatDisplayDateTimeInput(historicalEnd)}
-                      </button>
-                      <input type="datetime-local" step="1" value={historicalEnd} onChange={event => setHistoricalEnd(event.target.value)} aria-label="To date and time" className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" tabIndex={-1} />
-                    </div>
-                  </label>
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="text-[11px] text-text-muted">
-                    {filteredHistoricalDatasets.length} matching source dataset(s). Overlapping files require selecting a specific source.
-                  </div>
-                  <button type="button" onClick={loadHistoricalData} disabled={historicalLoading || !historicalStart || !historicalEnd || !filteredHistoricalDatasets.length} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-text disabled:opacity-50">
-                    {historicalLoading ? 'Loading…' : 'Load selected historical range'}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-        {isDemoData && (
-          <div className="text-xs text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-            Synthetic demonstration data only — this is not historical market data. Add data under Settings → Providers → Historical Futures, then load it here to replay real candles.
-          </div>
-        )}
-        {!isDemoData && dataSource === 'historical' && (
-          <div className="text-xs text-text-muted">Loaded from the server-managed Historical Futures catalogue. The source file and normalized dataset remain stored independently.</div>
-        )}
+        {selectedMarket?.coverage.length > 1 && <p className="text-[11px] text-amber-500">This market has separate coverage periods. A selected range may contain gaps where no historical bars are available.</p>}
+        {!availableMarkets.length && <div className="rounded-lg border border-border bg-bg-page px-3 py-4 text-sm text-text-muted">No historical OHLCV markets are available yet. Add data under Settings → Providers → Historical Futures. Available markets and periods will appear here automatically.</div>}
         {importError && <div className="text-xs text-negative">{importError}</div>}
       </div>
-
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-4">
         <div className="bg-bg-surface border border-border rounded-xl overflow-hidden min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-border">
@@ -651,8 +547,8 @@ const BacktestingReplayWorkspace = () => {
             TradingView Lightweight Charts™ · Copyright (c) 2025 TradingView, Inc. · <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer" className="text-accent hover:underline">tradingview.com</a>
           </div>
           <div className="px-4 py-3 border-t border-border flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => setIsPlaying(value => !value)} disabled={!isPlaying && currentIndex >= candles.length - 1} aria-label={isPlaying ? 'Pause replay' : 'Play replay'} className="w-10 h-10 inline-flex items-center justify-center rounded-lg bg-accent text-accent-text text-sm font-semibold disabled:opacity-40">{isPlaying ? 'Ⅱ' : '▶'}</button>
-            <button type="button" onClick={advanceOne} disabled={currentIndex >= candles.length - 1} className="px-3 py-2 rounded-lg border border-border text-sm text-text-secondary hover:text-text-primary">Step +1</button>
+            <button type="button" onClick={() => setIsPlaying(value => !value)} disabled={!candles.length || (!isPlaying && currentIndex >= candles.length - 1)} aria-label={isPlaying ? 'Pause replay' : 'Play replay'} className="w-10 h-10 inline-flex items-center justify-center rounded-lg bg-accent text-accent-text text-sm font-semibold disabled:opacity-40">{isPlaying ? 'Ⅱ' : '▶'}</button>
+            <button type="button" onClick={advanceOne} disabled={!candles.length || currentIndex >= candles.length - 1} className="px-3 py-2 rounded-lg border border-border text-sm text-text-secondary hover:text-text-primary">Step +1</button>
             <button type="button" onClick={resetReplay} className="px-3 py-2 rounded-lg border border-border text-sm text-text-secondary hover:text-text-primary">Reset</button>
             <div className="ml-auto flex items-center gap-2 text-xs text-text-muted">
               <label htmlFor="replay-speed">Speed</label>
@@ -671,7 +567,7 @@ const BacktestingReplayWorkspace = () => {
               min="0"
               max={Math.max(0, candles.length - 1)}
               value={currentIndex}
-              disabled={!canSeek}
+              disabled={!candles.length || !canSeek}
               onChange={event => {
                 const next = Number(event.target.value);
                 currentIndexRef.current = next;
