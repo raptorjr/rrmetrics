@@ -6,6 +6,7 @@ const Icons = require('../shared/Icons');
 const { useBrokerConnection, TRADOVATE_BROKERS, BROKER_CONFIGS } = require('../../hooks/useBrokerConnection');
 const AccountManagementPanel = require('../settings/AccountManagementPanel');
 const TradeZellaImportPage = require('./TradeZellaImportPage');
+const HistoricalFuturesProviderPanel = require('../settings/HistoricalFuturesProviderPanel');
 
 const TIME_ZONE_OPTIONS = (() => {
   try {
@@ -1013,6 +1014,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, onOpenImport, theme, onTheme
               ...TRADOVATE_BROKERS,
               { key: 'projectx', label: 'Topstep', icon: '/assets/img/topstep.png', subtitle: 'Prop trading firm' },
               { key: 'tradezella', label: 'TradeZella', icon: null, subtitle: 'Trading journal CSV import', importProvider: true },
+              { key: 'historical_futures', label: 'Historical Futures', icon: null, subtitle: 'Historical OHLCV market data', importProvider: true },
               { key: 'robinhood', label: 'Robinhood', icon: BROKER_CONFIGS.robinhood.icon, subtitle: BROKER_CONFIGS.robinhood.subtitle, comingSoon: true },
               { key: 'webull', label: 'Webull', icon: BROKER_CONFIGS.webull.icon, subtitle: BROKER_CONFIGS.webull.subtitle, comingSoon: true },
             ];
@@ -1055,10 +1057,10 @@ const SettingsPage = ({ onSyncComplete, onNavigate, onOpenImport, theme, onTheme
                           isExpanded ? 'border-accent ring-1 ring-accent/20 cursor-pointer' : 'border-border hover:border-accent/40 hover:bg-bg-page/50 cursor-pointer'
                         }`}
                       >
-                        {provider.icon ? <img src={provider.icon} alt={provider.label} className="w-10 h-10 rounded-lg object-contain" /> : provider.key === 'tradezella' ? <div className="w-10 h-10 rounded-lg bg-[#6d4aff]/15 border border-[#8b72ff]/30 flex items-center justify-center text-[#a895ff] font-bold text-sm tracking-tight">TZ</div> : <div className="w-10 h-10 rounded-lg bg-bg-page border border-border flex items-center justify-center text-text-secondary font-semibold text-sm">{provider.label.slice(0, 2).toUpperCase()}</div>}
+                        {provider.icon ? <img src={provider.icon} alt={provider.label} className="w-10 h-10 rounded-lg object-contain" /> : provider.key === 'tradezella' ? <div className="w-10 h-10 rounded-lg bg-[#6d4aff]/15 border border-[#8b72ff]/30 flex items-center justify-center text-[#a895ff] font-bold text-sm tracking-tight">TZ</div> : provider.key === 'historical_futures' ? <div className="w-10 h-10 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center text-accent font-bold text-sm tracking-tight">HF</div> : <div className="w-10 h-10 rounded-lg bg-bg-page border border-border flex items-center justify-center text-text-secondary font-semibold text-sm">{provider.label.slice(0, 2).toUpperCase()}</div>}
                         <span className="text-text-primary font-semibold text-sm leading-tight">{provider.label}</span>
                         {provider.importProvider ? (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-text-secondary/10 text-text-secondary">CSV Import</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-text-secondary/10 text-text-secondary">{provider.key === 'historical_futures' ? 'Market Data' : 'CSV Import'}</span>
                         ) : provider.comingSoon ? (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium">Coming Soon</span>
                         ) : provider.configured > 0 ? (
@@ -1096,6 +1098,22 @@ const SettingsPage = ({ onSyncComplete, onNavigate, onOpenImport, theme, onTheme
                     </div>
                     <div className="px-5 pb-5 border-t border-border pt-4">
                       <TradeZellaImportPage triggerReload={triggerReload} />
+                    </div>
+                  </div>
+                )}
+                {expandedBroker === 'historical_futures' && (
+                  <div className="mt-3">
+                    <div className="bg-bg-surface border border-border rounded-xl overflow-hidden">
+                      <div className="flex items-center gap-3 p-5">
+                        <div className="w-10 h-10 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center text-accent font-bold text-sm tracking-tight">HF</div>
+                        <div>
+                          <h3 className="text-text-primary font-semibold text-sm">Historical Futures</h3>
+                          <p className="text-text-tertiary text-xs">Source-owned historical OHLCV datasets</p>
+                        </div>
+                      </div>
+                      <div className="px-5 pb-5 border-t border-border pt-4">
+                        <HistoricalFuturesProviderPanel />
+                      </div>
                     </div>
                   </div>
                 )}
