@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { asyncBufferFromFile, parquetReadObjects } from 'hyparquet';
 import { parquetWriteBuffer } from 'hyparquet-writer';
-import { inspectOhlcvParquet } from './market-data-parquet';
+import { inspectOhlcvParquet, normalizeOhlcvParquet } from './market-data-parquet';
 
 function makeParquet(columns: Array<{ name: string; data: unknown[]; type: string }>): Buffer {
   return Buffer.from(parquetWriteBuffer({ columnData: columns as never }));
@@ -96,6 +97,11 @@ test('skipping invalid rows does not discard a valid row at the same timestamp',
   try {
     const result = await normalizeOhlcvParquet(buffer, destination, { skipInvalidRows: true });
     assert.equal(result.rowCount, 3);
+    const file = await asyncBufferFromFile(destination);
+    const rows = await parquetReadObjects({ file, columns: ['timestamp', 'open'] });
+    assert.equal(rows.length, 3);
+    assert.equal(rows[1].open, 25002);
+    assert.equal((rows[1].timestamp as Date).toISOString(), '2026-11-09T14:31:00.000Z');
   } finally {
     await import('node:fs/promises').then(fs => fs.rm(directory, { recursive: true, force: true }));
   }
