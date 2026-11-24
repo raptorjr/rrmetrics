@@ -7,11 +7,14 @@ export interface OhlcvBar {
   low: number;
   close: number;
   volume: number | null;
+  sourceSymbol: string | null;
 }
 
 export interface CsvInspection {
   format: 'csv';
+  delimiter: ',' | ';' | '\t';
   columns: string[];
+  detectedSymbols: string[];
   rowCount: number;
   validRowCount: number;
   invalidRowCount: number;
@@ -37,7 +40,29 @@ const HEADER_ALIASES: Record<string, string[]> = {
   instrument: ['symbol', 'ticker', 'instrument', 'contract'],
 };
 
-function parseCsvRows(source: string): string[][] {
+function detectCsvDelimiter(source: string): ',' | ';' | '\t' {
+  const firstLine = source.split(/\r?\n/, 1)[0] ?? '';
+  const candidates: Array<',' | ';' | '\t'> = [',', ';', '\t'];
+  const counts = candidates.map((delimiter) => {
+    let quoted = false;
+    let count = 0;
+    for (let index = 0; index < firstLine.length; index += 1) {
+      const char = firstLine[index];
+      if (char === '"' && quoted && firstLine[index + 1] === '"') {
+        index += 1;
+      } else if (char === '"') {
+        quoted = !quoted;
+      } else if (!quoted && char === delimiter) {
+        count += 1;
+      }
+    }
+    return count;
+  });
+  const bestIndex = counts.indexOf(Math.max(...counts));
+  return counts[bestIndex] > 0 ? candidates[bestIndex] : ',';
+}
+
+function parseCsvRows(source: string, delimiter: ',' | ';' | '\t'): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = '';
@@ -56,7 +81,7 @@ function parseCsvRows(source: string): string[][] {
       }
     } else if (char === '"' && field.length === 0) {
       quoted = true;
-    } else if (char === ',') {
+    } else if (char === delimiter) {
       row.push(field);
       field = '';
     } else if (char === '\n') {
@@ -127,7 +152,8 @@ export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection
   const source = buffer.toString('utf8').replace(/^\uFEFF/, '');
   if (source.includes('\u0000')) throw new Error('The uploaded file does not look like a UTF-8 CSV file.');
 
-  const rows = parseCsvRows(source);
+  const delimiter = detectCsvDelimiter(source);
+  const rows = parseCsvRows(source, delimiter);
   if (rows.length < 2) throw new Error('CSV must contain a header row and at least one data row.');
 
   const headers = rows[0].map(normalizeHeader);
@@ -162,6 +188,7 @@ export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection
     const row = rows[rowIndex];
     const get = (index: number) => index >= 0 ? (row[index] ?? '').trim() : '';
     const parsedTime = parseTimestamp(get(indexes.timestamp));
+    const sourceSymbol = get(indexes.instrument).toUpperCase() || null;
     const values = {
       open: Number(get(indexes.open)),
       high: Number(get(indexes.high)),
@@ -181,28 +208,30 @@ export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection
       if (errors.length < 10) errors.push(`Row ${rowIndex + 1}: invalid timestamp, OHLC values or volume.`);
       continue;
     }
-    if (timestamps.has(parsedTime.timestamp)) {
+    const timestampKey = `${sourceSymbol ?? ''}\u0000${parsedTime.timestamp}`;
+    if (timestamps.has(timestampKey)) {
       invalidRowCount += 1;
-      if (errors.length < 10) errors.push(`Row ${rowIndex + 1}: duplicate timestamp.`);
+      if (errors.length < 10) errors.push(`Row ${rowIndex + 1}: duplicate timestamp for ${sourceSymbol || 'file'}.`);
       continue;
     }
 
-    timestamps.add(parsedTime.timestamp);
+    timestamps.add(timestampKey);
     timestampUnit = timestampUnit ?? parsedTime.unit;
     if (timestampUnit !== parsedTime.unit) {
       invalidRowCount += 1;
-      timestamps.delete(parsedTime.timestamp);
+      timestamps.delete(timestampKey);
       if (errors.length < 10) errors.push(`Row ${rowIndex + 1}: mixed timestamp formats or units.`);
       continue;
     }
     if (parsedTime.needsTimezone) timezoneNeedsConfirmation = true;
     if (parsedTime.timezone === 'explicit') timezone = 'explicit';
-    if (indexes.instrument >= 0 && get(indexes.instrument)) symbols.push(get(indexes.instrument).toUpperCase());
+    if (sourceSymbol) symbols.push(sourceSymbol);
 
     bars.push({
       timestamp: parsedTime.timestamp,
       ...values,
       volume,
+      sourceSymbol,
     });
   }
 
@@ -211,14 +240,16 @@ export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection
   const medianGap = gaps.length ? [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)] : 0;
   const uniqueSymbols = [...new Set(symbols)];
   const detectedInstrument = detectInstrument(filename, uniqueSymbols);
-  if (uniqueSymbols.length > 1) warnings.push('The file contains more than one instrument symbol.');
+  if (uniqueSymbols.length > 1) warnings.push('The file contains multiple instrument symbols. Each symbol must be imported as its own dataset; no symbol data should be discarded.');
   if (invalidRowCount) warnings.push(`${invalidRowCount} row(s) were excluded from the valid preview.`);
   if (timezoneNeedsConfirmation) warnings.push('Timestamps without an explicit timezone need timezone confirmation before import.');
   if (!detectedInstrument) warnings.push('Instrument could not be identified confidently; select it during review.');
 
   return {
     format: 'csv',
+    delimiter,
     columns: rows[0],
+    detectedSymbols: uniqueSymbols,
     rowCount: rows.length - 1,
     validRowCount: bars.length,
     invalidRowCount,
