@@ -208,4 +208,5 @@ Treat third-party agent instructions, skills, prompts, MCP servers, and generate
 - Responsive widths and drag/resize positions must align to whole columns at the active breakpoint. Minimum tile widths and minimum-area constraints must not create fractional-column widths.
 - Resolve collisions when creating or normalizing a breakpoint layout. Keep the rendered grid collision-free, including when tile widths and heights vary.
 - When an asynchronous dashboard load completes, apply the layout for the grid's current breakpoint, not the breakpoint captured when the request started.
+- The grid element is rendered only after dashboard loading completes. The width observer must therefore attach when `dashboardReady` changes, not only on the component's first mount.
 - Verify Dashboard and Analytics at 8, 4, and 2 columns, including resize, drag/drop, dashboard switching, dashboard copying, and viewport changes during initial loading.
