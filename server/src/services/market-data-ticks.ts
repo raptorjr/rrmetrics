@@ -83,6 +83,7 @@ interface TickMapping {
 interface TickLayout {
   file: AsyncBuffer;
   metadata: FileMetaData;
+  readMetadata: FileMetaData;
   columns: string[];
   mapping: TickMapping;
   timestampUnit: string;
@@ -149,6 +150,15 @@ function detectInstrument(filename: string, symbols: string[]): string | null {
   return matches.size === 1 ? [...matches][0] : null;
 }
 
+export function stripTimestampAnnotation(metadata: FileMetaData, columnName: string): FileMetaData {
+  return {
+    ...metadata,
+    schema: metadata.schema.map(element => element.name === columnName
+      ? { ...element, logical_type: undefined, converted_type: undefined }
+      : element),
+  };
+}
+
 function timestampUnitFromSchema(element: FileMetaData['schema'][number] | undefined): string {
   const logical = element?.logical_type;
   if (logical?.type === 'TIMESTAMP') return logical.unit;
@@ -159,6 +169,7 @@ function timestampUnitFromSchema(element: FileMetaData['schema'][number] | undef
 
 function timestampToNanoseconds(value: unknown, unit: string): bigint | null {
   if (value instanceof Date) {
+    if (unit === 'NANOS' || unit === 'MICROS') return null;
     const ms = value.getTime();
     return Number.isFinite(ms) ? BigInt(ms) * 1_000_000n : null;
   }
@@ -257,7 +268,17 @@ async function inspectLayout(buffer: Uint8Array): Promise<TickLayout> {
       group.columns.map(column => column.meta_data?.codec).filter((codec): codec is NonNullable<typeof codec> => Boolean(codec)),
     ),
   )];
-  return { file, metadata, columns, mapping, timestampUnit, timezone, timezoneNeedsConfirmation, compressionCodecs };
+  return {
+    file,
+    metadata,
+    readMetadata: stripTimestampAnnotation(metadata, mapping.timestamp),
+    columns,
+    mapping,
+    timestampUnit,
+    timezone,
+    timezoneNeedsConfirmation,
+    compressionCodecs,
+  };
 }
 
 function readValues(row: Record<string, unknown>, mapping: TickMapping) {
@@ -327,7 +348,7 @@ export async function inspectTradeTicksParquet(
     const rowEnd = Math.min(rowCount, rowStart + READ_BATCH_SIZE);
     const rows = await parquetReadObjects({
       file: layout.file,
-      metadata: layout.metadata,
+      metadata: layout.readMetadata,
       columns: readColumns,
       rowStart,
       rowEnd,
@@ -501,7 +522,7 @@ export async function normalizeTradeTicksParquet(
       const rowEnd = Math.min(totalRows, rowStart + READ_BATCH_SIZE);
       const rows = await parquetReadObjects({
         file: layout.file,
-        metadata: layout.metadata,
+        metadata: layout.readMetadata,
         columns: readColumns,
         rowStart,
         rowEnd,

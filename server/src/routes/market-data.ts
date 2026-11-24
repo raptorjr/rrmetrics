@@ -8,7 +8,7 @@ import { requiresLogin } from '../middleware/auth';
 import { generateId } from '../utils/id';
 import { inspectOhlcvCsv, parseOhlcvCsv } from '../services/market-data-import';
 import { inspectOhlcvParquet, normalizeOhlcvParquet, writeOhlcvBarsToParquet } from '../services/market-data-parquet';
-import { inspectTradeTicksParquet, normalizeTradeTicksParquet } from '../services/market-data-ticks';
+import { inspectTradeTicksParquet, normalizeTradeTicksParquet, readTradeTicksParquetRange } from '../services/market-data-ticks';
 import { readOhlcvParquetRange } from '../services/market-data-query';
 
 type HonoEnv = {

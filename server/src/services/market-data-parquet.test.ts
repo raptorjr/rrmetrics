@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { asyncBufferFromFile, parquetReadObjects } from 'hyparquet';
+import { asyncBufferFromFile, parquetMetadataAsync, parquetReadObjects } from 'hyparquet';
 import { parquetWriteBuffer } from 'hyparquet-writer';
 import { inspectOhlcvParquet, normalizeOhlcvParquet, writeOhlcvBarsToParquet } from './market-data-parquet';
 import { readOhlcvParquetRange } from './market-data-query';
-import { inspectTradeTicksParquet, normalizeTradeTicksParquet, readTradeTicksParquetRange } from './market-data-ticks';
+import { inspectTradeTicksParquet, normalizeTradeTicksParquet, readTradeTicksParquetRange, stripTimestampAnnotation } from './market-data-ticks';
 
 function makeParquet(columns: Array<{ name: string; data: unknown[]; type: string }>): Buffer {
   return Buffer.from(parquetWriteBuffer({ columnData: columns as never }));
@@ -242,4 +242,41 @@ test('keeps unannotated epoch-second tick timestamps absolute when a timezone is
   } finally {
     await fs.rm(directory, { recursive: true, force: true });
   }
+});
+
+
+test('reads Parquet nanosecond timestamps as raw BigInt instead of lossy JavaScript Date values', async () => {
+  const base = 1794234600000000000n;
+  const buffer = makeParquet([
+    { name: 'ts', type: 'INT64', data: [base, base + 1n] },
+    { name: 'price', type: 'DOUBLE', data: [100, 101] },
+    { name: 'volume', type: 'INT32', data: [1, 1] },
+  ]);
+  const file = {
+    byteLength: buffer.byteLength,
+    slice(start: number, end = buffer.byteLength) {
+      const view = buffer.subarray(start, end);
+      const copy = new Uint8Array(view.byteLength);
+      copy.set(view);
+      return copy.buffer;
+    },
+  };
+  const metadata = await parquetMetadataAsync(file);
+  const annotatedMetadata = {
+    ...metadata,
+    schema: metadata.schema.map(element => element.name === 'ts'
+      ? {
+          ...element,
+          logical_type: { type: 'TIMESTAMP', isAdjustedToUTC: true, unit: 'NANOS' },
+        }
+      : element),
+  } as never;
+  const lossyRows = await parquetReadObjects({ file, metadata: annotatedMetadata, columns: ['ts'] });
+  assert.ok(lossyRows[0].ts instanceof Date);
+
+  const rawMetadata = stripTimestampAnnotation(annotatedMetadata, 'ts');
+  const rawRows = await parquetReadObjects({ file, metadata: rawMetadata, columns: ['ts'] });
+  assert.equal(typeof rawRows[0].ts, 'bigint');
+  assert.equal(String(rawRows[0].ts), base.toString());
+  assert.equal(String(rawRows[1].ts), (base + 1n).toString());
 });
