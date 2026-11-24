@@ -151,8 +151,12 @@ function detectInstrument(filename: string, symbols: string[]): string | null {
   for (const token of tokens) {
     for (const symbol of known) {
       // Recognize dated futures contracts such as ESZ6, ESZ26 and NQZ6.
-      const datedContract = new RegExp('^' + symbol + '[FGHJKMNQUVXZ]\\d{1,2}
-
+      const datedContract = new RegExp('^' + symbol + '[FGHJKMNQUVXZ][0-9]{1,2}$');
+      if (token === symbol || datedContract.test(token)) matches.add(symbol);
+    }
+  }
+  return matches.size === 1 ? [...matches][0] : null;
+}
 export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection {
   const source = buffer.toString('utf8').replace(/^\uFEFF/, '');
   if (source.includes('\u0000')) throw new Error('The uploaded file does not look like a UTF-8 CSV file.');
