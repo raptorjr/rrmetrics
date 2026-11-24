@@ -21,6 +21,7 @@ const getCssColor = (name, fallback) => {
 const formatMoney = value => (value < 0 ? '-$' : '$') + Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatPrice = (value, decimals = 2) => Number(value).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 const { formatDateEST, formatTimeEST, getDisplayTimeZone } = require('../../utils/dateUtils');
+const { getAvailableMarkets, aggregateCandles } = require('../../utils/historicalReplay');
 
 const formatBarTime = value => {
   const date = new Date(value * 1000);
@@ -81,9 +82,9 @@ const formatInterval = seconds => seconds < 60
 
 const BacktestingReplayWorkspace = () => {
   const [ticker, setTicker] = useState('NQ');
-  const [candles, setCandles] = useState(() => createDemoCandles('NQ'));
-  const [isDemoData, setIsDemoData] = useState(true);
-  const [dataLabel, setDataLabel] = useState('Generated demo candles');
+  const [candles, setCandles] = useState([]);
+  const [isDemoData, setIsDemoData] = useState(false);
+  const [dataLabel, setDataLabel] = useState('No historical data selected');
   const [currentIndex, setCurrentIndex] = useState(80);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
@@ -103,7 +104,7 @@ const BacktestingReplayWorkspace = () => {
   const [importError, setImportError] = useState('');
   const [dataSource, setDataSource] = useState('demo');
   const [historicalDatasets, setHistoricalDatasets] = useState([]);
-  const [historicalPanelOpen, setHistoricalPanelOpen] = useState(false);
+  const [selectedMarketKey, setSelectedMarketKey] = useState('');
   const [historicalLoading, setHistoricalLoading] = useState(false);
   const [historicalSourceSymbol, setHistoricalSourceSymbol] = useState('');
   const [historicalTimeframe, setHistoricalTimeframe] = useState('1m');
@@ -121,27 +122,12 @@ const BacktestingReplayWorkspace = () => {
   const pendingOrderRef = useRef(null);
   const advanceOneRef = useRef(null);
 
-  const tickerDatasets = useMemo(
-    () => historicalDatasets.filter(dataset => dataset.instrument === ticker),
-    [historicalDatasets, ticker],
-  );
-  const historicalTimeframes = useMemo(
-    () => [...new Set(tickerDatasets.map(dataset => dataset.timeframe))].sort(),
-    [tickerDatasets],
-  );
-  const historicalSymbols = useMemo(
-    () => [...new Set(tickerDatasets
-      .filter(dataset => dataset.timeframe === historicalTimeframe)
-      .map(dataset => dataset.source_symbol)
-      .filter(Boolean))].sort(),
-    [tickerDatasets, historicalTimeframe],
-  );
-  const filteredHistoricalDatasets = useMemo(
-    () => tickerDatasets.filter(dataset =>
-      dataset.timeframe === historicalTimeframe &&
-      (!historicalSourceSymbol || dataset.source_symbol === historicalSourceSymbol)),
-    [tickerDatasets, historicalTimeframe, historicalSourceSymbol],
-  );
+  const availableMarkets = useMemo(() => getAvailableMarkets(historicalDatasets), [historicalDatasets]);
+  const selectedMarket = useMemo(() => availableMarkets.find(market => market.key === selectedMarketKey) || null, [availableMarkets, selectedMarketKey]);
+  const tickerDatasets = selectedMarket?.datasets || [];
+  const historicalTimeframes = selectedMarket?.availableTimeframes || [];
+  const baseTimeframe = selectedMarket?.baseTimeframe || '';
+  const filteredHistoricalDatasets = tickerDatasets.filter(dataset => dataset.timeframe === baseTimeframe);
 
   useEffect(() => {
     let cancelled = false;
@@ -150,7 +136,15 @@ const BacktestingReplayWorkspace = () => {
         const response = await authFetch('/api/market-data/datasets');
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Unable to load historical market-data catalogue.');
-        if (!cancelled) setHistoricalDatasets(data.datasets || []);
+        if (cancelled) return;
+        const datasets = data.datasets || [];
+        setHistoricalDatasets(datasets);
+        const markets = getAvailableMarkets(datasets);
+        if (markets.length) {
+          const preferred = markets.find(market => market.instrument === ticker) || markets[0];
+          setSelectedMarketKey(preferred.key);
+          setTicker(preferred.instrument);
+        }
       } catch (loadError) {
         if (!cancelled) setImportError(loadError.message || 'Unable to load historical market-data catalogue.');
       }
@@ -160,37 +154,57 @@ const BacktestingReplayWorkspace = () => {
   }, []);
 
   useEffect(() => {
-    if (historicalTimeframes.length && !historicalTimeframes.includes(historicalTimeframe)) {
-      setHistoricalTimeframe(historicalTimeframes[0]);
+    if (!selectedMarket) return;
+    setTicker(selectedMarket.instrument);
+    setHistoricalSourceSymbol(selectedMarket.sourceSymbol);
+    setHistoricalDatasetId('');
+    const first = selectedMarket.coverage[0];
+    const last = selectedMarket.coverage[selectedMarket.coverage.length - 1];
+    if (first && last) {
+      setHistoricalStart(toDisplayDateTimeInput(first.start));
+      setHistoricalEnd(toDisplayDateTimeInput(last.end));
     }
-  }, [historicalTimeframes, historicalTimeframe]);
+    if (!selectedMarket.availableTimeframes.includes(historicalTimeframe)) setHistoricalTimeframe(selectedMarket.availableTimeframes[0] || '');
+  }, [selectedMarketKey, historicalDatasets.length]);
 
   useEffect(() => {
-    if (historicalSymbols.length && !historicalSymbols.includes(historicalSourceSymbol)) {
-      setHistoricalSourceSymbol(historicalSymbols[0]);
-    } else if (!historicalSymbols.length && historicalSourceSymbol) {
-      setHistoricalSourceSymbol('');
-    }
-  }, [historicalSymbols, historicalSourceSymbol]);
-
-  useEffect(() => {
-    if (historicalDatasetId && !filteredHistoricalDatasets.some(dataset => dataset.id === historicalDatasetId)) {
-      setHistoricalDatasetId('');
-    }
-    const selected = historicalDatasetId
-      ? filteredHistoricalDatasets.filter(dataset => dataset.id === historicalDatasetId)
-      : filteredHistoricalDatasets;
-    if (!selected.length) {
-      setHistoricalStart('');
-      setHistoricalEnd('');
-      return;
-    }
-    const starts = selected.map(dataset => new Date(dataset.start_time).getTime()).filter(Number.isFinite);
-    const ends = selected.map(dataset => new Date(dataset.end_time).getTime()).filter(Number.isFinite);
-    setHistoricalStart(toDisplayDateTimeInput(Math.min(...starts)));
-    setHistoricalEnd(toDisplayDateTimeInput(Math.max(...ends)));
-  }, [filteredHistoricalDatasets, historicalDatasetId]);
-
+    if (!selectedMarket || !baseTimeframe || !historicalStart || !historicalEnd) return undefined;
+    const startTime = fromDisplayDateTimeInput(historicalStart);
+    const endTime = fromDisplayDateTimeInput(historicalEnd);
+    if (!startTime || !endTime || !Number.isFinite(startTime.getTime()) || !Number.isFinite(endTime.getTime()) || endTime < startTime) return undefined;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setHistoricalLoading(true);
+      setImportError('');
+      try {
+        const params = new URLSearchParams({ start: startTime.toISOString(), end: endTime.toISOString(), instrument: selectedMarket.instrument, timeframe: baseTimeframe });
+        if (selectedMarket.sourceSymbol) params.set('sourceSymbol', selectedMarket.sourceSymbol);
+        const response = await authFetch('/api/market-data/query?' + params.toString());
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Unable to prepare the selected historical market data.');
+        if (cancelled) return;
+        const baseCandles = normalizeOhlcvRows(data.bars || []);
+        const normalized = historicalTimeframe === baseTimeframe ? baseCandles : aggregateCandles(baseCandles, historicalTimeframe);
+        if (normalized.length < 2) throw new Error('There are not enough historical bars in this period to start replay.');
+        setCandles(normalized);
+        setCurrentIndex(Math.min(80, normalized.length - 1));
+        currentIndexRef.current = Math.min(80, normalized.length - 1);
+        setIsDemoData(false);
+        setDataSource('historical');
+        setDataLabel(selectedMarket.label + ' · ' + historicalTimeframe + ' · ' + normalized.length.toLocaleString() + ' bars');
+        setIsPlaying(false);
+        setPosition(null); positionRef.current = null;
+        setPendingOrder(null); pendingOrderRef.current = null;
+        setClosedTrades([]); setStopInput(''); setTargetInput('');
+        setMessage('Historical data prepared automatically.');
+      } catch (loadError) {
+        if (!cancelled) { setCandles([]); setCurrentIndex(0); currentIndexRef.current = 0; setImportError(loadError.message || 'Unable to prepare historical market data.'); }
+      } finally {
+        if (!cancelled) setHistoricalLoading(false);
+      }
+    }, 350);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [selectedMarketKey, baseTimeframe, historicalTimeframe, historicalStart, historicalEnd, historicalDatasets.length]);
   const spec = getInstrumentSpec(ticker);
   const currentCandle = candles[currentIndex] || candles[0];
   const currentPrice = currentCandle ? currentCandle.close : 0;
@@ -382,80 +396,21 @@ const BacktestingReplayWorkspace = () => {
     return () => clearInterval(interval);
   }, [isPlaying, speed]);
 
-  const handleTickerChange = (event) => {
-    const nextTicker = event.target.value;
-    setTicker(nextTicker);
-    if (isDemoData || dataSource === 'historical') {
-      const nextCandles = createDemoCandles(nextTicker);
-      setCandles(nextCandles);
-      setCurrentIndex(Math.min(80, nextCandles.length - 1));
-      currentIndexRef.current = Math.min(80, nextCandles.length - 1);
-      setIsDemoData(true);
-      setDataSource('demo');
-      setDataLabel('Generated demo candles');
-    }
-    setIsPlaying(false);
-    setPosition(null);
-    positionRef.current = null;
-    setPendingOrder(null);
-    pendingOrderRef.current = null;
-    setClosedTrades([]);
-    setStopInput('');
-    setTargetInput('');
-    setMessage('');
+  const resetForMarketChange = () => {
+    setIsPlaying(false); setPosition(null); positionRef.current = null;
+    setPendingOrder(null); pendingOrderRef.current = null; setClosedTrades([]);
+    setStopInput(''); setTargetInput(''); setMessage(''); setError('');
   };
 
-  const loadHistoricalData = async () => {
-    if (historicalLoading || !historicalStart || !historicalEnd) return;
-    const start = fromDisplayDateTimeInput(historicalStart);
-    const end = fromDisplayDateTimeInput(historicalEnd);
-    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end < start) {
-      setImportError('Choose a valid historical start and end time.');
-      return;
-    }
-
-    setHistoricalLoading(true);
-    setImportError('');
-    setError('');
-    try {
-      const params = new URLSearchParams({ start: start.toISOString(), end: end.toISOString() });
-      if (historicalDatasetId) {
-        params.set('datasetId', historicalDatasetId);
-      } else {
-        params.set('instrument', ticker);
-        params.set('timeframe', historicalTimeframe);
-        if (historicalSourceSymbol) params.set('sourceSymbol', historicalSourceSymbol);
-      }
-
-      const response = await authFetch('/api/market-data/query?' + params.toString());
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Unable to load the selected historical market data.');
-      const normalized = normalizeOhlcvRows(data.bars || []);
-      if (normalized.length < 2) throw new Error('The selected range contains fewer than two usable OHLCV bars.');
-
-      setCandles(normalized);
-      setCurrentIndex(Math.min(80, normalized.length - 1));
-      currentIndexRef.current = Math.min(80, normalized.length - 1);
-      setIsDemoData(false);
-      setDataSource('historical');
-      setDataLabel((data.instrument || ticker) + ' · ' + (data.timeframe || historicalTimeframe) + ' · ' + (data.sourceSymbol || 'source data') + ' · ' + normalized.length.toLocaleString() + ' bars');
-      setIsPlaying(false);
-      setPosition(null);
-      positionRef.current = null;
-      setPendingOrder(null);
-      pendingOrderRef.current = null;
-      setClosedTrades([]);
-      setStopInput('');
-      setTargetInput('');
-      setMessage('Loaded ' + normalized.length.toLocaleString() + ' historical candles from the central market-data manager.');
-      setHistoricalPanelOpen(false);
-    } catch (loadError) {
-      setImportError(loadError.message || 'Unable to load historical market data.');
-    } finally {
-      setHistoricalLoading(false);
-    }
+  const handleMarketChange = event => {
+    const market = availableMarkets.find(item => item.key === event.target.value);
+    if (!market) return;
+    resetForMarketChange();
+    setSelectedMarketKey(market.key);
+    setTicker(market.instrument);
   };
 
+  const handleDateChange = (setter, value) => { setter(value); resetForMarketChange(); };
   const validateLevels = (direction, entryPrice, stopPrice, targetPrice) => {
     if (stopPrice != null && (direction === 'long' ? stopPrice >= entryPrice : stopPrice <= entryPrice)) {
       return 'The stop-loss must be below entry for a long, and above entry for a short.';
