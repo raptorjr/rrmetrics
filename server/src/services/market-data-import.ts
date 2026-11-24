@@ -1,0 +1,236 @@
+import path from 'node:path';
+
+export interface OhlcvBar {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number | null;
+}
+
+export interface CsvInspection {
+  format: 'csv';
+  columns: string[];
+  rowCount: number;
+  validRowCount: number;
+  invalidRowCount: number;
+  detectedInstrument: string | null;
+  detectedTimeframe: string | null;
+  timestampUnit: 'iso' | 'seconds' | 'milliseconds' | 'microseconds' | 'nanoseconds' | null;
+  timezone: string | null;
+  timezoneNeedsConfirmation: boolean;
+  startTime: string | null;
+  endTime: string | null;
+  sample: OhlcvBar[];
+  errors: string[];
+  warnings: string[];
+}
+
+const HEADER_ALIASES: Record<string, string[]> = {
+  timestamp: ['timestamp', 'time', 'datetime', 'date', 'ts', 'start', 'bar_time'],
+  open: ['open', 'o'],
+  high: ['high', 'h'],
+  low: ['low', 'l'],
+  close: ['close', 'c', 'last'],
+  volume: ['volume', 'vol', 'v'],
+  instrument: ['symbol', 'ticker', 'instrument', 'contract'],
+};
+
+function parseCsvRows(source: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let quoted = false;
+
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i];
+    if (quoted) {
+      if (char === '"' && source[i + 1] === '"') {
+        field += '"';
+        i += 1;
+      } else if (char === '"') {
+        quoted = false;
+      } else {
+        field += char;
+      }
+    } else if (char === '"' && field.length === 0) {
+      quoted = true;
+    } else if (char === ',') {
+      row.push(field);
+      field = '';
+    } else if (char === '\n') {
+      row.push(field.replace(/\r$/, ''));
+      if (row.some(value => value.trim() !== '')) rows.push(row);
+      row = [];
+      field = '';
+    } else {
+      field += char;
+    }
+  }
+
+  if (quoted) throw new Error('CSV contains an unterminated quoted field.');
+  if (field.length > 0 || row.length > 0) {
+    row.push(field.replace(/\r$/, ''));
+    if (row.some(value => value.trim() !== '')) rows.push(row);
+  }
+  return rows;
+}
+
+function normalizeHeader(value: string): string {
+  return value.trim().toLowerCase().replace(/[\s_-]+/g, '');
+}
+
+function parseTimestamp(value: string): { timestamp: number; unit: CsvInspection['timestampUnit']; timezone: string | null; needsTimezone: boolean } | null {
+  const input = value.trim();
+  if (!input) return null;
+
+  if (/^\d+(?:\.\d+)?$/.test(input)) {
+    const numeric = Number(input);
+    if (!Number.isFinite(numeric)) return null;
+    const absolute = Math.abs(numeric);
+    if (absolute >= 1e17) return { timestamp: Math.trunc(numeric / 1e6), unit: 'nanoseconds', timezone: 'UTC', needsTimezone: false };
+    if (absolute >= 1e14) return { timestamp: Math.trunc(numeric / 1e3), unit: 'microseconds', timezone: 'UTC', needsTimezone: false };
+    if (absolute >= 1e11) return { timestamp: Math.trunc(numeric), unit: 'milliseconds', timezone: 'UTC', needsTimezone: false };
+    if (absolute >= 1e8) return { timestamp: Math.trunc(numeric * 1000), unit: 'seconds', timezone: 'UTC', needsTimezone: false };
+    return null;
+  }
+
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(input);
+  const parsed = Date.parse(hasZone ? input : `${input}Z`);
+  if (!Number.isFinite(parsed)) return null;
+  return {
+    timestamp: parsed,
+    unit: 'iso',
+    timezone: hasZone ? 'explicit' : null,
+    needsTimezone: !hasZone,
+  };
+}
+
+function timeframeFromGap(milliseconds: number): string | null {
+  const seconds = Math.round(milliseconds / 1000);
+  if (seconds <= 0) return null;
+  if (seconds % 86400 === 0) return `${seconds / 86400}d`;
+  if (seconds % 3600 === 0) return `${seconds / 3600}h`;
+  if (seconds % 60 === 0) return `${seconds / 60}m`;
+  return `${seconds}s`;
+}
+
+function detectInstrument(filename: string, symbols: string[]): string | null {
+  const candidates = [...symbols, path.basename(filename, path.extname(filename))].join(' ').toUpperCase();
+  const known = ['MNQ', 'NQ', 'MES', 'ES', 'MGC', 'GC', 'MYM', 'YM', 'M2K', 'RTY', 'CL', 'MCL', '6E', '6B', '6J'];
+  const matches = known.filter(symbol => new RegExp(`(^|[^A-Z0-9])${symbol}([^A-Z0-9]|$)`).test(candidates));
+  return matches.length === 1 ? matches[0] : null;
+}
+
+export function inspectOhlcvCsv(buffer: Buffer, filename: string): CsvInspection {
+  const source = buffer.toString('utf8').replace(/^\uFEFF/, '');
+  if (source.includes('\u0000')) throw new Error('The uploaded file does not look like a UTF-8 CSV file.');
+
+  const rows = parseCsvRows(source);
+  if (rows.length < 2) throw new Error('CSV must contain a header row and at least one data row.');
+
+  const headers = rows[0].map(normalizeHeader);
+  const findColumn = (key: string): number => {
+    const aliases = HEADER_ALIASES[key].map(normalizeHeader);
+    return headers.findIndex(header => aliases.includes(header));
+  };
+  const indexes = {
+    timestamp: findColumn('timestamp'),
+    open: findColumn('open'),
+    high: findColumn('high'),
+    low: findColumn('low'),
+    close: findColumn('close'),
+    volume: findColumn('volume'),
+    instrument: findColumn('instrument'),
+  };
+
+  const missing = ['timestamp', 'open', 'high', 'low', 'close'].filter(key => indexes[key as keyof typeof indexes] < 0);
+  if (missing.length) throw new Error(`Missing required OHLCV columns: ${missing.join(', ')}.`);
+
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const bars: OhlcvBar[] = [];
+  const symbols: string[] = [];
+  const timestamps = new Set<number>();
+  let invalidRowCount = 0;
+  let timestampUnit: CsvInspection['timestampUnit'] = null;
+  let timezone: string | null = null;
+  let timezoneNeedsConfirmation = false;
+
+  for (let rowIndex = 1; rowIndex < rows.length; rowIndex += 1) {
+    const row = rows[rowIndex];
+    const get = (index: number) => index >= 0 ? (row[index] ?? '').trim() : '';
+    const parsedTime = parseTimestamp(get(indexes.timestamp));
+    const values = {
+      open: Number(get(indexes.open)),
+      high: Number(get(indexes.high)),
+      low: Number(get(indexes.low)),
+      close: Number(get(indexes.close)),
+    };
+    const volumeText = get(indexes.volume);
+    const volume = volumeText === '' ? null : Number(volumeText);
+    const validPrices = Object.values(values).every(Number.isFinite)
+      && values.high >= Math.max(values.open, values.close, values.low)
+      && values.low <= Math.min(values.open, values.close, values.high)
+      && values.low > 0;
+    const validVolume = volume === null || (Number.isFinite(volume) && volume >= 0);
+
+    if (!parsedTime || !validPrices || !validVolume) {
+      invalidRowCount += 1;
+      if (errors.length < 10) errors.push(`Row ${rowIndex + 1}: invalid timestamp, OHLC values or volume.`);
+      continue;
+    }
+    if (timestamps.has(parsedTime.timestamp)) {
+      invalidRowCount += 1;
+      if (errors.length < 10) errors.push(`Row ${rowIndex + 1}: duplicate timestamp.`);
+      continue;
+    }
+
+    timestamps.add(parsedTime.timestamp);
+    timestampUnit = timestampUnit ?? parsedTime.unit;
+    if (timestampUnit !== parsedTime.unit) {
+      invalidRowCount += 1;
+      timestamps.delete(parsedTime.timestamp);
+      if (errors.length < 10) errors.push(`Row ${rowIndex + 1}: mixed timestamp formats or units.`);
+      continue;
+    }
+    if (parsedTime.needsTimezone) timezoneNeedsConfirmation = true;
+    if (parsedTime.timezone === 'explicit') timezone = 'explicit';
+    if (indexes.instrument >= 0 && get(indexes.instrument)) symbols.push(get(indexes.instrument).toUpperCase());
+
+    bars.push({
+      timestamp: parsedTime.timestamp,
+      ...values,
+      volume,
+    });
+  }
+
+  bars.sort((a, b) => a.timestamp - b.timestamp);
+  const gaps = bars.slice(1).map((bar, index) => bar.timestamp - bars[index].timestamp).filter(gap => gap > 0);
+  const medianGap = gaps.length ? [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)] : 0;
+  const uniqueSymbols = [...new Set(symbols)];
+  const detectedInstrument = detectInstrument(filename, uniqueSymbols);
+  if (uniqueSymbols.length > 1) warnings.push('The file contains more than one instrument symbol.');
+  if (invalidRowCount) warnings.push(`${invalidRowCount} row(s) were excluded from the valid preview.`);
+  if (timezoneNeedsConfirmation) warnings.push('Timestamps without an explicit timezone need timezone confirmation before import.');
+  if (!detectedInstrument) warnings.push('Instrument could not be identified confidently; select it during review.');
+
+  return {
+    format: 'csv',
+    columns: rows[0],
+    rowCount: rows.length - 1,
+    validRowCount: bars.length,
+    invalidRowCount,
+    detectedInstrument,
+    detectedTimeframe: medianGap ? timeframeFromGap(medianGap) : null,
+    timestampUnit,
+    timezone,
+    timezoneNeedsConfirmation,
+    startTime: bars.length ? new Date(bars[0].timestamp).toISOString() : null,
+    endTime: bars.length ? new Date(bars[bars.length - 1].timestamp).toISOString() : null,
+    sample: bars.slice(0, 10),
+    errors,
+    warnings,
+  };
+}
