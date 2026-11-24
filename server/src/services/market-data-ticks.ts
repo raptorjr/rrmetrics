@@ -44,6 +44,7 @@ export interface TradeTickInspection {
   invalidRowCount: number;
   detectedInstrument: string | null;
   detectedSymbols: string[];
+  detectedTimeframe: 'tick';
   detectedExchange: string | null;
   timestampUnit: string;
   timezone: string | null;
@@ -419,6 +420,7 @@ export async function inspectTradeTicksParquet(
     invalidRowCount,
     detectedInstrument,
     detectedSymbols,
+    detectedTimeframe: 'tick',
     detectedExchange: exchanges.size === 1 ? [...exchanges][0] : null,
     timestampUnit: layout.timestampUnit,
     timezone: layout.timezone,
