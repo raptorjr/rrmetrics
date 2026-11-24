@@ -167,7 +167,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     setDashboardLoadError(null);
     const load = async () => {
       try {
-        const response = await fetch('/api/dashboards', { credentials: 'same-origin' });
+        const response = await fetch('/api/dashboards?key=' + encodeURIComponent(storageKey), { credentials: 'same-origin' });
         if (!response.ok) throw new Error('The server could not load dashboard settings.');
         const result = await response.json();
         let collection = result.collection;
@@ -181,7 +181,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
             method: 'PUT',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ collection }),
+            body: JSON.stringify({ key: storageKey, collection }),
           });
           if (!save.ok) throw new Error('Your existing dashboards could not be migrated to the server. Your browser copy has been kept.');
         }
@@ -191,7 +191,6 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
           layout: readLayoutFromValue(d.layout, defaultOrder, defaultVisible, items),
         }));
         const active = normalized.find(d => d.id === collection.activeDashboardId) || normalized[0];
-        const readyCollection = { version: 1, items: normalized, activeDashboardId: active.id };
         setDashboards(normalized);
         setActiveDashboardId(active.id);
         setLayout(active.layout);
@@ -237,7 +236,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
         method: 'PUT',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ collection }),
+        body: JSON.stringify({ key: storageKey, collection }),
       });
       if (!response.ok) {
         let message = 'Dashboard changes could not be saved to the server.';
