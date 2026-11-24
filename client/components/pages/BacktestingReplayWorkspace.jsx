@@ -225,7 +225,7 @@ const BacktestingReplayWorkspace = () => {
       setImportError('');
       try {
         const params = new URLSearchParams({ start: startTime.toISOString(), end: endTime.toISOString(), instrument: selectedMarket.instrument, timeframe: baseTimeframe });
-        if (selectedMarket.sourceSymbol) params.set('sourceSymbol', selectedMarket.sourceSymbol);
+        params.set('sourceSymbol', selectedMarket.sourceSymbol || '__none__');
         const response = await authFetch('/api/market-data/query?' + params.toString());
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Unable to prepare the selected historical market data.');
