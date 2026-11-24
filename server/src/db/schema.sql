@@ -490,3 +490,32 @@ CREATE INDEX IF NOT EXISTS idx_market_data_datasets_query
   ON market_data_file_datasets(user_id, instrument, timeframe, start_time, end_time);
 CREATE INDEX IF NOT EXISTS idx_market_data_datasets_file
   ON market_data_file_datasets(file_id);
+
+
+-- Tick trades are stored separately from OHLCV bars; event timestamps retain nanosecond precision.
+
+CREATE TABLE IF NOT EXISTS market_data_file_tick_datasets (
+  id                    TEXT PRIMARY KEY,
+  user_id               TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  file_id               TEXT NOT NULL,
+  instrument            TEXT NOT NULL,
+  source_symbol         TEXT,
+  exchange              TEXT,
+  timestamp_unit        TEXT NOT NULL,
+  timezone              TEXT,
+  row_count             INTEGER NOT NULL CHECK (row_count >= 0),
+  total_volume          REAL NOT NULL DEFAULT 0,
+  total_trade_count     INTEGER,
+  start_time            TEXT NOT NULL,
+  end_time              TEXT NOT NULL,
+  start_time_ns         TEXT NOT NULL,
+  end_time_ns           TEXT NOT NULL,
+  schema_version        INTEGER NOT NULL DEFAULT 1,
+  normalized_storage_key TEXT NOT NULL,
+  created_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  FOREIGN KEY(file_id, user_id) REFERENCES market_data_files(id, user_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_market_data_tick_datasets_query
+  ON market_data_file_tick_datasets(user_id, instrument, source_symbol, start_time, end_time);
+CREATE INDEX IF NOT EXISTS idx_market_data_tick_datasets_file
+  ON market_data_file_tick_datasets(file_id, user_id);

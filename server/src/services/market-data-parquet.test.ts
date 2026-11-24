@@ -4,6 +4,7 @@ import { asyncBufferFromFile, parquetReadObjects } from 'hyparquet';
 import { parquetWriteBuffer } from 'hyparquet-writer';
 import { inspectOhlcvParquet, normalizeOhlcvParquet, writeOhlcvBarsToParquet } from './market-data-parquet';
 import { readOhlcvParquetRange } from './market-data-query';
+import { inspectTradeTicksParquet, normalizeTradeTicksParquet } from './market-data-ticks';
 
 function makeParquet(columns: Array<{ name: string; data: unknown[]; type: string }>): Buffer {
   return Buffer.from(parquetWriteBuffer({ columnData: columns as never }));
@@ -162,4 +163,54 @@ test('does not detect source symbols from invalid Parquet rows', async () => {
   assert.equal(result.invalidRowCount, 1);
   assert.deepEqual(result.detectedSymbols, ['NQZ6']);
   assert.equal(result.detectedInstrument, 'NQ');
+});
+
+
+test('inspects and normalizes trade ticks without rounding nanosecond timestamps or deduplicating equal times', async () => {
+  const base = 1794234600000000000n;
+  const buffer = makeParquet([
+    { name: 'ts', type: 'INT64', data: [base, base, base + 1000n] },
+    { name: 'price', type: 'DOUBLE', data: [7465.25, 7465.5, 7465.75] },
+    { name: 'volume', type: 'INT32', data: [1, 2, 1] },
+    { name: 'bid_sz', type: 'INT32', data: [0, 2, 1] },
+    { name: 'ask_sz', type: 'INT32', data: [1, 0, 0] },
+    { name: 'trade_count', type: 'INT32', data: [1, 2, 1] },
+    { name: 'symbol', type: 'STRING', data: ['ESZ6', 'ESZ6', 'ESZ6'] },
+    { name: 'exchange', type: 'STRING', data: ['CME', 'CME', 'CME'] },
+  ]);
+  const inspection = await inspectTradeTicksParquet(buffer, 'ESZ6_2026-11-09_ticks.parquet');
+  assert.equal(inspection.dataKind, 'trades');
+  assert.equal(inspection.validRowCount, 3);
+  assert.equal(inspection.invalidRowCount, 0);
+  assert.equal(inspection.detectedInstrument, 'ES');
+  assert.equal(inspection.detectedExchange, 'CME');
+  assert.equal(inspection.startTimeNs, base.toString());
+  assert.equal(inspection.endTimeNs, (base + 1000n).toString());
+  assert.equal(inspection.totalVolume, 4);
+  assert.equal(inspection.totalTradeCount, 4);
+  assert.equal(inspection.sample[0].timestampNs, base.toString());
+
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'rrm-ticks-'));
+  const destination = path.join(directory, 'ticks.parquet');
+  try {
+    const normalized = await normalizeTradeTicksParquet(buffer, destination, {
+      sourceSymbol: 'ESZ6',
+      timezone: 'UTC',
+    });
+    assert.equal(normalized.rowCount, 3);
+    assert.equal(normalized.totalVolume, 4);
+    const file = await asyncBufferFromFile(destination);
+    const rows = await parquetReadObjects({ file, columns: ['timestamp_ns', 'source_row', 'price'] });
+    assert.equal(rows.length, 3);
+    assert.equal(String(rows[0].timestamp_ns), base.toString());
+    assert.equal(String(rows[1].timestamp_ns), base.toString());
+    assert.equal(String(rows[0].source_row), '0');
+    assert.equal(String(rows[1].source_row), '1');
+    assert.equal(rows[1].price, 7465.5);
+  } finally {
+    await fs.rm(directory, { recursive: true, force: true });
+  }
 });

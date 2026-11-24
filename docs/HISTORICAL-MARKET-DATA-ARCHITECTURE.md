@@ -188,3 +188,20 @@ Provider-independent endpoints:
 Source resolution is deliberately conservative. Distinct contract symbols are never automatically merged into a continuous contract. Multiple files for the same instrument/timeframe/source symbol can be combined only when their date coverage does not overlap. If coverage overlaps, the caller must select a specific dataset ID. This prevents silent conflict resolution until explicit source-priority controls are implemented.
 
 Chart Replay now consumes this query API for stored historical data. Its synthetic demo candles and manual CSV upload remain available as separate data sources.
+
+
+## Phase 2 — trade-tick data contract
+
+Tick ingestion is a separate capability from OHLCV import. The first supported tick input is Parquet trade-print data. It does not represent bid/ask quote updates or resting order-book depth.
+
+The supplied sample's trade schema is:
+
+- `ts`: UTC event timestamp, retaining nanosecond precision.
+- `price`: traded price.
+- `volume`: contracts represented by the record.
+- `trade_count`: number of trades represented by the record.
+- `bid_sz` / `ask_sz`: executed volume classifications from source-record fields, not quote sizes or an inferred aggressor-side calculation.
+- `symbol`: dated contract identifier.
+- `exchange`: source exchange.
+
+Tick events remain event-level records. Equal timestamps are allowed and must not be deduplicated; normalized storage also retains the original row order as a stable tie-breaker. The normalized tick dataset is independently owned by its source file and stored separately from OHLCV datasets. The first tick phase does not change Chart Replay's OHLCV execution model or introduce tick-level order simulation.
