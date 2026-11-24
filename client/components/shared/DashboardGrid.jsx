@@ -64,6 +64,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const [dashboards, setDashboards] = useState(() => readDashboardCollection(storageKey, defaultOrder, defaultVisible, items));
   const [activeDashboardId, setActiveDashboardId] = useState(() => { try { return localStorage.getItem(storageKey + '_active_dashboard'); } catch { return null; } });
   const [layout, setLayout] = useState(() => { const ds = readDashboardCollection(storageKey, defaultOrder, defaultVisible, items); const active = ds.find(d => d.id === (localStorage.getItem(storageKey + '_active_dashboard'))) || ds[0]; return active.layouts[8]; });
+  const [columns, setColumns] = useState(2);
   const layoutBreakpointRef = useRef(8);
   const columnsRef = useRef(columns);
   columnsRef.current = columns;
@@ -79,7 +80,6 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const [newStarter, setNewStarter] = useState('trading-overview');
   const [draggedId, setDraggedId] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
-  const [columns, setColumns] = useState(2);
   const [addPickerPosition, setAddPickerPosition] = useState(null);
   const [addPickerQuery, setAddPickerQuery] = useState('');
   const [hoveredEmptyCell, setHoveredEmptyCell] = useState(null);
