@@ -83,6 +83,7 @@ export interface NormalizeTicksOptions {
   sourceSymbol?: string | null;
   timezone?: string | null;
   skipInvalidRows?: boolean;
+  detectedSymbols?: string[];
 }
 
 const rawTimestampParsers = {
@@ -356,8 +357,8 @@ export async function normalizeTickParquet(
   if (layout.timezoneNeedsConfirmation && !options.timezone) {
     throw new Error('A timezone must be confirmed before importing this tick file.');
   }
-  const inspection = await inspectTickParquet(buffer, 'source.parquet');
-  const symbols = new Set(inspection.detectedSymbols);
+  const detectedSymbols = options.detectedSymbols ?? (await inspectTickParquet(buffer, 'source.parquet')).detectedSymbols;
+  const symbols = new Set(detectedSymbols);
   const sourceSymbol = options.sourceSymbol?.toUpperCase() ?? (symbols.size === 1 ? [...symbols][0] : null);
   if (symbols.size > 1 && !sourceSymbol) {
     throw new Error('This tick file contains multiple symbols. Select a source symbol for this dataset before importing.');

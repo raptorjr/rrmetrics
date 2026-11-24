@@ -651,6 +651,7 @@ marketData.post('/api/market-data/files/:fileId/import', requiresLogin, async (c
         sourceSymbol,
         timezone,
         skipInvalidRows,
+        detectedSymbols: inspection.detectedSymbols,
       });
     } else if (file.input_format === 'csv') {
       const parsed = parseOhlcvCsv(buffer, file.original_filename, { timezone });
