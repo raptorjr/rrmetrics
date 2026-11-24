@@ -79,6 +79,10 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   const [addPickerQuery, setAddPickerQuery] = useState('');
   const [hoveredEmptyCell, setHoveredEmptyCell] = useState(null);
   const [storageWarning, setStorageWarning] = useState(null);
+  const [dashboardReady, setDashboardReady] = useState(false);
+  const [dashboardLoadError, setDashboardLoadError] = useState(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const saveQueueRef = useRef(Promise.resolve());
   const [catalogueQuery, setCatalogueQuery] = useState('');
   const [catalogueCategory, setCatalogueCategory] = useState('all');
   const [catalogueStatus, setCatalogueStatus] = useState('all');
@@ -158,12 +162,53 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   }, []);
 
   useEffect(() => {
-    const ds = readDashboardCollection(storageKey, defaultOrder, defaultVisible, items);
-    setDashboards(ds);
-    const active = ds.find(d => d.id === activeDashboardId) || ds[0];
-    setActiveDashboardId(active.id);
-    setLayout(active.layout);
-  }, [storageKey, ids.join('|')]);
+    let cancelled = false;
+    setDashboardReady(false);
+    setDashboardLoadError(null);
+    const load = async () => {
+      try {
+        const response = await fetch('/api/dashboards', { credentials: 'same-origin' });
+        if (!response.ok) throw new Error('The server could not load dashboard settings.');
+        const result = await response.json();
+        let collection = result.collection;
+        if (!collection || !Array.isArray(collection.items) || collection.items.length === 0) {
+          const localItems = readDashboardCollection(storageKey, defaultOrder, defaultVisible, items);
+          let localActive = null;
+          try { localActive = localStorage.getItem(storageKey + '_active_dashboard'); } catch {}
+          const active = localItems.find(d => d.id === localActive) || localItems[0];
+          collection = { version: 1, items: localItems, activeDashboardId: active.id };
+          const save = await fetch('/api/dashboards', {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ collection }),
+          });
+          if (!save.ok) throw new Error('Your existing dashboards could not be migrated to the server. Your browser copy has been kept.');
+        }
+        if (cancelled) return;
+        const normalized = collection.items.map(d => ({
+          ...d,
+          layout: readLayoutFromValue(d.layout, defaultOrder, defaultVisible, items),
+        }));
+        const active = normalized.find(d => d.id === collection.activeDashboardId) || normalized[0];
+        const readyCollection = { version: 1, items: normalized, activeDashboardId: active.id };
+        setDashboards(normalized);
+        setActiveDashboardId(active.id);
+        setLayout(active.layout);
+        try {
+          localStorage.setItem(storageKey + '_dashboards', JSON.stringify({ version: 1, items: normalized }));
+          localStorage.setItem(storageKey + '_active_dashboard', active.id);
+        } catch {}
+        setDashboardLoadError(null);
+        setDashboardReady(true);
+      } catch (error) {
+        if (cancelled) return;
+        setDashboardLoadError(error?.message || 'Could not connect to the RR Metrics server.');
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [storageKey, ids.join('|'), loadAttempt]);
 
   const persistValue = (key, value) => {
     try {
@@ -184,12 +229,32 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   }, [layout, activeDashboardId]);
 
   useEffect(() => {
-    persistValue(storageKey + '_dashboards', {version: 1, items: dashboards});
-  }, [storageKey, dashboards]);
+    if (!dashboardReady || !activeDashboardId || dashboards.length === 0) return;
+    const collection = { version: 1, items: dashboards, activeDashboardId };
+    persistValue(storageKey + '_dashboards', { version: 1, items: dashboards });
+    saveQueueRef.current = saveQueueRef.current.catch(() => {}).then(async () => {
+      const response = await fetch('/api/dashboards', {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ collection }),
+      });
+      if (!response.ok) {
+        let message = 'Dashboard changes could not be saved to the server.';
+        try { const result = await response.json(); if (result.error) message = result.error; } catch {}
+        throw new Error(message);
+      }
+      setStorageWarning(current => current?.key === 'server' ? null : current);
+    }).catch(error => {
+      setStorageWarning({ key: 'server', message: (error?.message || 'Dashboard changes could not be saved.') + ' Your browser copy is retained, but changes will not appear on other computers until the server save succeeds.' });
+    });
+  }, [storageKey, dashboards, activeDashboardId, dashboardReady]);
 
   useEffect(() => {
     if (activeDashboardId) { try { localStorage.setItem(storageKey + '_active_dashboard', activeDashboardId); } catch {} }
   }, [storageKey, activeDashboardId]);
+
+  if (!dashboardReady) return <div className="rounded-xl border border-border bg-bg-surface p-5 text-sm text-text-secondary" role="status">{dashboardLoadError ? <><p>{dashboardLoadError}</p><button type="button" onClick={() => setLoadAttempt(value => value + 1)} className="mt-3 rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-text">Retry connection</button></> : 'Loading dashboards from RR Metrics…'}</div>;
 
   const orderedItems = layout.order
     .map(id => items.find(item => item.id === id))
