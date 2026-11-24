@@ -249,7 +249,7 @@ marketData.get('/api/market-data/datasets', requiresLogin, async (c) => {
      WHERE d.user_id = ? AND f.import_status = 'ready'
        AND (? IS NULL OR d.instrument = ?)
        AND (? IS NULL OR d.timeframe = ?)
-       AND (? IS NULL OR d.source_symbol = ?)
+       AND (? = 0 OR d.source_symbol IS ?)
      ORDER BY d.instrument, d.timeframe, d.source_symbol, d.start_time`,
   ).all(
     user.id,
