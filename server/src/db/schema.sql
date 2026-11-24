@@ -422,3 +422,67 @@ CREATE TABLE IF NOT EXISTS dashboard_settings (
   updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   PRIMARY KEY (user_id, storage_key)
 );
+
+
+-- ============================================================================
+-- Historical market data catalogue
+-- Source-owned datasets preserve provenance and make file-level deletion safe.
+-- The actual bar data lives in per-source Parquet files, not SQLite rows.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS market_data_providers (
+  id            TEXT PRIMARY KEY,
+  user_id       TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  provider_type TEXT NOT NULL CHECK (provider_type IN ('historical_futures')),
+  display_name  TEXT NOT NULL,
+  config_json   TEXT NOT NULL DEFAULT '{}',
+  created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  UNIQUE(user_id, provider_type, display_name)
+);
+CREATE INDEX IF NOT EXISTS idx_market_data_providers_user
+  ON market_data_providers(user_id);
+
+CREATE TABLE IF NOT EXISTS market_data_files (
+  id                    TEXT PRIMARY KEY,
+  user_id               TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  provider_id           TEXT NOT NULL REFERENCES market_data_providers(id) ON DELETE CASCADE,
+  original_filename     TEXT NOT NULL,
+  input_format          TEXT NOT NULL CHECK (input_format IN ('csv', 'parquet')),
+  file_size_bytes       INTEGER NOT NULL CHECK (file_size_bytes >= 0),
+  content_sha256        TEXT NOT NULL,
+  import_status         TEXT NOT NULL CHECK (import_status IN ('uploaded', 'inspecting', 'needs_review', 'ready', 'failed', 'deleting')),
+  detected_metadata_json TEXT NOT NULL DEFAULT '{}',
+  confirmed_metadata_json TEXT NOT NULL DEFAULT '{}',
+  original_storage_key  TEXT NOT NULL,
+  created_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  imported_at           TEXT,
+  last_error            TEXT,
+  UNIQUE(user_id, provider_id, content_sha256)
+);
+CREATE INDEX IF NOT EXISTS idx_market_data_files_user_provider
+  ON market_data_files(user_id, provider_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_market_data_files_status
+  ON market_data_files(user_id, import_status);
+
+CREATE TABLE IF NOT EXISTS market_data_file_datasets (
+  id                  TEXT PRIMARY KEY,
+  user_id             TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  file_id             TEXT NOT NULL REFERENCES market_data_files(id) ON DELETE CASCADE,
+  data_kind           TEXT NOT NULL CHECK (data_kind IN ('ohlcv')),
+  instrument          TEXT NOT NULL,
+  source_symbol       TEXT,
+  timeframe           TEXT NOT NULL,
+  timezone            TEXT,
+  timestamp_unit      TEXT NOT NULL,
+  row_count           INTEGER NOT NULL CHECK (row_count >= 0),
+  start_time          TEXT NOT NULL,
+  end_time            TEXT NOT NULL,
+  schema_version      INTEGER NOT NULL DEFAULT 1,
+  normalized_storage_key TEXT NOT NULL,
+  created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_market_data_datasets_query
+  ON market_data_file_datasets(user_id, instrument, timeframe, start_time, end_time);
+CREATE INDEX IF NOT EXISTS idx_market_data_datasets_file
+  ON market_data_file_datasets(file_id);
