@@ -38,7 +38,7 @@ async function main() {
     throw new Error('No selected ProjectX accounts found');
   }
 
-  const start = '2026-11-01T00:00:00.000Z';
+  const start = '2020-01-01T00:00:00.000Z';
   const end = new Date().toISOString();
   const results: any[] = [];
 
