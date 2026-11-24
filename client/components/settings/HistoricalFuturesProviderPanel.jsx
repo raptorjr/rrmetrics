@@ -408,7 +408,7 @@ const HistoricalFuturesProviderPanel = () => {
             )}
             {inspection.sample?.length > 0 && (
               <div className="overflow-x-auto">
-                <div className="mb-2 text-xs font-medium text-text-secondary">Preview · first valid tick records</div>
+                <div className="mb-2 text-xs font-medium text-text-secondary">{isTickData ? 'Preview · first valid tick records' : 'Preview · first valid rows'}</div>
                 {isTickData ? (
                   <table className="w-full text-xs">
                     <thead><tr className="text-text-tertiary border-b border-border">
@@ -442,7 +442,7 @@ const HistoricalFuturesProviderPanel = () => {
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border">
                 <p className="text-xs text-text-tertiary">Each source symbol becomes a separate dataset owned by this file.</p>
                 <button onClick={handleImport} disabled={!canImport || busy} className="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-text disabled:opacity-50">
-                  {busy ? 'Importing…' : 'Confirm and import dataset'}
+                  {busy ? 'Importing…' : isTickData ? 'Confirm and import ticks' : 'Confirm and import dataset'}
                 </button>
               </div>
             )}
@@ -466,7 +466,7 @@ const HistoricalFuturesProviderPanel = () => {
             <ul className="space-y-1 rounded-lg border border-border bg-bg-surface p-3">
               {deletePrompt.impact.datasets.map(dataset => (
                 <li key={dataset.id} className="text-xs text-text-secondary">
-                  <span className="font-medium text-text-primary">{dataset.instrument}{dataset.source_symbol ? ' · ' + dataset.source_symbol : ''}</span> · {dataset.timeframe} · {formatNumber(dataset.row_count)} rows · {formatDate(dataset.start_time)} – {formatDate(dataset.end_time)}
+                  <span className="font-medium text-text-primary">{dataset.instrument}{dataset.source_symbol ? ' · ' + dataset.source_symbol : ''}</span> · {dataset.data_kind === 'trades' ? 'trade ticks' : dataset.timeframe} · {formatNumber(dataset.row_count)} rows · {formatDate(dataset.start_time)} – {formatDate(dataset.end_time)}
                 </li>
               ))}
             </ul>

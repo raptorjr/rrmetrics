@@ -119,7 +119,7 @@ marketData.post('/api/market-data/files/inspect', requiresLogin, async (c) => {
     }, 422);
   }
   if (inspection.validRowCount === 0) {
-    return c.json({ error: 'No valid OHLCV rows were found.', inspection }, 422);
+    return c.json({ error: 'No valid market-data rows were found.', inspection }, 422);
   }
 
   const detectedTimeframe = 'detectedTimeframe' in inspection ? inspection.detectedTimeframe : null;
@@ -279,6 +279,73 @@ marketData.get('/api/market-data/tick-datasets', requiresLogin, async (c) => {
      ORDER BY d.instrument, d.source_symbol, d.start_time`,
   ).all(user.id, instrument, instrument, sourceSymbol, sourceSymbol);
   return c.json({ datasets });
+});
+
+
+marketData.get('/api/market-data/ticks/query', requiresLogin, async (c) => {
+  const user = c.get('user');
+  const db = c.get('db');
+  const datasetId = c.req.query('datasetId')?.trim();
+  const startValue = c.req.query('startNs');
+  const endValue = c.req.query('endNs');
+  if (!datasetId || !startValue || !endValue || !/^-?\\d+$/.test(startValue) || !/^-?\\d+$/.test(endValue)) {
+    return c.json({ error: 'Provide a datasetId and integer startNs/endNs values.' }, 400);
+  }
+  const startNs = BigInt(startValue);
+  const endNs = BigInt(endValue);
+  if (startNs < 0n || endNs < startNs) {
+    return c.json({ error: 'Provide a valid non-negative tick time range.' }, 400);
+  }
+  const dataset = db.prepare(
+    `SELECT d.id, d.instrument, d.source_symbol, d.exchange, d.row_count,
+            d.start_time_ns, d.end_time_ns, d.normalized_storage_key,
+            f.original_filename
+     FROM market_data_file_tick_datasets d
+     JOIN market_data_files f ON f.id = d.file_id AND f.user_id = d.user_id
+     WHERE d.id = ? AND d.user_id = ? AND f.import_status = 'ready'`,
+  ).get(datasetId, user.id) as {
+    id: string;
+    instrument: string;
+    source_symbol: string | null;
+    exchange: string | null;
+    row_count: number;
+    start_time_ns: string;
+    end_time_ns: string;
+    normalized_storage_key: string;
+    original_filename: string;
+  } | undefined;
+  if (!dataset) return c.notFound();
+
+  const storageKey = String(dataset.normalized_storage_key);
+  if (!storageKey.startsWith('normalized/')) return c.json({ error: 'Normalized tick-data path failed validation.' }, 500);
+  const name = storageKey.slice('normalized/'.length);
+  if (!name || path.basename(name) !== name || name.includes('..')) {
+    return c.json({ error: 'Normalized tick-data path failed validation.' }, 500);
+  }
+  try {
+    const ticks = await readTradeTicksParquetRange(
+      path.join(MARKET_DATA_NORMALIZED_DIR, name),
+      startNs,
+      endNs,
+      250_000,
+    );
+    return c.json({
+      datasetId: dataset.id,
+      instrument: dataset.instrument,
+      sourceSymbol: dataset.source_symbol,
+      exchange: dataset.exchange,
+      filename: dataset.original_filename,
+      startNs: startNs.toString(),
+      endNs: endNs.toString(),
+      totalTicks: ticks.length,
+      ticks,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to query historical trade ticks.';
+    if (message.startsWith('TICK_QUERY_TOO_LARGE:')) return c.json({ error: message.slice('TICK_QUERY_TOO_LARGE:'.length).trim(), code: 'TICK_QUERY_TOO_LARGE' }, 413);
+    console.error('market-data tick query failed:', error);
+    return c.json({ error: 'Unable to read the selected normalized trade-tick dataset.' }, 500);
+  }
 });
 
 marketData.get('/api/market-data/query', requiresLogin, async (c) => {

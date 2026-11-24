@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  asyncBufferFromFile,
   parquetMetadataAsync,
   parquetReadObjects,
   parquetSchema,
@@ -579,4 +580,80 @@ export async function normalizeTradeTicksParquet(
     sourceSymbol,
     exchange: inspection.detectedExchange,
   };
+}
+
+
+export interface NormalizedTradeTick {
+  timestampNs: string;
+  sourceRow: string;
+  price: number;
+  volume: number;
+  bidSize: number | null;
+  askSize: number | null;
+  tradeCount: number | null;
+  sourceSymbol: string | null;
+  exchange: string | null;
+}
+
+export async function readTradeTicksParquetRange(
+  filePath: string,
+  startNs: bigint,
+  endNs: bigint,
+  maxRows = 250_000,
+): Promise<NormalizedTradeTick[]> {
+  if (startNs < 0n || endNs < startNs) {
+    throw new Error('A valid nanosecond start and end range is required for tick queries.');
+  }
+  const file = await asyncBufferFromFile(filePath);
+  const metadata = await parquetMetadataAsync(file);
+  const schemaNames = metadata.schema.map(element => element.name);
+  for (const required of ['timestamp_ns', 'source_row', 'price', 'volume']) {
+    if (!schemaNames.includes(required)) {
+      throw new Error('Normalized trade-tick file is missing required column: ' + required);
+    }
+  }
+  const rows = await parquetReadObjects({
+    file,
+    metadata,
+    columns: ['timestamp_ns', 'source_row', 'price', 'volume', 'bid_size', 'ask_size', 'trade_count', 'source_symbol', 'exchange'],
+    filter: {
+      timestamp_ns: {
+        $gte: startNs,
+        $lte: endNs,
+      },
+    },
+    usePageIndex: true,
+    compressors,
+  });
+  if (rows.length > maxRows) {
+    throw new Error('TICK_QUERY_TOO_LARGE: Narrow the requested time range to return no more than ' + maxRows.toLocaleString() + ' tick records.');
+  }
+  const ticks: NormalizedTradeTick[] = [];
+  for (const row of rows) {
+    const timestampNs = typeof row.timestamp_ns === 'bigint' ? row.timestamp_ns : BigInt(String(row.timestamp_ns));
+    const sourceRow = typeof row.source_row === 'bigint' ? row.source_row : BigInt(String(row.source_row));
+    const price = Number(row.price);
+    const volume = Number(row.volume);
+    if (!Number.isFinite(price) || !Number.isFinite(volume)) continue;
+    ticks.push({
+      timestampNs: timestampNs.toString(),
+      sourceRow: sourceRow.toString(),
+      price,
+      volume,
+      bidSize: row.bid_size == null ? null : Number(row.bid_size),
+      askSize: row.ask_size == null ? null : Number(row.ask_size),
+      tradeCount: row.trade_count == null ? null : Number(row.trade_count),
+      sourceSymbol: row.source_symbol == null ? null : String(row.source_symbol),
+      exchange: row.exchange == null ? null : String(row.exchange),
+    });
+  }
+  ticks.sort((a, b) => {
+    const left = BigInt(a.timestampNs);
+    const right = BigInt(b.timestampNs);
+    if (left !== right) return left < right ? -1 : 1;
+    const leftRow = BigInt(a.sourceRow);
+    const rightRow = BigInt(b.sourceRow);
+    return leftRow < rightRow ? -1 : leftRow > rightRow ? 1 : 0;
+  });
+  return ticks;
 }

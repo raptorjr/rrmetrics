@@ -4,7 +4,7 @@ import { asyncBufferFromFile, parquetReadObjects } from 'hyparquet';
 import { parquetWriteBuffer } from 'hyparquet-writer';
 import { inspectOhlcvParquet, normalizeOhlcvParquet, writeOhlcvBarsToParquet } from './market-data-parquet';
 import { readOhlcvParquetRange } from './market-data-query';
-import { inspectTradeTicksParquet, normalizeTradeTicksParquet } from './market-data-ticks';
+import { inspectTradeTicksParquet, normalizeTradeTicksParquet, readTradeTicksParquetRange } from './market-data-ticks';
 
 function makeParquet(columns: Array<{ name: string; data: unknown[]; type: string }>): Buffer {
   return Buffer.from(parquetWriteBuffer({ columnData: columns as never }));
@@ -210,6 +210,12 @@ test('inspects and normalizes trade ticks without rounding nanosecond timestamps
     assert.equal(String(rows[0].source_row), '0');
     assert.equal(String(rows[1].source_row), '1');
     assert.equal(rows[1].price, 7465.5);
+    const queriedTicks = await readTradeTicksParquetRange(destination, base, base, 10);
+    assert.equal(queriedTicks.length, 2);
+    assert.equal(queriedTicks[0].timestampNs, base.toString());
+    assert.equal(queriedTicks[1].timestampNs, base.toString());
+    assert.equal(queriedTicks[0].sourceRow, '0');
+    assert.equal(queriedTicks[1].sourceRow, '1');
   } finally {
     await fs.rm(directory, { recursive: true, force: true });
   }
