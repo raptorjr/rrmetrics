@@ -1,7 +1,7 @@
 const React = require('react');
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
 const Papa = require('papaparse');
-const { createChart, CandlestickSeries, ColorType, LineStyle } = require('lightweight-charts');
+import { createChart, CandlestickSeries, ColorType, LineStyle } from 'lightweight-charts';
 const {
   createDemoCandles,
   getInstrumentSpec,
