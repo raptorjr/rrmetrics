@@ -438,7 +438,8 @@ CREATE TABLE IF NOT EXISTS market_data_providers (
   config_json   TEXT NOT NULL DEFAULT '{}',
   created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-  UNIQUE(user_id, provider_type, display_name)
+  UNIQUE(user_id, provider_type, display_name),
+  UNIQUE(id, user_id)
 );
 CREATE INDEX IF NOT EXISTS idx_market_data_providers_user
   ON market_data_providers(user_id);
@@ -446,7 +447,7 @@ CREATE INDEX IF NOT EXISTS idx_market_data_providers_user
 CREATE TABLE IF NOT EXISTS market_data_files (
   id                    TEXT PRIMARY KEY,
   user_id               TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  provider_id           TEXT NOT NULL REFERENCES market_data_providers(id) ON DELETE CASCADE,
+  provider_id           TEXT NOT NULL,
   original_filename     TEXT NOT NULL,
   input_format          TEXT NOT NULL CHECK (input_format IN ('csv', 'parquet')),
   file_size_bytes       INTEGER NOT NULL CHECK (file_size_bytes >= 0),
@@ -458,7 +459,9 @@ CREATE TABLE IF NOT EXISTS market_data_files (
   created_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   imported_at           TEXT,
   last_error            TEXT,
-  UNIQUE(user_id, provider_id, content_sha256)
+  UNIQUE(user_id, provider_id, content_sha256),
+  UNIQUE(id, user_id),
+  FOREIGN KEY(provider_id, user_id) REFERENCES market_data_providers(id, user_id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_market_data_files_user_provider
   ON market_data_files(user_id, provider_id, created_at DESC);
@@ -468,7 +471,7 @@ CREATE INDEX IF NOT EXISTS idx_market_data_files_status
 CREATE TABLE IF NOT EXISTS market_data_file_datasets (
   id                  TEXT PRIMARY KEY,
   user_id             TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  file_id             TEXT NOT NULL REFERENCES market_data_files(id) ON DELETE CASCADE,
+  file_id             TEXT NOT NULL,
   data_kind           TEXT NOT NULL CHECK (data_kind IN ('ohlcv')),
   instrument          TEXT NOT NULL,
   source_symbol       TEXT,
@@ -480,7 +483,8 @@ CREATE TABLE IF NOT EXISTS market_data_file_datasets (
   end_time            TEXT NOT NULL,
   schema_version      INTEGER NOT NULL DEFAULT 1,
   normalized_storage_key TEXT NOT NULL,
-  created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  FOREIGN KEY(file_id, user_id) REFERENCES market_data_files(id, user_id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_market_data_datasets_query
   ON market_data_file_datasets(user_id, instrument, timeframe, start_time, end_time);
