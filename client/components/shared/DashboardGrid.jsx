@@ -13,56 +13,14 @@ const {
   normalizeLayout,
   readLayoutFromValue,
   createStarterLayout,
+  getResponsivePositions,
+  createBreakpointLayout,
+  normalizeDashboardLayouts,
   STARTER_LAYOUTS,
 } = require('../../utils/dashboardLayout');
 
 const GRID_GAP = 16;
 const ROW_UNIT = 128;
-
-// Convert the saved eight-column layout into a collision-free layout for the
-// narrower display grid. Saved positions remain untouched, so changing the
-// browser width never rewrites the user's desktop arrangement.
-const getResponsivePositions = (visibleItems, layout, columns) => {
-  const entries = visibleItems.map((item, index) => {
-    const size = layout.sizes[item.id] || getDefaultSize(item);
-    const saved = layout.positions[item.id] || { col: 1, row: 1 };
-    const width = Math.min(columns, Math.max(1, Math.round(size.w * columns / MAX_COLUMNS)));
-    return {
-      id: item.id,
-      index,
-      width,
-      height: size.h,
-      preferredCol: clamp(Math.floor((saved.col - 1) * columns / MAX_COLUMNS) + 1, 1, columns - width + 1),
-      preferredRow: saved.row,
-    };
-  }).sort((a, b) => a.preferredRow - b.preferredRow || a.preferredCol - b.preferredCol || a.index - b.index);
-
-  const placed = [];
-  entries.forEach(entry => {
-    let position = null;
-    for (let row = entry.preferredRow; !position; row += 1) {
-      const columnsToTry = [
-        ...Array.from({ length: columns - entry.width - entry.preferredCol + 2 }, (_, i) => entry.preferredCol + i),
-        ...Array.from({ length: entry.preferredCol - 1 }, (_, i) => i + 1),
-      ];
-      for (const col of columnsToTry) {
-        const candidate = { col, row };
-        if (!placed.some(other =>
-          candidate.col < other.col + other.width
-          && candidate.col + entry.width > other.col
-          && candidate.row < other.row + other.height
-          && candidate.row + entry.height > other.row
-        )) {
-          position = candidate;
-          break;
-        }
-      }
-    }
-    placed.push({ id: entry.id, ...position, width: entry.width, height: entry.height });
-  });
-
-  return Object.fromEntries(placed.map(({ id, col, row, width }) => [id, { col, row, width }]));
-};
 
 const readTemplates = (storageKey) => {
   try {
@@ -95,18 +53,19 @@ const readDashboardCollection = (storageKey, defaultOrder, defaultVisible, items
   const base = readLayout(storageKey, defaultOrder, defaultVisible, items);
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey + '_dashboards') || 'null');
-    if (saved && Array.isArray(saved.items) && saved.items.length) return saved.items.map(d => ({...d, layout: readLayoutFromValue(d.layout, defaultOrder, defaultVisible, items)}));
+    if (saved && Array.isArray(saved.items) && saved.items.length) return saved.items.map(d => normalizeDashboardLayouts(d, defaultOrder, defaultVisible, items));
   } catch {}
   const migrated = [{id: makeDashboardId(), name: 'My Dashboard', layout: base}];
   readTemplates(storageKey).forEach(t => migrated.push({id: makeDashboardId(), name: t.name, layout: readLayoutFromValue(t.layout, defaultOrder, defaultVisible, items)}));
-  return migrated;
+  return migrated.map(d => normalizeDashboardLayouts(d, defaultOrder, defaultVisible, items));
 }
 
 const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defaultOrder }) => {
   const ids = useMemo(() => items.map(item => item.id), [items]);
   const [dashboards, setDashboards] = useState(() => readDashboardCollection(storageKey, defaultOrder, defaultVisible, items));
   const [activeDashboardId, setActiveDashboardId] = useState(() => { try { return localStorage.getItem(storageKey + '_active_dashboard'); } catch { return null; } });
-  const [layout, setLayout] = useState(() => { const ds = readDashboardCollection(storageKey, defaultOrder, defaultVisible, items); return (ds.find(d => d.id === (localStorage.getItem(storageKey + '_active_dashboard'))) || ds[0]).layout; });
+  const [layout, setLayout] = useState(() => { const ds = readDashboardCollection(storageKey, defaultOrder, defaultVisible, items); const active = ds.find(d => d.id === (localStorage.getItem(storageKey + '_active_dashboard'))) || ds[0]; return active.layouts[8]; });
+  const layoutBreakpointRef = useRef(8);
   const [editing, setEditing] = useState(false);
   const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
   const [actionMenuId, setActionMenuId] = useState(null);
@@ -232,14 +191,12 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
           if (!save.ok) throw new Error('Your existing dashboards could not be migrated to the server. Your browser copy has been kept.');
         }
         if (cancelled) return;
-        const normalized = collection.items.map(d => ({
-          ...d,
-          layout: readLayoutFromValue(d.layout, defaultOrder, defaultVisible, items),
-        }));
+        const normalized = collection.items.map(d => normalizeDashboardLayouts(d, defaultOrder, defaultVisible, items));
         const active = normalized.find(d => d.id === collection.activeDashboardId) || normalized[0];
         setDashboards(normalized);
         setActiveDashboardId(active.id);
-        setLayout(active.layout);
+        layoutBreakpointRef.current = columns;
+        setLayout(active.layouts[columns] || createBreakpointLayout(active.layouts[8], columns, items, defaultOrder, defaultVisible));
         try {
           localStorage.setItem(storageKey + '_dashboards', JSON.stringify({ version: 1, items: normalized }));
           localStorage.setItem(storageKey + '_active_dashboard', active.id);
@@ -270,8 +227,19 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   };
 
   useEffect(() => {
-    setDashboards(current => current.map(d => d.id === activeDashboardId ? {...d, layout} : d));
-  }, [layout, activeDashboardId]);
+    if (layoutBreakpointRef.current !== columns) return;
+    setDashboards(current => current.map(d => {
+      if (d.id !== activeDashboardId) return d;
+      const layouts = { ...(d.layouts || {}), [columns]: layout };
+      const sharedOrder = layout.order;
+      const sharedHidden = layout.hidden;
+      [2, 4, 8].forEach(width => {
+        const existing = layouts[width] || (width === 8 ? d.layout : createBreakpointLayout(d.layout, width, items, defaultOrder, defaultVisible));
+        layouts[width] = { ...existing, order: sharedOrder, hidden: sharedHidden };
+      });
+      return { ...d, layout: layouts[8], layouts };
+    }));
+  }, [layout, activeDashboardId, columns]);
 
   useEffect(() => {
     if (!dashboardReady || !activeDashboardId || dashboards.length === 0) return;
@@ -294,6 +262,13 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
       setStorageWarning({ key: 'server', message: (error?.message || 'Dashboard changes could not be saved.') + ' Your browser copy is retained, but changes will not appear on other computers until the server save succeeds.' });
     });
   }, [storageKey, dashboards, activeDashboardId, dashboardReady]);
+
+  useEffect(() => {
+    const active = dashboards.find(d => d.id === activeDashboardId);
+    if (!active) return;
+    layoutBreakpointRef.current = columns;
+    setLayout(active.layouts?.[columns] || createBreakpointLayout(active.layout, columns, items, defaultOrder, defaultVisible));
+  }, [columns, activeDashboardId]);
 
   useEffect(() => {
     if (activeDashboardId) { try { localStorage.setItem(storageKey + '_active_dashboard', activeDashboardId); } catch {} }
@@ -395,16 +370,18 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
   };
 
   const activeDashboard = dashboards.find(d => d.id === activeDashboardId) || dashboards[0];
-  const switchDashboard = dashboard => { setLayout(dashboard.layout); setActiveDashboardId(dashboard.id); setEditing(false); setDashboardMenuOpen(false); setActionMenuId(null); };
+  const switchDashboard = dashboard => { layoutBreakpointRef.current = columns; setLayout(dashboard.layouts?.[columns] || createBreakpointLayout(dashboard.layout, columns, items, defaultOrder, defaultVisible)); setActiveDashboardId(dashboard.id); setEditing(false); setDashboardMenuOpen(false); setActionMenuId(null); };
   const saveRename = () => { const name = renameValue.trim(); if (!name || !renameId) return; setDashboards(ds => ds.map(d => d.id === renameId ? {...d, name} : d)); setRenameId(null); setRenameValue(''); };
   const createDashboard = () => {
     const name = newName.trim(); if (!name) return;
     const starter = STARTER_LAYOUTS.find(x => x.id === newStarter) || STARTER_LAYOUTS[0];
     const nextLayout = newMode === 'blank' ? readLayoutFromValue({order: defaultOrder, hidden: defaultOrder, sizes: {}, positions: {}}, defaultOrder, [], items) : newMode === 'copy' ? cloneLayout(layout) : createStarterLayout(starter, items, layout.order);
-    const d = {id: makeDashboardId(), name, layout: nextLayout};
-    setDashboards(ds => [...ds, d]); setActiveDashboardId(d.id); setLayout(nextLayout); setEditing(false); setCreateOpen(false); setDashboardMenuOpen(false); setNewName(''); setNewMode('starter');
+    const layouts = { 8: nextLayout };
+    const d = normalizeDashboardLayouts({id: makeDashboardId(), name, layout: nextLayout, layouts}, defaultOrder, defaultVisible, items);
+    layoutBreakpointRef.current = columns;
+    setDashboards(ds => [...ds, d]); setActiveDashboardId(d.id); setLayout(d.layouts[columns]); setEditing(false); setCreateOpen(false); setDashboardMenuOpen(false); setNewName(''); setNewMode('starter');
   };
-  const confirmDelete = () => { if (!deleteId || dashboards.length < 2) return; const ds = dashboards.filter(d => d.id !== deleteId); setDashboards(ds); if (deleteId === activeDashboardId) { setActiveDashboardId(ds[0].id); setLayout(ds[0].layout); setEditing(false); } setDeleteId(null); };
+  const confirmDelete = () => { if (!deleteId || dashboards.length < 2) return; const ds = dashboards.filter(d => d.id !== deleteId); setDashboards(ds); if (deleteId === activeDashboardId) { setActiveDashboardId(ds[0].id); layoutBreakpointRef.current = columns; setLayout(ds[0].layouts?.[columns] || createBreakpointLayout(ds[0].layout, columns, items, defaultOrder, defaultVisible)); setEditing(false); } setDeleteId(null); };
   const startResize = (event, item, corner) => {
     event.preventDefault();
     event.stopPropagation();
@@ -445,7 +422,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     const minW = Number(item.minColumns) || 1;
     const minH = Number(item.minRows) || 1;
     const minArea = Number(item.minArea) || 1;
-    const maxW = columns === 2 ? 2 : MAX_COLUMNS;
+    const maxW = MAX_COLUMNS;
     const geometry = getResizedTileGeometry({
       position: { col: start.startCol, row: start.startRow },
       size: { w: start.startW, h: start.startH },
