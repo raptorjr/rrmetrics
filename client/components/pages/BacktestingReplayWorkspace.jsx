@@ -60,6 +60,11 @@ const fromDisplayDateTimeInput = value => {
   return new Date(timestamp);
 };
 
+const formatDisplayDateTimeInput = value => {
+  const date = fromDisplayDateTimeInput(value);
+  return date ? `${formatDateEST(date)} ${formatTimeEST(date)}` : 'Select date and time';
+};
+
 const getIntervalSeconds = data => {
   const gaps = [];
   for (let index = 1; index < Math.min(data.length, 30); index += 1) {
@@ -582,11 +587,25 @@ const BacktestingReplayWorkspace = () => {
           </div>
           <label className="space-y-1">
             <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">From · {getDisplayTimeZone()}</span>
-            <input type="datetime-local" step="1" min={selectedMarket ? toDisplayDateTimeInput(selectedMarket.start) : undefined} max={selectedMarket ? toDisplayDateTimeInput(selectedMarket.end) : undefined} value={historicalStart} onChange={event => handleDateChange(setHistoricalStart, event.target.value)} disabled={!selectedMarket || historicalLoading} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary" />
+            <div className="relative">
+              <button type="button" disabled={!selectedMarket || historicalLoading} onClick={event => {
+                const picker = event.currentTarget.parentElement.querySelector('input');
+                if (picker?.showPicker) picker.showPicker();
+                else picker?.focus();
+              }} className="w-full text-left bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary disabled:opacity-50">{formatDisplayDateTimeInput(historicalStart)}</button>
+              <input type="datetime-local" step="1" min={selectedMarket ? toDisplayDateTimeInput(selectedMarket.start) : undefined} max={selectedMarket ? toDisplayDateTimeInput(selectedMarket.end) : undefined} value={historicalStart} onChange={event => handleDateChange(setHistoricalStart, event.target.value)} aria-label="From date and time" className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" tabIndex={-1} />
+            </div>
           </label>
           <label className="space-y-1">
             <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">To · {getDisplayTimeZone()}</span>
-            <input type="datetime-local" step="1" min={selectedMarket ? toDisplayDateTimeInput(selectedMarket.start) : undefined} max={selectedMarket ? toDisplayDateTimeInput(selectedMarket.end) : undefined} value={historicalEnd} onChange={event => handleDateChange(setHistoricalEnd, event.target.value)} disabled={!selectedMarket || historicalLoading} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary" />
+            <div className="relative">
+              <button type="button" disabled={!selectedMarket || historicalLoading} onClick={event => {
+                const picker = event.currentTarget.parentElement.querySelector('input');
+                if (picker?.showPicker) picker.showPicker();
+                else picker?.focus();
+              }} className="w-full text-left bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary disabled:opacity-50">{formatDisplayDateTimeInput(historicalEnd)}</button>
+              <input type="datetime-local" step="1" min={selectedMarket ? toDisplayDateTimeInput(selectedMarket.start) : undefined} max={selectedMarket ? toDisplayDateTimeInput(selectedMarket.end) : undefined} value={historicalEnd} onChange={event => handleDateChange(setHistoricalEnd, event.target.value)} aria-label="To date and time" className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" tabIndex={-1} />
+            </div>
           </label>
           <div className="flex items-end text-xs text-text-muted">
             {historicalLoading ? 'Preparing historical data…' : selectedMarket ? 'Data loads automatically when you change a selection.' : 'Import data under Settings → Providers → Historical Futures.'}
