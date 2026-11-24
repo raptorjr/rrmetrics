@@ -43,7 +43,9 @@ test('shared time formatter follows the configured 12/24-hour preference and tim
 
 test('automatic date format follows the browser locale', () => {
   preferences.rrmetrics_date_format = 'auto';
-  const actual = formatDateEST('2026-11-09T00:00:00.000Z');
-  assert.ok(actual.length > 0);
-  assert.notEqual(actual, '09.11.2026');
+  const instant = '2026-11-09T00:00:00.000Z';
+  const expected = new Date(instant).toLocaleDateString(undefined, {
+    month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Europe/Oslo',
+  });
+  assert.equal(formatDateEST(instant), expected);
 });
