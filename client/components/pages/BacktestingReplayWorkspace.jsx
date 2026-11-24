@@ -21,7 +21,7 @@ const getCssColor = (name, fallback) => {
 const formatMoney = value => (value < 0 ? '-$' : '$') + Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatPrice = (value, decimals = 2) => Number(value).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 const { formatDateEST, formatTimeEST, getDisplayTimeZone } = require('../../utils/dateUtils');
-const { getAvailableMarkets, aggregateCandles } = require('../../utils/historicalReplay');
+const { getAvailableMarkets, aggregateCandles, timeframeSeconds } = require('../../utils/historicalReplay');
 
 const formatBarTime = value => {
   const date = new Date(value * 1000);
@@ -84,7 +84,7 @@ const ReplayContextChart = ({ candles, replayTime, ticker, timeframe, height = 2
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
-  const visibleCandles = useMemo(() => candles.filter(candle => candle.time <= replayTime), [candles, replayTime]);
+  const visibleCandles = useMemo(() => aggregateCandles(candles.filter(candle => candle.time <= replayTime), timeframe), [candles, replayTime, timeframe]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -263,8 +263,21 @@ const BacktestingReplayWorkspace = () => {
   const spec = getInstrumentSpec(ticker);
   const currentCandle = candles[currentIndex] || candles[0];
   const replayTime = currentCandle?.time ?? 0;
-  const contextChartCandles = useMemo(() => contextTimeframes.map(timeframe => ({ timeframe, candles: aggregateCandles(marketBaseCandles, timeframe) })), [marketBaseCandles, contextTimeframes]);
+  const contextChartCandles = contextTimeframes.map(timeframe => ({ timeframe, candles: marketBaseCandles }));
   const contextOptions = historicalTimeframes.filter(timeframe => timeframe !== historicalTimeframe);
+
+  useEffect(() => {
+    if (!historicalTimeframes.length) {
+      setContextTimeframes([]);
+      return;
+    }
+    const choices = historicalTimeframes.filter(timeframe => timeframe !== historicalTimeframe);
+    setContextTimeframes(previous => {
+      const retained = previous.filter(timeframe => choices.includes(timeframe));
+      const defaults = choices.filter(timeframe => ['5m', '15m'].includes(timeframe));
+      return [...new Set([...retained, ...defaults, ...choices])].slice(0, 2);
+    });
+  }, [historicalTimeframes.join(','), historicalTimeframe]);
   const currentPrice = currentCandle ? currentCandle.close : 0;
   const intervalSeconds = useMemo(() => getIntervalSeconds(candles), [candles]);
   const intervalLabel = historicalTimeframe || formatInterval(intervalSeconds);
@@ -566,6 +579,14 @@ const BacktestingReplayWorkspace = () => {
               {historicalTimeframes.map(value => <option key={value} value={value}>{value}{value === baseTimeframe ? ' · source' : ' · aggregated'}</option>)}
             </select>
           </label>
+          <label className="space-y-1">
+            <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">Chart layout</span>
+            <select value={replayLayout} onChange={event => setReplayLayout(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
+              <option value="single">Single chart</option>
+              <option value="split2" disabled={!contextOptions.length}>2 charts</option>
+              <option value="split3" disabled={contextOptions.length < 2}>3 charts</option>
+            </select>
+          </label>
           <div className="space-y-1">
             <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">Available data</span>
             <div className="bg-bg-input border border-border rounded-lg px-3 py-2 text-xs text-text-secondary">
@@ -600,7 +621,23 @@ const BacktestingReplayWorkspace = () => {
               <div className="text-text-muted text-[11px]">Last revealed close</div>
             </div>
           </div>
-          <div ref={chartContainerRef} className="w-full h-[430px]" />
+          <div className={replayLayout === 'single' ? 'grid grid-cols-1 gap-3' : replayLayout === 'split2' ? 'grid grid-cols-1 xl:grid-cols-2 gap-3' : 'grid grid-cols-1 xl:grid-cols-3 gap-3'}>
+            <div className="min-w-0">
+              <div className="mb-2 text-xs font-semibold text-text-secondary">{ticker} · {historicalTimeframe} <span className="font-normal text-text-muted">· execution</span></div>
+              <div ref={chartContainerRef} className="w-full h-[430px]" />
+            </div>
+            {replayLayout !== 'single' && contextChartCandles.slice(0, replayLayout === 'split2' ? 1 : 2).map(item => (
+              <div key={item.timeframe} className="min-w-0">
+                <div className="mb-2">
+                  <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Context timeframe</label>
+                  <select value={item.timeframe} onChange={event => setContextTimeframes(previous => previous.map(value => value === item.timeframe ? event.target.value : value))} className="w-full bg-bg-input border border-border rounded-lg px-2 py-1.5 text-xs text-text-primary">
+                    {contextOptions.map(value => <option key={value} value={value}>{value}</option>)}
+                  </select>
+                </div>
+                <ReplayContextChart candles={item.candles} replayTime={replayTime} ticker={ticker} timeframe={item.timeframe} height={430} />
+              </div>
+            ))}
+          </div>
           <div className="px-3 py-2 border-t border-border text-[10px] text-text-muted">
             TradingView Lightweight Charts™ · Copyright (c) 2025 TradingView, Inc. · <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer" className="text-accent hover:underline">tradingview.com</a>
           </div>
