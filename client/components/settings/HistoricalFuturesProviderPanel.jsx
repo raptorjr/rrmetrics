@@ -437,6 +437,11 @@ const HistoricalFuturesProviderPanel = () => {
                 )}
               </div>
             )}
+            {isTickData && (
+              <p className="text-[11px] text-text-tertiary">
+                Bid/ask values are source-provided executed-volume classifications, not quote sizes or order-book depth.
+              </p>
+            )}
 
             {selectedFile.import_status !== 'ready' && (
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border">

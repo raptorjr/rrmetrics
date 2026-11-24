@@ -205,3 +205,30 @@ The supplied sample's trade schema is:
 - `exchange`: source exchange.
 
 Tick events remain event-level records. Equal timestamps are allowed and must not be deduplicated; normalized storage also retains the original row order as a stable tie-breaker. The normalized tick dataset is independently owned by its source file and stored separately from OHLCV datasets. The first tick phase does not change Chart Replay's OHLCV execution model or introduce tick-level order simulation.
+
+
+## Phase 2 implementation status — trade ticks
+
+The first trade-tick import and storage path is implemented for Parquet trade-print files:
+
+- `market_data_file_tick_datasets` records source-owned tick datasets separately from OHLCV datasets.
+- The tick normalizer writes event-level Parquet with `timestamp_ns` as an unannotated INT64, retaining nanosecond precision.
+- Original source-row order is retained as a stable tie-breaker. Equal timestamps are valid and are not deduplicated.
+- The provider UI can inspect, confirm, import, list, and delete tick datasets alongside OHLCV datasets.
+- `GET /api/market-data/tick-datasets` lists ready tick datasets.
+- `GET /api/market-data/ticks/query?datasetId=...&startNs=...&endNs=...` reads a bounded range from one explicitly selected source dataset (maximum 250,000 records per request). It does not silently combine overlapping sources.
+
+### Real sample validation
+
+The supplied `es-nq-tick-sample-2026-11-09.zip` was tested locally against the actual Parquet files. The archive itself and licensed source files are not committed to the repository.
+
+| Dataset | Imported records | Total volume | Trade count |
+|---|---:|---:|---:|
+| ESZ6 | 1,481,669 | 1,861,062 | 1,481,669 |
+| NQZ6 | 710,815 | 766,017 | 710,815 |
+
+Both files had zero invalid rows. The imported totals, first/last timestamps, symbols, and exchange matched the supplied manifest. Normalized Parquet outputs were written and range queries returned the original nanosecond timestamps and source-row ordering, including records separated by one microsecond.
+
+The sample's `bid_sz` and `ask_sz` fields are source-provided executed-volume classifications. They are not best-bid/best-ask quote sizes or order-book depth. RR Metrics preserves them as supplied and does not infer aggressor side.
+
+**Not yet implemented:** tick-driven Chart Replay execution, quote/order-book data, queue position, partial fills, or tick-level slippage/fee simulation. The existing OHLCV Chart Replay remains unchanged.
