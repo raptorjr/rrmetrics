@@ -205,4 +205,4 @@ Tick events are never deduplicated by timestamp and are never converted to OHLCV
 
 The supplied ESZ6 and NQZ6 Parquet tick files were run through the actual inspector, normalizer and bounded range-query service. All 1,481,669 ESZ6 events and 710,815 NQZ6 events validated and normalized successfully. The tests confirmed Zstandard input, nanosecond timestamps, preserved source symbols/exchange fields, stable event order and multiple events within the same millisecond.
 
-Tick ingestion and range queries are now available as a data capability. Chart Replay remains on OHLCV candles; tick-level execution/replay semantics are a separate future task and must not be inferred from candle-level execution assumptions.
+Tick ingestion and range queries are now available as a data capability. The first tick adapter accepts Parquet files; CSV tick import remains future work. Chart Replay remains on OHLCV candles; tick-level execution/replay semantics are a separate future task and must not be inferred from candle-level execution assumptions.
