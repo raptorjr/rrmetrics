@@ -6,6 +6,7 @@ const {
   createBreakpointLayout,
   normalizeDashboardLayouts,
   getResponsivePositions,
+  getResizedTileGeometry,
 } = require('./dashboardLayout');
 
 const items = [
@@ -78,4 +79,23 @@ test('saved breakpoint positions remain independent', () => {
   );
   assert.deepEqual(dashboard.layouts[2].positions.a, { col: 5, row: 7 });
   assert.deepEqual(dashboard.layouts[8].positions, base.positions);
+});
+
+test('resizing at narrower breakpoints changes width in whole visible columns', () => {
+  const geometry = getResizedTileGeometry({
+    position: { col: 1, row: 1 },
+    size: { w: 4, h: 2 },
+    corner: 'se',
+    deltaX: 180,
+    deltaY: 0,
+    gridWidth: 400,
+    columns: 2,
+    gap: 16,
+    rowUnit: 128,
+    minW: 4,
+    minH: 1,
+    maxW: 8,
+  });
+  assert.equal(geometry.size.w % 4, 0);
+  assert.equal(geometry.size.w, 8);
 });
