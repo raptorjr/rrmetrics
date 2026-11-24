@@ -4,7 +4,7 @@ const TIMEFRAME_SECONDS = {
   '1h': 3600, '2h': 7200, '4h': 14400,
 };
 
-const AGGREGATABLE_TIMEFRAMES = ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h', '2h', '4h'];
+const AGGREGATABLE_TIMEFRAMES = ['30s', '1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h', '2h', '4h'];
 
 function timeframeSeconds(value) {
   return TIMEFRAME_SECONDS[String(value || '').toLowerCase()] || 0;
@@ -37,7 +37,11 @@ function getAvailableMarkets(datasets) {
   });
   return [...grouped.values()].map(market => {
     market.datasets.sort((a, b) => compareTimeframes(a.timeframe, b.timeframe));
-    market.coverage = market.coverage
+    const base = market.datasets[0]?.timeframe;
+    // Coverage must match the base-resolution source actually queried by replay.
+    market.coverage = market.datasets
+      .filter(dataset => dataset.timeframe === base)
+      .map(dataset => ({ start: new Date(dataset.start_time).getTime(), end: new Date(dataset.end_time).getTime() }))
       .filter(range => Number.isFinite(range.start) && Number.isFinite(range.end))
       .sort((a, b) => a.start - b.start)
       .reduce((ranges, range) => {
@@ -46,7 +50,6 @@ function getAvailableMarkets(datasets) {
         else ranges.push({ ...range });
         return ranges;
       }, []);
-    const base = market.datasets[0]?.timeframe;
     const baseSeconds = timeframeSeconds(base);
     const available = new Set(market.timeframes);
     if (baseSeconds >= 60) {
