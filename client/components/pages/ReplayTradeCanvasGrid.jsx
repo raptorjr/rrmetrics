@@ -26,6 +26,8 @@ const ReplayTradeCanvasGrid = ({
   const hostRef = useRef(null);
   const gridRef = useRef(null);
   const barsRef = useRef([]);
+  const dataIdentityRef = useRef('');
+  const [gridRevision, setGridRevision] = useState(0);
   const lastExternalTimeframeRef = useRef(timeframe);
   const [activeChart, setActiveChart] = useState(0);
 
@@ -64,6 +66,7 @@ const ReplayTradeCanvasGrid = ({
       },
       onChartAdd: widget => {
         if (barsRef.current.length) widget.setData(barsRef.current);
+        setGridRevision(value => value + 1);
       },
     });
     gridRef.current = grid;
@@ -86,10 +89,12 @@ const ReplayTradeCanvasGrid = ({
     const grid = gridRef.current;
     if (!grid) return;
     const previous = barsRef.current;
-    const isAppend = previous.length > 0
+    const identity = ticker + '|' + baseTimeframe + '|' + (visibleBars[0]?.time || 'empty');
+    const identityChanged = dataIdentityRef.current !== identity;
+    const isAppend = !identityChanged && previous.length > 0
       && visibleBars.length >= previous.length
       && previous.every((bar, index) => visibleBars[index]?.time === bar.time);
-    if (!previous.length || !isAppend) {
+    if (!previous.length || identityChanged || !isAppend) {
       grid.getWidgets().forEach(widget => widget.setData(visibleBars));
     } else if (visibleBars.length > previous.length) {
       const additions = visibleBars.slice(previous.length);
@@ -98,7 +103,8 @@ const ReplayTradeCanvasGrid = ({
       });
     }
     barsRef.current = visibleBars;
-  }, [visibleBars]);
+    dataIdentityRef.current = identity;
+  }, [visibleBars, ticker, baseTimeframe]);
 
   useEffect(() => {
     const grid = gridRef.current;
@@ -142,7 +148,7 @@ const ReplayTradeCanvasGrid = ({
       }
       widget.__rrReplayDrawingIds = ids;
     });
-  }, [position, pendingOrder, visibleBars]);
+  }, [position, pendingOrder, visibleBars, gridRevision]);
 
   return (
     <div className="w-full h-[430px] min-w-0" ref={hostRef} data-active-chart={activeChart} />
