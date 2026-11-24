@@ -6,6 +6,7 @@ const {
   createDemoCandles,
   getInstrumentSpec,
   normalizeOhlcvRows,
+  evaluateEntryOrder,
   evaluateCandleExit,
   calculateTradePnl,
   calculateTradeStats,
@@ -43,7 +44,13 @@ const BacktestingReplayWorkspace = () => {
   const [currentIndex, setCurrentIndex] = useState(80);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const [quantity, setQuantity] = useState('1');
+  const [quantity, setQuantity] = useState(1);
+  const [quantityPresets, setQuantityPresets] = useState([1, 2, 3, 5, 10]);
+  const [editingPresets, setEditingPresets] = useState(false);
+  const [presetDraft, setPresetDraft] = useState(['1', '2', '3', '5', '10']);
+  const [orderType, setOrderType] = useState('market');
+  const [orderPrice, setOrderPrice] = useState('');
+  const [pendingOrder, setPendingOrder] = useState(null);
   const [stopInput, setStopInput] = useState('');
   const [targetInput, setTargetInput] = useState('');
   const [position, setPosition] = useState(null);
@@ -59,6 +66,7 @@ const BacktestingReplayWorkspace = () => {
   const currentIndexRef = useRef(80);
   const candlesRef = useRef(candles);
   const positionRef = useRef(null);
+  const pendingOrderRef = useRef(null);
   const advanceOneRef = useRef(null);
 
   const spec = getInstrumentSpec(ticker);
@@ -74,6 +82,7 @@ const BacktestingReplayWorkspace = () => {
   useEffect(() => { candlesRef.current = candles; }, [candles]);
   useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
   useEffect(() => { positionRef.current = position; }, [position]);
+  useEffect(() => { pendingOrderRef.current = pendingOrder; }, [pendingOrder]);
 
   useEffect(() => {
     const container = chartContainerRef.current;
@@ -161,12 +170,12 @@ const BacktestingReplayWorkspace = () => {
     if (!seriesRef.current) return;
     priceLinesRef.current.forEach(line => seriesRef.current.removePriceLine(line));
     priceLinesRef.current = [];
-    if (!position) return;
-    const lines = [
-      { price: position.entryPrice, color: '#60a5fa', title: position.direction === 'long' ? 'LONG ENTRY' : 'SHORT ENTRY' },
-    ];
-    if (position.stopPrice != null) lines.push({ price: position.stopPrice, color: '#ef4444', title: 'STOP' });
-    if (position.targetPrice != null) lines.push({ price: position.targetPrice, color: '#22c55e', title: 'TARGET' });
+    if (!position && !pendingOrder) return;
+    const lines = [];
+    if (pendingOrder) lines.push({ price: pendingOrder.triggerPrice, color: '#f59e0b', title: pendingOrder.type === 'limit' ? 'LIMIT ENTRY' : 'STOP ENTRY' });
+    if (position) lines.push({ price: position.entryPrice, color: '#60a5fa', title: position.direction === 'long' ? 'LONG ENTRY' : 'SHORT ENTRY' });
+    if (position && position.stopPrice != null) lines.push({ price: position.stopPrice, color: '#ef4444', title: 'STOP' });
+    if (position && position.targetPrice != null) lines.push({ price: position.targetPrice, color: '#22c55e', title: 'TARGET' });
     lines.forEach(item => {
       priceLinesRef.current.push(seriesRef.current.createPriceLine({
         price: item.price,
@@ -177,7 +186,7 @@ const BacktestingReplayWorkspace = () => {
         title: item.title,
       }));
     });
-  }, [position]);
+  }, [position, pendingOrder]);
 
   useEffect(() => {
     if (!seriesRef.current) return;
@@ -222,8 +231,19 @@ const BacktestingReplayWorkspace = () => {
     }
     currentIndexRef.current = nextIndex;
     setCurrentIndex(nextIndex);
-    const activePosition = positionRef.current;
-    if (activePosition) {
+    const activeOrder = pendingOrderRef.current;
+    if (activeOrder && !positionRef.current) {
+      const fill = evaluateEntryOrder(activeOrder, data[nextIndex]);
+      if (fill) {
+        const filledPosition = { ...activeOrder, entryPrice: fill.price, entryTime: data[nextIndex].time };
+        pendingOrderRef.current = null;
+        setPendingOrder(null);
+        positionRef.current = filledPosition;
+        setPosition(filledPosition);
+        setMessage(activeOrder.direction.toUpperCase() + ' ' + activeOrder.type.replace('_', ' ') + ' filled at ' + formatPrice(fill.price, spec.decimals) + '.');
+      }
+    } else if (positionRef.current) {
+      const activePosition = positionRef.current;
       const exit = evaluateCandleExit(activePosition, data[nextIndex]);
       if (exit) closePosition(activePosition, exit.price, data[nextIndex].time, exit.reason);
     }
@@ -252,6 +272,8 @@ const BacktestingReplayWorkspace = () => {
     setIsPlaying(false);
     setPosition(null);
     positionRef.current = null;
+    setPendingOrder(null);
+    pendingOrderRef.current = null;
     setClosedTrades([]);
     setStopInput('');
     setTargetInput('');
@@ -302,35 +324,26 @@ const BacktestingReplayWorkspace = () => {
   };
 
   const openPosition = (direction) => {
-    if (positionRef.current || !currentCandle) return;
+    if (positionRef.current || pendingOrderRef.current || !currentCandle) return;
     const parsedQuantity = Number(quantity);
-    if (!Number.isInteger(parsedQuantity) || parsedQuantity < 1 || parsedQuantity > 100) {
-      setError('Quantity must be a whole number between 1 and 100.');
-      return;
-    }
+    if (!Number.isInteger(parsedQuantity) || parsedQuantity < 1 || parsedQuantity > 100) { setError('Quantity must be a whole number between 1 and 100.'); return; }
+    const triggerPrice = orderType === 'market' ? currentPrice : Number(orderPrice);
+    if (orderType !== 'market' && (!Number.isFinite(triggerPrice) || triggerPrice <= 0)) { setError('Enter a valid order price.'); return; }
     const stopPrice = stopInput.trim() === '' ? null : Number(stopInput);
     const targetPrice = targetInput.trim() === '' ? null : Number(targetInput);
-    if ((stopPrice != null && !Number.isFinite(stopPrice)) || (targetPrice != null && !Number.isFinite(targetPrice))) {
-      setError('Stop-loss and take-profit must be valid prices.');
-      return;
+    if ((stopPrice != null && !Number.isFinite(stopPrice)) || (targetPrice != null && !Number.isFinite(targetPrice))) { setError('Stop-loss and take-profit must be valid prices.'); return; }
+    const validationError = validateLevels(direction, triggerPrice, stopPrice, targetPrice);
+    if (validationError) { setError(validationError); return; }
+    const order = { direction, quantity: parsedQuantity, type: orderType, triggerPrice, stopPrice, targetPrice };
+    if (orderType === 'market') {
+      const nextPosition = { ...order, entryPrice: currentPrice, entryTime: currentCandle.time };
+      positionRef.current = nextPosition; setPosition(nextPosition);
+      setMessage((direction === 'long' ? 'Buy' : 'Sell') + ' market order simulated at ' + formatPrice(currentPrice, spec.decimals) + '.');
+    } else {
+      pendingOrderRef.current = order; setPendingOrder(order);
+      setMessage((direction === 'long' ? 'Buy' : 'Sell') + ' ' + orderType.replace('_', ' ') + ' order placed at ' + formatPrice(triggerPrice, spec.decimals) + '.');
     }
-    const validationError = validateLevels(direction, currentPrice, stopPrice, targetPrice);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-    const nextPosition = {
-      direction,
-      quantity: parsedQuantity,
-      entryPrice: currentPrice,
-      entryTime: currentCandle.time,
-      stopPrice,
-      targetPrice,
-    };
-    positionRef.current = nextPosition;
-    setPosition(nextPosition);
     setError('');
-    setMessage((direction === 'long' ? 'Buy' : 'Sell') + ' simulated at ' + formatPrice(currentPrice, spec.decimals) + '.');
   };
 
   const updatePositionLevels = () => {
@@ -363,8 +376,17 @@ const BacktestingReplayWorkspace = () => {
     setClosedTrades([]);
     setStopInput('');
     setTargetInput('');
+    setPendingOrder(null);
+    pendingOrderRef.current = null;
     setError('');
     setMessage('Replay reset.');
+  };
+
+  const adjustQuantity = delta => setQuantity(value => Math.max(1, Math.min(100, Number(value) + delta)));
+  const savePresets = () => {
+    const values = presetDraft.map(Number);
+    if (values.some(value => !Number.isInteger(value) || value < 1 || value > 100)) { setError('Each preset must be a whole number from 1 to 100.'); return; }
+    setQuantityPresets(values); setQuantity(values[0]); setEditingPresets(false); setError('');
   };
 
   const statsProfitFactor = stats.profitFactor == null
@@ -429,8 +451,7 @@ const BacktestingReplayWorkspace = () => {
             TradingView Lightweight Charts™ · Copyright (c) 2025 TradingView, Inc. · <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer" className="text-accent hover:underline">tradingview.com</a>
           </div>
           <div className="px-4 py-3 border-t border-border flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => setIsPlaying(false)} className="px-3 py-2 rounded-lg border border-border text-sm text-text-secondary hover:text-text-primary">Pause</button>
-            <button type="button" onClick={() => setIsPlaying(true)} disabled={currentIndex >= candles.length - 1} className="px-3 py-2 rounded-lg bg-accent text-accent-text text-sm font-semibold disabled:opacity-40">Play</button>
+            <button type="button" onClick={() => setIsPlaying(value => !value)} disabled={!isPlaying && currentIndex >= candles.length - 1} aria-label={isPlaying ? 'Pause replay' : 'Play replay'} className="w-10 h-10 inline-flex items-center justify-center rounded-lg bg-accent text-accent-text text-sm font-semibold disabled:opacity-40">{isPlaying ? 'Ⅱ' : '▶'}</button>
             <button type="button" onClick={advanceOne} disabled={currentIndex >= candles.length - 1} className="px-3 py-2 rounded-lg border border-border text-sm text-text-secondary hover:text-text-primary">Step +1</button>
             <button type="button" onClick={resetReplay} className="px-3 py-2 rounded-lg border border-border text-sm text-text-secondary hover:text-text-primary">Reset</button>
             <div className="ml-auto flex items-center gap-2 text-xs text-text-muted">
@@ -469,37 +490,19 @@ const BacktestingReplayWorkspace = () => {
 
         <div className="space-y-4">
           <div className="bg-bg-surface border border-border rounded-xl p-4 space-y-3">
-            <h3 className="text-text-primary font-semibold text-sm">Simulated order</h3>
-            <div>
-              <label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Quantity (contracts)</label>
-              <input type="number" min="1" max="100" step="1" value={quantity} disabled={!!position} onChange={event => setQuantity(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary disabled:opacity-50" />
+            <h3 className="text-text-primary font-semibold text-sm">Order entry</h3>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => adjustQuantity(-1)} disabled={!!position || !!pendingOrder || quantity <= 1} className="w-9 h-9 rounded-full border border-border text-text-primary disabled:opacity-40" aria-label="Decrease contracts">−</button>
+              <div className="flex flex-1 justify-center gap-1.5">{quantityPresets.map((preset, index) => <button key={index} type="button" onClick={() => setQuantity(preset)} disabled={!!position || !!pendingOrder} className={"min-w-8 h-9 px-2 rounded-full text-xs font-semibold " + (quantity === preset ? 'bg-accent text-accent-text' : 'bg-bg-input text-text-secondary hover:text-text-primary')}>{preset}</button>)}</div>
+              <button type="button" onClick={() => adjustQuantity(1)} disabled={!!position || !!pendingOrder || quantity >= 100} className="w-9 h-9 rounded-full border border-border text-text-primary disabled:opacity-40" aria-label="Increase contracts">+</button>
+              <button type="button" onClick={() => { setPresetDraft(quantityPresets.map(String)); setEditingPresets(value => !value); }} className="w-9 h-9 rounded-lg text-text-muted hover:text-text-primary" title="Edit contract presets" aria-label="Edit contract presets">✎</button>
             </div>
-            <div>
-              <label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Stop-loss price (optional)</label>
-              <input type="number" step={spec.tickSize} value={stopInput} onChange={event => setStopInput(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary" placeholder="Price" />
-            </div>
-            <div>
-              <label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Take-profit price (optional)</label>
-              <input type="number" step={spec.tickSize} value={targetInput} onChange={event => setTargetInput(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary" placeholder="e.g. " />
-            </div>
-            {!position ? (
-              <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => openPosition('long')} className="py-2.5 rounded-lg bg-positive text-white text-sm font-semibold">Buy / Long</button>
-                <button type="button" onClick={() => openPosition('short')} className="py-2.5 rounded-lg bg-negative text-white text-sm font-semibold">Sell / Short</button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="rounded-lg bg-bg-input p-3 text-xs space-y-1">
-                  <div className="flex justify-between"><span className="text-text-muted">Open position</span><strong className={position.direction === 'long' ? 'text-positive' : 'text-negative'}>{position.direction.toUpperCase()} × {position.quantity}</strong></div>
-                  <div className="flex justify-between"><span className="text-text-muted">Entry</span><span className="font-mono">{formatPrice(position.entryPrice, spec.decimals)}</span></div>
-                  <div className="flex justify-between"><span className="text-text-muted">Unrealized P/L</span><strong className={unrealizedPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(unrealizedPnl)}</strong></div>
-                </div>
-                <button type="button" onClick={updatePositionLevels} className="w-full py-2 rounded-lg border border-border text-sm text-text-secondary hover:text-text-primary">Update SL / TP levels</button>
-                <button type="button" onClick={() => closePosition(position, currentPrice, currentCandle.time, 'Manual close')} className="w-full py-2.5 rounded-lg bg-accent text-accent-text text-sm font-semibold">Close position</button>
-              </div>
-            )}
-            {error && <p className="text-xs text-negative">{error}</p>}
-            {message && <p className="text-xs text-text-muted">{message}</p>}
+            {editingPresets && <div className="rounded-lg border border-border bg-bg-input p-3 space-y-2"><div className="text-xs font-semibold text-text-secondary">Contract presets</div><div className="grid grid-cols-5 gap-2">{presetDraft.map((value, index) => <input key={index} type="number" min="1" max="100" step="1" value={value} onChange={event => setPresetDraft(previous => previous.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} className="min-w-0 w-full rounded border border-border bg-bg-surface px-1 py-2 text-center text-sm text-text-primary" aria-label={"Preset " + (index + 1)} />)}</div><div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingPresets(false)} className="px-3 py-1.5 text-xs text-text-muted">Cancel</button><button type="button" onClick={savePresets} className="px-3 py-1.5 rounded bg-accent text-accent-text text-xs font-semibold">Save</button></div></div>}
+            <div className="grid grid-cols-2 gap-2"><div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Order type</label><select value={orderType} disabled={!!position || !!pendingOrder} onChange={event => setOrderType(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-2 py-2 text-sm text-text-primary"><option value="market">Market</option><option value="limit">Limit</option><option value="stop_market">Stop Market</option></select></div>{orderType !== 'market' && <div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Entry price</label><input type="number" step={spec.tickSize} value={orderPrice} onChange={event => setOrderPrice(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-2 py-2 text-sm text-text-primary" placeholder="Price" /></div>}</div>
+            <div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Stop-loss price (optional)</label><input type="number" step={spec.tickSize} value={stopInput} disabled={!!position || !!pendingOrder} onChange={event => setStopInput(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary disabled:opacity-50" placeholder="Price" /></div>
+            <div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Take-profit price (optional)</label><input type="number" step={spec.tickSize} value={targetInput} disabled={!!position || !!pendingOrder} onChange={event => setTargetInput(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary disabled:opacity-50" placeholder="Price" /></div>
+            {!position && !pendingOrder ? <div className="grid grid-cols-2 gap-2"><button type="button" onClick={() => openPosition('long')} className="py-2.5 rounded-lg bg-positive text-white text-sm font-semibold">BUY {quantity} @ {orderType === 'stop_market' ? 'STOP' : orderType.toUpperCase()}</button><button type="button" onClick={() => openPosition('short')} className="py-2.5 rounded-lg bg-negative text-white text-sm font-semibold">SELL {quantity} @ {orderType === 'stop_market' ? 'STOP' : orderType.toUpperCase()}</button></div> : pendingOrder ? <div className="rounded-lg bg-bg-input p-3 text-xs space-y-2"><div className="flex justify-between"><span className="text-text-muted">Pending {pendingOrder.type.replace('_', ' ')}</span><strong>{pendingOrder.direction.toUpperCase()} × {pendingOrder.quantity}</strong></div><div className="flex justify-between"><span className="text-text-muted">Order price</span><span className="font-mono">{formatPrice(pendingOrder.triggerPrice, spec.decimals)}</span></div><button type="button" onClick={() => { setPendingOrder(null); pendingOrderRef.current = null; setMessage('Pending order cancelled.'); }} className="w-full py-2 rounded-lg border border-border text-sm text-text-secondary">Cancel pending order</button></div> : <div className="space-y-2"><div className="rounded-lg bg-bg-input p-3 text-xs space-y-1"><div className="flex justify-between"><span className="text-text-muted">Open position</span><strong className={position.direction === 'long' ? 'text-positive' : 'text-negative'}>{position.direction.toUpperCase()} × {position.quantity}</strong></div><div className="flex justify-between"><span className="text-text-muted">Entry</span><span className="font-mono">{formatPrice(position.entryPrice, spec.decimals)}</span></div><div className="flex justify-between"><span className="text-text-muted">Unrealized P/L</span><strong className={unrealizedPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(unrealizedPnl)}</strong></div></div><button type="button" onClick={updatePositionLevels} className="w-full py-2 rounded-lg border border-border text-sm text-text-secondary hover:text-text-primary">Update SL / TP levels</button><button type="button" onClick={() => closePosition(position, currentPrice, currentCandle.time, 'Manual close')} className="w-full py-2.5 rounded-lg bg-accent text-accent-text text-sm font-semibold">Close position</button></div>}
+            {error && <p className="text-xs text-negative">{error}</p>}{message && <p className="text-xs text-text-muted">{message}</p>}
           </div>
 
           <div className="bg-bg-surface border border-border rounded-xl p-4 space-y-3">
