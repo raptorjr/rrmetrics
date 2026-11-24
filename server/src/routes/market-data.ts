@@ -8,6 +8,7 @@ import { requiresLogin } from '../middleware/auth';
 import { generateId } from '../utils/id';
 import { inspectOhlcvCsv, parseOhlcvCsv } from '../services/market-data-import';
 import { inspectOhlcvParquet, normalizeOhlcvParquet, writeOhlcvBarsToParquet } from '../services/market-data-parquet';
+import { inspectTradeTicksParquet, normalizeTradeTicksParquet } from '../services/market-data-ticks';
 import { readOhlcvParquetRange } from '../services/market-data-query';
 
 type HonoEnv = {
@@ -18,6 +19,21 @@ type HonoEnv = {
 const marketData = new Hono<HonoEnv>();
 const MAX_MARKET_DATA_UPLOAD_BYTES = 100 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = new Set(['csv', 'parquet']);
+
+
+async function inspectParquetMarketData(buffer: Buffer, filename: string) {
+  try {
+    return await inspectOhlcvParquet(buffer, filename);
+  } catch (ohlcvError) {
+    try {
+      return await inspectTradeTicksParquet(buffer, filename);
+    } catch (tickError) {
+      const ohlcvMessage = ohlcvError instanceof Error ? ohlcvError.message : 'OHLCV inspection failed.';
+      const tickMessage = tickError instanceof Error ? tickError.message : 'Trade-tick inspection failed.';
+      throw new Error('Unsupported Parquet file. Expected OHLCV bars or trade ticks. ' + ohlcvMessage + ' ' + tickMessage);
+    }
+  }
+}
 
 function getOrCreateHistoricalProvider(db: AuthContext['db'], userId: string) {
   const existing = db.prepare(
@@ -95,7 +111,7 @@ marketData.post('/api/market-data/files/inspect', requiresLogin, async (c) => {
   try {
     inspection = extension === 'csv'
       ? inspectOhlcvCsv(buffer, file.name)
-      : await inspectOhlcvParquet(buffer, file.name);
+      : await inspectParquetMarketData(buffer, file.name);
   } catch (error) {
     return c.json({
       error: error instanceof Error ? error.message : 'Unable to inspect market-data file.',
@@ -117,7 +133,8 @@ marketData.post('/api/market-data/files/inspect', requiresLogin, async (c) => {
     endTime: string;
     rowCount: number;
   }>();
-  if (inspection.detectedTimeframe && inspection.startTime && inspection.endTime
+  if ((!('dataKind' in inspection) || inspection.dataKind !== 'trades')
+    && inspection.detectedTimeframe && inspection.startTime && inspection.endTime
     && (inspection.detectedInstrument || inspection.detectedSymbols?.length)) {
     const sourceSymbols: Array<string | null> = inspection.detectedSymbols?.length
       ? inspection.detectedSymbols : [null];
@@ -243,6 +260,26 @@ marketData.get('/api/market-data/datasets', requiresLogin, async (c) => {
 });
 
 // GET /api/market-data/query — provider-independent, source-aware OHLCV range query.
+
+marketData.get('/api/market-data/tick-datasets', requiresLogin, async (c) => {
+  const user = c.get('user');
+  const instrument = c.req.query('instrument')?.trim().toUpperCase() || null;
+  const sourceSymbol = c.req.query('sourceSymbol')?.trim().toUpperCase() || null;
+  const datasets = c.get('db').prepare(
+    `SELECT d.id, d.file_id, d.instrument, d.source_symbol, d.exchange, d.timestamp_unit,
+            d.timezone, d.row_count, d.total_volume, d.total_trade_count,
+            d.start_time, d.end_time, d.start_time_ns, d.end_time_ns, d.created_at,
+            f.original_filename, f.provider_id, f.imported_at
+     FROM market_data_file_tick_datasets d
+     JOIN market_data_files f ON f.id = d.file_id AND f.user_id = d.user_id
+     WHERE d.user_id = ? AND f.import_status = 'ready'
+       AND (? IS NULL OR d.instrument = ?)
+       AND (? IS NULL OR d.source_symbol = ?)
+     ORDER BY d.instrument, d.source_symbol, d.start_time`,
+  ).all(user.id, instrument, instrument, sourceSymbol, sourceSymbol);
+  return c.json({ datasets });
+});
+
 marketData.get('/api/market-data/query', requiresLogin, async (c) => {
   const user = c.get('user');
   const db = c.get('db');
@@ -424,9 +461,13 @@ marketData.post('/api/market-data/files/:fileId/import', requiresLogin, async (c
   try {
     inspection = file.input_format === 'csv'
       ? inspectOhlcvCsv(buffer, file.original_filename)
-      : await inspectOhlcvParquet(buffer, file.original_filename);
+      : await inspectParquetMarketData(buffer, file.original_filename);
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : 'Unable to re-inspect source file.' }, 422);
+  }
+
+  if ('dataKind' in inspection && inspection.dataKind === 'trades') {
+    return c.json({ error: 'This file contains trade-tick data. Use the tick import action instead.' }, 409);
   }
 
   const detectedSymbols = inspection.detectedSymbols ?? [];
@@ -628,6 +669,262 @@ marketData.post('/api/market-data/files/:fileId/import', requiresLogin, async (c
   }, 201);
 });
 
+
+ // POST /api/market-data/files/:fileId/import-ticks — persist one source-owned trade-tick dataset.
+marketData.post('/api/market-data/files/:fileId/import-ticks', requiresLogin, async (c) => {
+  const user = c.get('user');
+  const db = c.get('db');
+  const fileId = c.req.param('fileId');
+  const file = db.prepare(
+    `SELECT id, original_filename, input_format, import_status, content_sha256,
+            original_storage_key, confirmed_metadata_json
+     FROM market_data_files WHERE id = ? AND user_id = ?`,
+  ).get(fileId, user.id) as {
+    id: string;
+    original_filename: string;
+    input_format: 'csv' | 'parquet';
+    import_status: string;
+    content_sha256: string;
+    original_storage_key: string;
+    confirmed_metadata_json: string;
+  } | undefined;
+  if (!file) return c.notFound();
+  if (file.input_format !== 'parquet') {
+    return c.json({ error: 'Trade-tick imports currently require Parquet files.' }, 400);
+  }
+  if (!['needs_review', 'failed'].includes(file.import_status)) {
+    return c.json({ error: 'This file is not awaiting tick import confirmation.' }, 409);
+  }
+  if (!file.original_storage_key.startsWith('staging/')
+    || path.basename(file.original_storage_key) !== file.original_storage_key.slice('staging/'.length)) {
+    return c.json({ error: 'Stored file path failed validation.' }, 500);
+  }
+
+  let confirmation: {
+    instrument?: unknown;
+    timezone?: unknown;
+    sourceSymbol?: unknown;
+    skipInvalidRows?: unknown;
+  };
+  try {
+    confirmation = await c.req.json();
+  } catch {
+    return c.json({ error: 'A JSON confirmation body is required.' }, 400);
+  }
+
+  const stagedPath = path.join(MARKET_DATA_STAGING_DIR, path.basename(file.original_storage_key));
+  let buffer: Buffer;
+  try {
+    buffer = await fs.promises.readFile(stagedPath);
+  } catch {
+    return c.json({ error: 'The staged source file could not be found. Please upload it again.' }, 410);
+  }
+  const actualHash = crypto.createHash('sha256').update(buffer).digest('hex');
+  if (actualHash !== file.content_sha256) {
+    return c.json({ error: 'The staged source file no longer matches its original fingerprint.' }, 409);
+  }
+
+  let inspection;
+  try {
+    inspection = await inspectTradeTicksParquet(buffer, file.original_filename);
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : 'Unable to inspect trade-tick file.' }, 422);
+  }
+
+  const detectedSymbols = inspection.detectedSymbols ?? [];
+  const sourceSymbol = typeof confirmation.sourceSymbol === 'string'
+    ? confirmation.sourceSymbol.trim().toUpperCase()
+    : detectedSymbols.length === 1 ? detectedSymbols[0] : null;
+  if (detectedSymbols.length > 1 && !sourceSymbol) {
+    return c.json({
+      error: 'This file contains multiple contract symbols. Select one source symbol for this dataset and repeat for each remaining symbol.',
+      code: 'SOURCE_SYMBOL_REQUIRED',
+      detectedSymbols,
+    }, 400);
+  }
+  if (sourceSymbol && !detectedSymbols.includes(sourceSymbol)) {
+    return c.json({ error: 'The selected source symbol was not detected in this tick file.' }, 400);
+  }
+
+  const instrument = typeof confirmation.instrument === 'string' && confirmation.instrument.trim()
+    ? confirmation.instrument.trim().toUpperCase()
+    : inspection.detectedInstrument;
+  if (!instrument) return c.json({ error: 'Confirm the canonical instrument before importing ticks.' }, 400);
+
+  const timezone = typeof confirmation.timezone === 'string' && confirmation.timezone.trim()
+    ? confirmation.timezone.trim()
+    : inspection.timezone === 'UTC' ? 'UTC'
+      : inspection.timezoneNeedsConfirmation ? null : inspection.timezone ?? 'UTC';
+  if (inspection.timezoneNeedsConfirmation && !timezone) {
+    return c.json({ error: 'Confirm the source timezone before importing ticks.', code: 'TIMEZONE_REQUIRED' }, 400);
+  }
+  if (timezone && timezone !== 'UTC') {
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: timezone });
+    } catch {
+      return c.json({ error: 'The supplied timezone is not a valid IANA timezone.' }, 400);
+    }
+  }
+
+  const skipInvalidRows = confirmation.skipInvalidRows === true;
+  if (inspection.invalidRowCount > 0 && !skipInvalidRows) {
+    return c.json({
+      error: 'The tick file contains invalid or unassigned rows. Explicitly confirm whether valid rows should be imported while invalid rows are skipped.',
+      code: 'INVALID_ROWS_REQUIRE_CONFIRMATION',
+      invalidRowCount: inspection.invalidRowCount,
+      errors: inspection.errors,
+    }, 422);
+  }
+
+  const existingDataset = db.prepare(
+    `SELECT id FROM market_data_file_tick_datasets
+     WHERE file_id = ? AND user_id = ? AND source_symbol IS ?`,
+  ).get(fileId, user.id, sourceSymbol);
+  if (existingDataset) {
+    return c.json({ error: 'A tick dataset for this source symbol has already been imported from this file.' }, 409);
+  }
+
+  const claim = db.prepare(
+    `UPDATE market_data_files SET import_status = 'inspecting'
+     WHERE id = ? AND user_id = ? AND import_status = ?`,
+  ).run(fileId, user.id, file.import_status);
+  if (claim.changes !== 1) {
+    return c.json({ error: 'This source file is already being processed. Try again when the current operation finishes.' }, 409);
+  }
+
+  const datasetId = generateId();
+  const temporaryPath = path.join(MARKET_DATA_NORMALIZED_DIR, `${datasetId}.tmp.parquet`);
+  const normalizedPath = path.join(MARKET_DATA_NORMALIZED_DIR, `${datasetId}.parquet`);
+  const normalizedStorageKey = `normalized/${datasetId}.parquet`;
+  let normalizedResult;
+  try {
+    normalizedResult = await normalizeTradeTicksParquet(buffer, temporaryPath, {
+      sourceSymbol,
+      timezone,
+      skipInvalidRows,
+    });
+    await fs.promises.rename(temporaryPath, normalizedPath);
+  } catch (error) {
+    await fs.promises.rm(temporaryPath, { force: true }).catch(() => undefined);
+    const message = error instanceof Error ? error.message : 'Failed to normalize the trade-tick dataset.';
+    db.prepare(
+      `UPDATE market_data_files SET import_status = ?, last_error = ?
+       WHERE id = ? AND user_id = ? AND import_status = 'inspecting'`,
+    ).run(file.import_status, message, fileId, user.id);
+    return c.json({ error: message, code: 'TICK_NORMALIZATION_FAILED' }, 422);
+  }
+
+  const previousDatasets = db.prepare(
+    'SELECT source_symbol FROM market_data_file_tick_datasets WHERE file_id = ? AND user_id = ?',
+  ).all(fileId, user.id) as Array<{ source_symbol: string | null }>;
+  const importedSymbols = new Set(previousDatasets.map(row => row.source_symbol).filter((value): value is string => Boolean(value)));
+  if (sourceSymbol) importedSymbols.add(sourceSymbol);
+  const remainingSymbols = detectedSymbols.filter(symbol => !importedSymbols.has(symbol));
+  const complete = detectedSymbols.length === 0 || remainingSymbols.length === 0;
+
+  const confirmed = JSON.parse(file.confirmed_metadata_json || '{}') as Record<string, unknown>;
+  const confirmedDatasets = (confirmed.datasets && typeof confirmed.datasets === 'object')
+    ? confirmed.datasets as Record<string, unknown>
+    : {};
+  confirmed.datasets = {
+    ...confirmedDatasets,
+    [sourceSymbol ?? '__default__']: {
+      dataKind: 'trades',
+      instrument,
+      timezone: timezone ?? 'UTC',
+      skipInvalidRows,
+      rowCount: normalizedResult.rowCount,
+      totalVolume: normalizedResult.totalVolume,
+      totalTradeCount: normalizedResult.totalTradeCount,
+      startTime: normalizedResult.startTime,
+      endTime: normalizedResult.endTime,
+      startTimeNs: normalizedResult.startTimeNs,
+      endTimeNs: normalizedResult.endTimeNs,
+    },
+  };
+
+  const originalPath = path.join(MARKET_DATA_ORIGINALS_DIR, `${fileId}.parquet`);
+  const originalStorageKey = `originals/${fileId}.parquet`;
+  let originalMoved = false;
+  try {
+    if (complete) {
+      await fs.promises.rename(stagedPath, originalPath);
+      originalMoved = true;
+    }
+    const saveImport = db.transaction(() => {
+      db.prepare(
+        `INSERT INTO market_data_file_tick_datasets (
+          id, user_id, file_id, instrument, source_symbol, exchange, timestamp_unit,
+          timezone, row_count, total_volume, total_trade_count, start_time, end_time,
+          start_time_ns, end_time_ns, schema_version, normalized_storage_key
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+      ).run(
+        datasetId,
+        user.id,
+        fileId,
+        instrument,
+        sourceSymbol,
+        normalizedResult.exchange,
+        inspection.timestampUnit,
+        timezone ?? 'UTC',
+        normalizedResult.rowCount,
+        normalizedResult.totalVolume,
+        normalizedResult.totalTradeCount,
+        normalizedResult.startTime,
+        normalizedResult.endTime,
+        normalizedResult.startTimeNs,
+        normalizedResult.endTimeNs,
+        normalizedStorageKey,
+      );
+      db.prepare(
+        `UPDATE market_data_files
+         SET import_status = ?, confirmed_metadata_json = ?, imported_at = ?, last_error = NULL,
+             original_storage_key = ?
+         WHERE id = ? AND user_id = ?`,
+      ).run(
+        complete ? 'ready' : 'needs_review',
+        JSON.stringify(confirmed),
+        complete ? new Date().toISOString() : null,
+        complete ? originalStorageKey : file.original_storage_key,
+        fileId,
+        user.id,
+      );
+    });
+    saveImport();
+  } catch (error) {
+    await fs.promises.rm(normalizedPath, { force: true }).catch(() => undefined);
+    if (originalMoved) await fs.promises.rename(originalPath, stagedPath).catch(() => undefined);
+    db.prepare(
+      `UPDATE market_data_files SET import_status = ?, last_error = ?
+       WHERE id = ? AND user_id = ? AND import_status = 'inspecting'`,
+    ).run(file.import_status, error instanceof Error ? error.message : 'Tick import transaction failed.', fileId, user.id);
+    console.error('market data tick import transaction failed:', error);
+    return c.json({ error: 'Failed to commit normalized trade-tick data.' }, 500);
+  }
+
+  return c.json({
+    imported: true,
+    fileId,
+    dataset: {
+      id: datasetId,
+      dataKind: 'trades',
+      instrument,
+      sourceSymbol,
+      exchange: normalizedResult.exchange,
+      rowCount: normalizedResult.rowCount,
+      totalVolume: normalizedResult.totalVolume,
+      totalTradeCount: normalizedResult.totalTradeCount,
+      startTime: normalizedResult.startTime,
+      endTime: normalizedResult.endTime,
+      startTimeNs: normalizedResult.startTimeNs,
+      endTimeNs: normalizedResult.endTimeNs,
+      normalizedStorageKey,
+    },
+    fileStatus: complete ? 'ready' : 'needs_review',
+    remainingSymbols,
+  }, 201);
+});
+
 marketData.get('/api/market-data/providers/:providerId/files', requiresLogin, async (c) => {
   const user = c.get('user');
   const db = c.get('db');
@@ -653,6 +950,14 @@ marketData.get('/api/market-data/providers/:providerId/files', requiresLogin, as
         `SELECT id, data_kind, instrument, source_symbol, timeframe, timezone,
                 row_count, start_time, end_time, normalized_storage_key, created_at
          FROM market_data_file_datasets
+         WHERE file_id = ? AND user_id = ?
+         ORDER BY instrument, source_symbol`,
+      ).all(row.id, user.id),
+      tickDatasets: db.prepare(
+        `SELECT id, instrument, source_symbol, exchange, timestamp_unit, timezone,
+                row_count, total_volume, total_trade_count, start_time, end_time,
+                start_time_ns, end_time_ns, normalized_storage_key, created_at
+         FROM market_data_file_tick_datasets
          WHERE file_id = ? AND user_id = ?
          ORDER BY instrument, source_symbol`,
       ).all(row.id, user.id),
@@ -694,6 +999,24 @@ marketData.delete('/api/market-data/files/:fileId', requiresLogin, async (c) => 
     normalized_storage_key: string;
   }>;
 
+  const tickDatasets = db.prepare(
+    `SELECT id, instrument, source_symbol, exchange, row_count, total_volume,
+            total_trade_count, start_time, end_time, normalized_storage_key
+     FROM market_data_file_tick_datasets WHERE file_id = ? AND user_id = ?
+     ORDER BY instrument, source_symbol`,
+  ).all(fileId, user.id) as Array<{
+    id: string;
+    instrument: string;
+    source_symbol: string | null;
+    exchange: string | null;
+    row_count: number;
+    total_volume: number;
+    total_trade_count: number | null;
+    start_time: string;
+    end_time: string;
+    normalized_storage_key: string;
+  }>;
+
   let overlappingDatasetsRetained = 0;
   for (const dataset of datasets) {
     const overlap = db.prepare(
@@ -704,13 +1027,26 @@ marketData.delete('/api/market-data/files/:fileId', requiresLogin, async (c) => 
     overlappingDatasetsRetained += overlap.count;
   }
 
+  for (const dataset of tickDatasets) {
+    const overlap = db.prepare(
+      `SELECT COUNT(*) AS count FROM market_data_file_tick_datasets
+       WHERE user_id = ? AND file_id <> ? AND instrument = ?
+         AND source_symbol IS ? AND exchange IS ? AND start_time <= ? AND end_time >= ?`,
+    ).get(user.id, fileId, dataset.instrument, dataset.source_symbol, dataset.exchange, dataset.end_time, dataset.start_time) as { count: number };
+    overlappingDatasetsRetained += overlap.count;
+  }
+
   const impact = {
     fileId,
     filename: file.original_filename,
     status: file.import_status,
-    datasetCount: datasets.length,
-    totalRows: datasets.reduce((sum, dataset) => sum + dataset.row_count, 0),
-    datasets: datasets.map(({ normalized_storage_key, ...dataset }) => dataset),
+    datasetCount: datasets.length + tickDatasets.length,
+    totalRows: datasets.reduce((sum, dataset) => sum + dataset.row_count, 0)
+      + tickDatasets.reduce((sum, dataset) => sum + dataset.row_count, 0),
+    datasets: [
+      ...datasets.map(({ normalized_storage_key, ...dataset }) => ({ ...dataset, data_kind: 'ohlcv' })),
+      ...tickDatasets.map(({ normalized_storage_key, ...dataset }) => ({ ...dataset, data_kind: 'trades', timeframe: null })),
+    ],
     overlappingDatasetsRetained,
     note: 'Only data owned by this source file will be deleted. Overlapping datasets from other files remain available.',
   };
@@ -751,6 +1087,13 @@ marketData.delete('/api/market-data/files/:fileId', requiresLogin, async (c) => 
     moved.push({ from: originalPath, to: originalTombstone });
 
     for (const dataset of datasets) {
+      const normalizedPath = resolveStoragePath(dataset.normalized_storage_key, 'normalized');
+      const tombstone = `${normalizedPath}.deleting`;
+      await fs.promises.rename(normalizedPath, tombstone);
+      moved.push({ from: normalizedPath, to: tombstone });
+    }
+
+    for (const dataset of tickDatasets) {
       const normalizedPath = resolveStoragePath(dataset.normalized_storage_key, 'normalized');
       const tombstone = `${normalizedPath}.deleting`;
       await fs.promises.rename(normalizedPath, tombstone);
