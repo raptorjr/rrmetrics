@@ -257,7 +257,8 @@ const createBreakpointLayout = (layout, columns, items, defaultOrder, defaultVis
   const scale = MAX_COLUMNS / columns;
   const sizes = Object.fromEntries(items.map(item => {
     const base = layout.sizes[item.id] || getDefaultSize(item);
-    const visualWidth = Math.min(columns, Math.max(1, Math.round(base.w * columns / MAX_COLUMNS)));
+    const minimumVisualWidth = Math.min(columns, Math.max(1, Math.ceil((Number(item.minColumns) || 1) / scale)));
+    const visualWidth = Math.min(columns, Math.max(minimumVisualWidth, Math.round(base.w * columns / MAX_COLUMNS)));
     return [item.id, { w: visualWidth * scale, h: base.h }];
   }));
   const positions = Object.fromEntries(Object.entries(responsive).map(([id, point]) => [
