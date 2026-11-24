@@ -46,6 +46,16 @@ The project has a test command in `package.json`; do not repeat older documentat
 
 ### Dashboard and reusable components
 
+### Dashboard persistence and remote access
+
+- Dashboard and Analytics tile layouts are persisted on the RR Metrics server in SQLite, not only in browser storage.
+- Collections are scoped by the existing local user profile and by each page's storage key, so Dashboard and Analytics remain independent.
+- On first load after this feature is deployed, each browser's existing dashboard collection and legacy templates are migrated to the server only when that storage key has no server collection. The browser copy is retained as a local backup.
+- After migration, the server collection is authoritative. A browser must successfully load it before dashboard editing is enabled. Failed saves are shown to the user; the local backup is retained, but an unsaved change will not appear on another computer.
+- The API validates collection structure, dashboard count, names, and payload size. SQLite creates the settings table idempotently during normal schema initialization, including on existing installations.
+- The user's remote access method is Tailscale. Tailscale provides private network reachability; it does not itself add application-level authentication. Do not expose the RR Metrics service publicly or assume the application has per-user login protection.
+
+
 The Dashboard is intended to become a flexible, responsive trading workspace, not a fixed collection of hardcoded widgets.
 
 Established direction:
