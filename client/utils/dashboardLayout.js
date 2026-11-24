@@ -70,8 +70,9 @@ const getResizedTileGeometry = ({
   const north = corner.startsWith('n');
   const availableWidth = Math.max(1, gridWidth - gap * (columns - 1));
   const trackWidth = availableWidth / columns;
-  const logicalColumnWidth = (trackWidth + gap) * columns / MAX_COLUMNS;
-  const widthDelta = Math.round(deltaX / logicalColumnWidth) * (west ? -1 : 1);
+  const breakpointScale = MAX_COLUMNS / columns;
+  const logicalColumnWidth = trackWidth + gap;
+  const widthDelta = Math.round(deltaX / logicalColumnWidth) * breakpointScale * (west ? -1 : 1);
   const heightDelta = Math.round(deltaY / rowUnit) * (north ? -1 : 1);
 
   const widthLimit = west ? position.col + size.w - 1 : MAX_COLUMNS - position.col + 1;
