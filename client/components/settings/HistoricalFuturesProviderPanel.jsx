@@ -356,6 +356,19 @@ const HistoricalFuturesProviderPanel = () => {
               </label>
             )}
 
+            {inspection.potentialOverlaps?.length > 0 && (
+              <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 space-y-2">
+                <div className="text-xs font-semibold text-text-primary">Potential source overlaps</div>
+                <p className="text-xs text-text-secondary">These datasets cover overlapping dates for the same instrument, timeframe and source symbol. Both files will remain stored independently; Chart Replay will require explicit source selection where the ranges overlap.</p>
+                <ul className="space-y-1">
+                  {inspection.potentialOverlaps.map(item => (
+                    <li key={item.datasetId} className="text-xs text-text-secondary">
+                      <span className="font-medium text-text-primary">{item.filename}</span> · {item.instrument}{item.sourceSymbol ? ' · ' + item.sourceSymbol : ''} · {item.timeframe} · {formatDate(item.startTime)} – {formatDate(item.endTime)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {inspection.warnings?.length > 0 && (
               <div className="space-y-1">
                 {inspection.warnings.map((warning, index) => <p key={index} className="text-xs text-warning">{warning}</p>)}
@@ -410,6 +423,17 @@ const HistoricalFuturesProviderPanel = () => {
             <div><div className="text-text-tertiary">Overlapping sources retained</div><div className="font-semibold text-text-primary">{formatNumber(deletePrompt.impact.overlappingDatasetsRetained)}</div></div>
             <div><div className="text-text-tertiary">File</div><div className="font-semibold text-text-primary truncate">{deletePrompt.impact.filename}</div></div>
           </div>
+          {deletePrompt.impact.datasets?.length > 0 ? (
+            <ul className="space-y-1 rounded-lg border border-border bg-bg-surface p-3">
+              {deletePrompt.impact.datasets.map(dataset => (
+                <li key={dataset.id} className="text-xs text-text-secondary">
+                  <span className="font-medium text-text-primary">{dataset.instrument}{dataset.source_symbol ? ' · ' + dataset.source_symbol : ''}</span> · {dataset.timeframe} · {formatNumber(dataset.row_count)} rows · {formatDate(dataset.start_time)} – {formatDate(dataset.end_time)}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-text-tertiary">This is a staged upload with no normalized datasets yet.</p>
+          )}
           <div className="flex justify-end gap-2">
             <button onClick={() => setDeletePrompt(null)} className="rounded-lg border border-border px-3 py-2 text-xs text-text-secondary">Cancel</button>
             <button onClick={handleDeleteConfirm} disabled={busy} className="rounded-lg bg-danger px-3 py-2 text-xs font-medium text-white disabled:opacity-50">Delete file and owned datasets</button>
