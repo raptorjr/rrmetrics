@@ -9,7 +9,7 @@ const AGGREGATABLE_TIMEFRAMES = ['30s', '1m', '2m', '3m', '5m', '10m', '15m', '3
 function timeframeSeconds(value) {
   const normalized = String(value || '').toLowerCase();
   if (TIMEFRAME_SECONDS[normalized]) return TIMEFRAME_SECONDS[normalized];
-  const match = /^(\\d+)(s|m|h|d)$/.exec(normalized);
+  const match = /^(\d+)(s|m|h|d)$/.exec(normalized);
   if (!match) return 0;
   const amount = Number(match[1]);
   return amount * ({ s: 1, m: 60, h: 3600, d: 86400 }[match[2]]);
