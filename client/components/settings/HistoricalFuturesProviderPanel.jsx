@@ -85,7 +85,7 @@ const HistoricalFuturesProviderPanel = () => {
   const needsSymbolChoice = detectedSymbols.length > 1;
   const canImport = Boolean(
     selectedFile &&
-    selectedFile.status !== 'ready' &&
+    ['needs_review', 'failed'].includes(selectedFile.import_status) &&
     form.instrument.trim() &&
     /^\d+(s|m|h|d)$/.test(form.timeframe.trim()) &&
     (!timezoneRequired || form.timezone) &&
@@ -117,9 +117,9 @@ const HistoricalFuturesProviderPanel = () => {
     setError('');
     setNotice('');
     let uploaded = 0;
+    let currentProviderId = provider?.id || null;
+    let lastFileId = null;
     try {
-      let currentProviderId = provider?.id || null;
-      let lastFileId = null;
       for (const file of uploadFiles) {
         const body = new FormData();
         body.append('file', file);
@@ -128,6 +128,7 @@ const HistoricalFuturesProviderPanel = () => {
         if (!response.ok) throw new Error(data.error || `Unable to inspect ${file.name}.`);
         currentProviderId = data.file.providerId;
         lastFileId = data.file.id;
+        setProvider({ id: currentProviderId, provider_type: 'historical_futures', display_name: 'Historical Futures' });
         uploaded += 1;
       }
       setProvider({ id: currentProviderId, provider_type: 'historical_futures', display_name: 'Historical Futures' });
@@ -138,7 +139,10 @@ const HistoricalFuturesProviderPanel = () => {
       setNotice(`Inspected ${uploaded} file${uploaded === 1 ? '' : 's'}. Review the detected metadata before importing.`);
     } catch (err) {
       setError(err.message || 'Upload failed.');
-      if (provider?.id) await loadFiles(provider.id).catch(() => undefined);
+      if (currentProviderId) {
+        setProvider({ id: currentProviderId, provider_type: 'historical_futures', display_name: 'Historical Futures' });
+        await loadFiles(currentProviderId).catch(() => undefined);
+      }
     } finally {
       setBusy(false);
     }
