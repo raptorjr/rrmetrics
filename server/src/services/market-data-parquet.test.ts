@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { asyncBufferFromFile, parquetReadObjects } from 'hyparquet';
 import { parquetWriteBuffer } from 'hyparquet-writer';
-import { inspectOhlcvParquet, normalizeOhlcvParquet } from './market-data-parquet';
+import { inspectOhlcvParquet, normalizeOhlcvParquet, writeOhlcvBarsToParquet } from './market-data-parquet';
+import { readOhlcvParquetRange } from './market-data-query';
 
 function makeParquet(columns: Array<{ name: string; data: unknown[]; type: string }>): Buffer {
   return Buffer.from(parquetWriteBuffer({ columnData: columns as never }));
@@ -104,5 +105,28 @@ test('skipping invalid rows does not discard a valid row at the same timestamp',
     assert.equal((rows[1].timestamp as Date).toISOString(), '2026-11-09T14:31:00.000Z');
   } finally {
     await import('node:fs/promises').then(fs => fs.rm(directory, { recursive: true, force: true }));
+  }
+});
+
+
+test('queries a bounded time range from normalized Parquet data', async () => {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'rrm-query-'));
+  const destination = path.join(directory, 'bars.parquet');
+  const base = Date.parse('2026-11-09T14:30:00Z');
+  try {
+    await writeOhlcvBarsToParquet(destination, [
+      { timestamp: base, open: 10, high: 12, low: 9, close: 11, volume: 100 },
+      { timestamp: base + 60_000, open: 11, high: 13, low: 10, close: 12, volume: 120 },
+      { timestamp: base + 120_000, open: 12, high: 14, low: 11, close: 13, volume: 90 },
+    ]);
+    const bars = await readOhlcvParquetRange(destination, base + 60_000, base + 60_000);
+    assert.equal(bars.length, 1);
+    assert.equal(bars[0].timestamp, base + 60_000);
+    assert.equal(bars[0].close, 12);
+  } finally {
+    await fs.rm(directory, { recursive: true, force: true });
   }
 });

@@ -8,6 +8,7 @@ import { requiresLogin } from '../middleware/auth';
 import { generateId } from '../utils/id';
 import { inspectOhlcvCsv, parseOhlcvCsv } from '../services/market-data-import';
 import { inspectOhlcvParquet, normalizeOhlcvParquet, writeOhlcvBarsToParquet } from '../services/market-data-parquet';
+import { readOhlcvParquetRange } from '../services/market-data-query';
 
 type HonoEnv = {
   Bindings: Env;
@@ -145,6 +146,158 @@ marketData.post('/api/market-data/files/inspect', requiresLogin, async (c) => {
     inspection,
     requiresReview: true,
   }, 201);
+});
+
+// GET /api/market-data/datasets — available source-owned OHLCV datasets.
+marketData.get('/api/market-data/datasets', requiresLogin, async (c) => {
+  const user = c.get('user');
+  const db = c.get('db');
+  const instrument = c.req.query('instrument')?.trim().toUpperCase() || null;
+  const timeframe = c.req.query('timeframe')?.trim() || null;
+  const sourceSymbol = c.req.query('sourceSymbol')?.trim().toUpperCase() || null;
+  const datasets = db.prepare(
+    `SELECT d.id, d.file_id, d.data_kind, d.instrument, d.source_symbol, d.timeframe,
+            d.timezone, d.row_count, d.start_time, d.end_time, d.created_at,
+            f.original_filename, f.provider_id, f.imported_at
+     FROM market_data_file_datasets d
+     JOIN market_data_files f ON f.id = d.file_id AND f.user_id = d.user_id
+     WHERE d.user_id = ? AND f.import_status = 'ready'
+       AND (? IS NULL OR d.instrument = ?)
+       AND (? IS NULL OR d.timeframe = ?)
+       AND (? IS NULL OR d.source_symbol = ?)
+     ORDER BY d.instrument, d.timeframe, d.source_symbol, d.start_time`,
+  ).all(
+    user.id,
+    instrument, instrument,
+    timeframe, timeframe,
+    sourceSymbol, sourceSymbol,
+  );
+  return c.json({ datasets });
+});
+
+// GET /api/market-data/query — provider-independent, source-aware OHLCV range query.
+marketData.get('/api/market-data/query', requiresLogin, async (c) => {
+  const user = c.get('user');
+  const db = c.get('db');
+  const instrument = c.req.query('instrument')?.trim().toUpperCase() || null;
+  const timeframe = c.req.query('timeframe')?.trim() || null;
+  const sourceSymbol = c.req.query('sourceSymbol')?.trim().toUpperCase() || null;
+  const datasetId = c.req.query('datasetId')?.trim() || null;
+  const startValue = c.req.query('start');
+  const endValue = c.req.query('end');
+  const startTime = startValue ? Date.parse(startValue) : Number.NaN;
+  const endTime = endValue ? Date.parse(endValue) : Number.NaN;
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime < startTime) {
+    return c.json({ error: 'Provide a valid start and end timestamp for the market-data query.' }, 400);
+  }
+  if (!datasetId && (!instrument || !timeframe)) {
+    return c.json({ error: 'Instrument and timeframe are required unless a datasetId is selected.' }, 400);
+  }
+
+  const baseQuery = `SELECT d.id, d.file_id, d.instrument, d.source_symbol, d.timeframe,
+      d.row_count, d.start_time, d.end_time, d.normalized_storage_key,
+      f.original_filename, f.provider_id
+    FROM market_data_file_datasets d
+    JOIN market_data_files f ON f.id = d.file_id AND f.user_id = d.user_id
+    WHERE d.user_id = ? AND f.import_status = 'ready'`;
+  const datasets = datasetId
+    ? db.prepare(`${baseQuery} AND d.id = ?`).all(user.id, datasetId) as Array<any>
+    : db.prepare(
+      `${baseQuery}
+       AND d.instrument = ? AND d.timeframe = ?
+       AND d.start_time <= ? AND d.end_time >= ?
+       AND (? IS NULL OR d.source_symbol = ?)
+       ORDER BY d.start_time`,
+    ).all(
+      user.id, instrument, timeframe,
+      new Date(endTime).toISOString(), new Date(startTime).toISOString(),
+      sourceSymbol, sourceSymbol,
+    ) as Array<any>;
+
+  if (!datasets.length) return c.json({ error: 'No matching historical market-data datasets were found.' }, 404);
+  if (datasetId && ((instrument && datasets[0].instrument !== instrument)
+    || (timeframe && datasets[0].timeframe !== timeframe))) {
+    return c.json({ error: 'The selected dataset does not match the requested instrument/timeframe.' }, 400);
+  }
+
+  const sourceSymbols = [...new Set(datasets.map(dataset => dataset.source_symbol ?? '__none__'))];
+  if (!datasetId && !sourceSymbol && sourceSymbols.length > 1) {
+    return c.json({
+      error: 'Multiple contract/source symbols are available. Select a sourceSymbol or datasetId; contracts are never silently merged.',
+      code: 'SOURCE_SYMBOL_REQUIRED',
+      sourceSymbols: sourceSymbols.map(value => value === '__none__' ? null : value),
+      datasets: datasets.map(dataset => ({
+        id: dataset.id,
+        sourceSymbol: dataset.source_symbol,
+        startTime: dataset.start_time,
+        endTime: dataset.end_time,
+      })),
+    }, 409);
+  }
+
+  if (!datasetId && datasets.length > 1) {
+    const ordered = [...datasets].sort((a, b) => a.start_time.localeCompare(b.start_time));
+    for (let index = 1; index < ordered.length; index += 1) {
+      if (ordered[index].start_time <= ordered[index - 1].end_time) {
+        return c.json({
+          error: 'Overlapping source datasets are available. Select a datasetId to avoid silently resolving conflicting candles.',
+          code: 'SOURCE_OVERLAP_REQUIRES_SELECTION',
+          datasets: ordered.map(dataset => ({
+            id: dataset.id,
+            fileId: dataset.file_id,
+            filename: dataset.original_filename,
+            sourceSymbol: dataset.source_symbol,
+            startTime: dataset.start_time,
+            endTime: dataset.end_time,
+          })),
+        }, 409);
+      }
+    }
+  }
+
+  const bars = [];
+  const startIso = new Date(startTime).toISOString();
+  const endIso = new Date(endTime).toISOString();
+  try {
+    for (const dataset of datasets) {
+      const storageKey = String(dataset.normalized_storage_key);
+      if (!storageKey.startsWith('normalized/')) throw new Error('Normalized market-data path failed validation.');
+      const name = storageKey.slice('normalized/'.length);
+      if (!name || path.basename(name) !== name || name.includes('..')) {
+        throw new Error('Normalized market-data path failed validation.');
+      }
+      const normalizedPath = path.join(MARKET_DATA_NORMALIZED_DIR, name);
+      const rows = await readOhlcvParquetRange(normalizedPath, startTime, endTime);
+      bars.push(...rows);
+    }
+  } catch (error) {
+    console.error('market data range query failed:', error);
+    return c.json({ error: 'Unable to read one or more normalized market-data datasets.' }, 500);
+  }
+
+  bars.sort((a, b) => a.timestamp - b.timestamp);
+  if (bars.length > 200_000) {
+    return c.json({ error: 'The selected range is too large. Narrow the date range and try again.' }, 413);
+  }
+
+  return c.json({
+    instrument: datasets[0].instrument,
+    timeframe: datasets[0].timeframe,
+    sourceSymbol: sourceSymbol ?? datasets[0].source_symbol,
+    startTime: startIso,
+    endTime: endIso,
+    totalBars: bars.length,
+    sources: datasets.map(dataset => ({
+      datasetId: dataset.id,
+      fileId: dataset.file_id,
+      filename: dataset.original_filename,
+      sourceSymbol: dataset.source_symbol,
+      startTime: dataset.start_time,
+      endTime: dataset.end_time,
+      rowCount: dataset.row_count,
+    })),
+    bars,
+  });
 });
 
 // POST /api/market-data/files/:fileId/import — confirm metadata and persist one source-owned dataset.
