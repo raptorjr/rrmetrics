@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const {
   createStarterLayout,
@@ -118,4 +120,10 @@ test('resizing at narrower breakpoints changes width in whole visible columns', 
   });
   assert.equal(geometry.size.w % 4, 0);
   assert.equal(geometry.size.w, 8);
+});
+
+
+test('dashboard grid width observer attaches after dashboards finish loading', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../components/shared/DashboardGrid.jsx'), 'utf8');
+  assert.match(source, /const element = gridRef\.current;[\s\S]*?if \(!element\) return undefined;[\s\S]*?\}, \[dashboardReady\]\);/);
 });
