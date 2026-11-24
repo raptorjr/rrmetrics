@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const {
   createDemoCandles,
   normalizeOhlcvRows,
+  evaluateEntryOrder,
   evaluateCandleExit,
   calculateTradePnl,
   calculateTradeStats,
@@ -66,4 +67,18 @@ test('trade statistics separate wins, losses and breakeven trades', () => {
   assert.equal(stats.breakeven, 1);
   assert.equal(stats.netPnl, 60);
   assert.equal(stats.profitFactor, 2.5);
+});
+
+test('limit orders fill at the limit or a better opening price', () => {
+  const order = { type: 'limit', direction: 'long', triggerPrice: 100 };
+  assert.deepEqual(evaluateEntryOrder(order, { open: 101, low: 99, high: 102 }), { price: 100, reason: 'Limit order filled' });
+  assert.deepEqual(evaluateEntryOrder(order, { open: 98, low: 97, high: 101 }), { price: 98, reason: 'Limit order filled' });
+  assert.equal(evaluateEntryOrder(order, { open: 101, low: 100.5, high: 102 }), null);
+});
+
+test('stop-market orders trigger and account for opening gaps', () => {
+  const order = { type: 'stop_market', direction: 'long', triggerPrice: 100 };
+  assert.deepEqual(evaluateEntryOrder(order, { open: 99, low: 98, high: 101 }), { price: 100, reason: 'Stop-market order triggered' });
+  assert.deepEqual(evaluateEntryOrder(order, { open: 102, low: 101, high: 103 }), { price: 102, reason: 'Stop-market order triggered' });
+  assert.equal(evaluateEntryOrder(order, { open: 98, low: 97, high: 99 }), null);
 });
