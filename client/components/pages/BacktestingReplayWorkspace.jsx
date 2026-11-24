@@ -200,6 +200,7 @@ const ReplayContextChart = ({ candles, replayTime, ticker, timeframe, baseTimefr
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
+  const previousVisibleCountRef = useRef(0);
   const visibleCandles = useMemo(() => aggregateCandles(candles.filter(candle => candle.time + timeframeSeconds(baseTimeframe) <= replayTime), timeframe), [candles, replayTime, timeframe]);
 
   useEffect(() => {
@@ -231,8 +232,17 @@ const ReplayContextChart = ({ candles, replayTime, ticker, timeframe, baseTimefr
 
   useEffect(() => {
     if (!seriesRef.current) return;
+    const timeScale = chartRef.current?.timeScale();
+    const previousRange = timeScale?.getVisibleLogicalRange();
+    const previousLastIndex = previousVisibleCountRef.current - 1;
+    const wasFollowingLatest = !previousRange || previousRange.to >= previousLastIndex - 1;
     seriesRef.current.setData(visibleCandles);
-    if (chartRef.current) chartRef.current.timeScale().scrollToRealTime();
+    if (timeScale && visibleCandles.length) {
+      if (previousVisibleCountRef.current === 0) timeScale.fitContent();
+      else if (wasFollowingLatest) timeScale.scrollToRealTime();
+      else if (previousRange) timeScale.setVisibleLogicalRange(previousRange);
+    }
+    previousVisibleCountRef.current = visibleCandles.length;
   }, [visibleCandles]);
 
   useEffect(() => {
