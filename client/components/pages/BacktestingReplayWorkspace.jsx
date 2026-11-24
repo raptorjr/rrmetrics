@@ -162,6 +162,8 @@ const BacktestingReplayWorkspace = () => {
   const [historicalTimeframe, setHistoricalTimeframe] = useState('1m');
   const [historicalStart, setHistoricalStart] = useState('');
   const [historicalEnd, setHistoricalEnd] = useState('');
+  const [replayLayout, setReplayLayout] = useState('single');
+  const [contextTimeframes, setContextTimeframes] = useState(['5m', '15m']);
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
@@ -247,7 +249,7 @@ const BacktestingReplayWorkspace = () => {
         setClosedTrades([]); setStopInput(''); setTargetInput('');
         setMessage('Historical data prepared automatically.');
       } catch (loadError) {
-        if (!cancelled) { setCandles([]); setCurrentIndex(0); currentIndexRef.current = 0; setImportError(loadError.message || 'Unable to prepare historical market data.'); }
+        if (!cancelled) { setMarketBaseCandles([]); setCandles([]); setCurrentIndex(0); currentIndexRef.current = 0; setImportError(loadError.message || 'Unable to prepare historical market data.'); }
       } finally {
         if (!cancelled) setHistoricalLoading(false);
       }
@@ -465,6 +467,7 @@ const BacktestingReplayWorkspace = () => {
     setIsPlaying(false); setPosition(null); positionRef.current = null;
     setPendingOrder(null); pendingOrderRef.current = null; setClosedTrades([]);
     setStopInput(''); setTargetInput(''); setMessage(''); setError('');
+    setCandles([]); setMarketBaseCandles([]); setCurrentIndex(0); currentIndexRef.current = 0;
   };
 
   const handleMarketChange = event => {
