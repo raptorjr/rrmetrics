@@ -4,6 +4,7 @@ const React = require('react');
 const { useState, useEffect } = React;
 const Icons = require('../shared/Icons');
 const BacktestingReplayWorkspace = require('./BacktestingReplayWorkspace').default;
+const ChartEngineLab = require('./ChartEngineLab').default;
 
 const BacktestingPage = () => {
   const [sessions, setSessions] = useState([]);
@@ -256,6 +257,15 @@ const BacktestingPage = () => {
       >
         Chart Replay
       </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={activeView === 'chart-lab'}
+        onClick={() => setActiveView('chart-lab')}
+        className={"px-4 py-2 rounded-lg text-sm font-medium transition-colors " + (activeView === 'chart-lab' ? 'bg-bg-surface border border-border text-accent' : 'text-text-muted hover:text-text-primary')}
+      >
+        Chart Engine Lab
+      </button>
     </div>
   );
 
@@ -268,6 +278,19 @@ const BacktestingPage = () => {
         </div>
         {renderModeTabs()}
         <BacktestingReplayWorkspace />
+      </div>
+    );
+  }
+
+  if (activeView === 'chart-lab') {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-text-primary text-2xl font-bold">Chart Engine Lab</h1>
+          <p className="text-text-muted text-sm mt-1">Compare charting engines in an isolated workspace without changing the production replay chart.</p>
+        </div>
+        {renderModeTabs()}
+        <ChartEngineLab />
       </div>
     );
   }
