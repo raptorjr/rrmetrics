@@ -838,6 +838,7 @@ marketData.delete('/api/market-data/files/:fileId', requiresLogin, async (c) => 
      ORDER BY instrument, source_symbol`,
   ).all(fileId, user.id) as Array<{
     id: string;
+    data_kind: 'ohlcv' | 'ticks';
     instrument: string;
     source_symbol: string | null;
     timeframe: string;

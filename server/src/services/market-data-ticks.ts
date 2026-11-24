@@ -440,7 +440,8 @@ export async function normalizeTickParquet(
           ask_size: askSize,
           trade_count: tradeCount === null ? null : BigInt(Math.trunc(tradeCount)),
           source_symbol: sourceSymbol ?? rowSymbol,
-          exchange: row[layout.mapping.exchange] == null ? null : String(row[layout.mapping.exchange]).trim().toUpperCase(),
+          exchange: !layout.mapping.exchange || row[layout.mapping.exchange] == null
+            ? null : String(row[layout.mapping.exchange]).trim().toUpperCase(),
         };
       }
     }
