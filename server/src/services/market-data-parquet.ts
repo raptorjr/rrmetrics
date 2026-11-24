@@ -164,7 +164,9 @@ function timestampToMilliseconds(value: unknown, unit: string): number | null {
     return Math.trunc(value);
   }
   if (typeof value === 'string') {
-    const parsed = Date.parse(value);
+    const hasTimezone = /(?:Z|[+-]\\d{2}:?\\d{2})$/i.test(value);
+    const normalized = hasTimezone ? value : `${value.replace(' ', 'T')}Z`;
+    const parsed = Date.parse(normalized);
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
@@ -195,10 +197,12 @@ async function inspectLayout(buffer: Uint8Array): Promise<ParquetLayout> {
     ? timestampElement.logical_type
     : null;
   const timestampUnit = timestampUnitFromSchema(timestampElement);
+  const legacyUtcTimestamp = timestampElement?.converted_type === 'TIMESTAMP_MILLIS'
+    || timestampElement?.converted_type === 'TIMESTAMP_MICROS';
   const timezoneNeedsConfirmation = logicalTimestamp
     ? !logicalTimestamp.isAdjustedToUTC
-    : true;
-  const timezone = logicalTimestamp?.isAdjustedToUTC ? 'UTC' : null;
+    : !legacyUtcTimestamp;
+  const timezone = logicalTimestamp?.isAdjustedToUTC || legacyUtcTimestamp ? 'UTC' : null;
   const compressionCodecs = [...new Set(
     metadata.row_groups.flatMap(group =>
       group.columns.map(column => column.meta_data?.codec).filter((codec): codec is NonNullable<typeof codec> => Boolean(codec)),
@@ -436,7 +440,16 @@ export async function normalizeOhlcvParquet(
     throw new Error('A timezone must be confirmed before importing this Parquet file.');
   }
 
-  const symbols = new Set<string>();
+  const inspection = await inspectOhlcvParquet(buffer, 'source.parquet');
+  const symbols = new Set(inspection.detectedSymbols);
+  const sourceSymbol = options.sourceSymbol?.toUpperCase() ?? (symbols.size === 1 ? [...symbols][0] : null);
+  if (symbols.size > 1 && !sourceSymbol) {
+    throw new Error('This file contains multiple symbols. Select a source symbol for this dataset before importing.');
+  }
+  if (sourceSymbol && symbols.size && !symbols.has(sourceSymbol)) {
+    throw new Error(`Selected source symbol ${sourceSymbol} was not found in the file.`);
+  }
+
   const readColumns = [
     layout.mapping.timestamp,
     layout.mapping.open,
@@ -446,28 +459,6 @@ export async function normalizeOhlcvParquet(
     ...(layout.mapping.volume ? [layout.mapping.volume] : []),
     ...(layout.mapping.symbol ? [layout.mapping.symbol] : []),
   ];
-
-  // Read a bounded sample to determine whether symbol selection is required.
-  if (layout.mapping.symbol) {
-    const sampleRows = await parquetReadObjects({
-      file: layout.file,
-      metadata: layout.metadata,
-      columns: [layout.mapping.symbol],
-      rowStart: 0,
-      rowEnd: Math.min(Number(layout.metadata.num_rows), READ_BATCH_SIZE),
-      compressors,
-    });
-    for (const row of sampleRows) {
-      if (row[layout.mapping.symbol] !== null && row[layout.mapping.symbol] !== undefined) {
-        symbols.add(String(row[layout.mapping.symbol]).trim().toUpperCase());
-      }
-    }
-  }
-
-  const sourceSymbol = options.sourceSymbol?.toUpperCase() ?? (symbols.size === 1 ? [...symbols][0] : null);
-  if (symbols.size > 1 && !sourceSymbol) {
-    throw new Error('This file contains multiple symbols. Select a source symbol for this dataset before importing.');
-  }
 
   let rowCount = 0;
   let startTime = Number.POSITIVE_INFINITY;
@@ -491,13 +482,19 @@ export async function normalizeOhlcvParquet(
         const rowSymbol = symbolValue === null || symbolValue === undefined || symbolValue === ''
           ? null
           : String(symbolValue).trim().toUpperCase();
-        if (sourceSymbol && rowSymbol !== sourceSymbol) continue;
-        const timestamp = timestampForImport(
-          row[layout.mapping.timestamp],
-          layout.timestampUnit,
-          layout.timezoneNeedsConfirmation,
-          options.timezone,
-        );
+        if (layout.mapping.symbol && sourceSymbol && rowSymbol !== sourceSymbol) continue;
+        let timestamp: number;
+        try {
+          timestamp = timestampForImport(
+            row[layout.mapping.timestamp],
+            layout.timestampUnit,
+            layout.timezoneNeedsConfirmation,
+            options.timezone,
+          );
+        } catch (error) {
+          if (options.skipInvalidRows) continue;
+          throw error;
+        }
         const bar = {
           open: numericValue(row[layout.mapping.open]),
           high: numericValue(row[layout.mapping.high]),
@@ -505,9 +502,15 @@ export async function normalizeOhlcvParquet(
           close: numericValue(row[layout.mapping.close]),
           volume: layout.mapping.volume ? numericValue(row[layout.mapping.volume]) : null,
         };
-        if (!isValidBar({ ...bar, volume: bar.volume })) {
+        if (!isValidBar({
+          open: bar.open ?? Number.NaN,
+          high: bar.high ?? Number.NaN,
+          low: bar.low ?? Number.NaN,
+          close: bar.close ?? Number.NaN,
+          volume: bar.volume,
+        })) {
           if (options.skipInvalidRows) continue;
-          throw new Error(`Invalid OHLCV values at source row ${rowCount + 1}.`);
+          throw new Error(`Invalid OHLCV values at source row ${rowStart + rows.indexOf(row) + 1}.`);
         }
         if (timestamp <= previousTimestamp) {
           throw new Error('Selected source-symbol rows are duplicated or not in chronological order.');
