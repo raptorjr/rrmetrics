@@ -13,6 +13,12 @@ import { fileWriter, parquetWriteRows } from 'hyparquet-writer';
 
 const READ_BATCH_SIZE = 50_000;
 
+const rawTimestampParsers = {
+  timestampFromMilliseconds: (value: bigint) => value,
+  timestampFromMicroseconds: (value: bigint) => value,
+  timestampFromNanoseconds: (value: bigint) => value,
+};
+
 const ALIASES = {
   timestamp: ['timestamp', 'time', 'datetime', 'date', 'ts'],
   price: ['price', 'trade_price', 'last', 'last_price'],
@@ -326,6 +332,7 @@ export async function inspectTradeTicksParquet(
       rowStart,
       rowEnd,
       compressors,
+      parsers: rawTimestampParsers,
     });
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index] as Record<string, unknown>;
@@ -499,6 +506,7 @@ export async function normalizeTradeTicksParquet(
         rowStart,
         rowEnd,
         compressors,
+        parsers: rawTimestampParsers,
       });
       for (let index = 0; index < rows.length; index += 1) {
         const row = rows[index] as Record<string, unknown>;
