@@ -164,7 +164,7 @@ const DashboardGrid = ({ storageKey, items, defaultOrder, defaultVisible = defau
     }
     window.addEventListener('resize', updateColumns);
     return () => window.removeEventListener('resize', updateColumns);
-  }, []);
+  }, [dashboardReady]);
 
   useEffect(() => {
     let cancelled = false;
