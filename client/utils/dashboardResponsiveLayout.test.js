@@ -81,6 +81,26 @@ test('saved breakpoint positions remain independent', () => {
   assert.deepEqual(dashboard.layouts[8].positions, base.positions);
 });
 
+test('minimum-area correction keeps narrow-breakpoint widths aligned', () => {
+  const geometry = getResizedTileGeometry({
+    position: { col: 1, row: 1 },
+    size: { w: 4, h: 2 },
+    corner: 'se',
+    deltaX: 0,
+    deltaY: -128,
+    gridWidth: 400,
+    columns: 2,
+    gap: 16,
+    rowUnit: 128,
+    minW: 4,
+    minH: 1,
+    minArea: 5,
+    maxW: 8,
+  });
+  assert.equal(geometry.size.w % 4, 0);
+  assert.equal(geometry.size.w, 8);
+});
+
 test('resizing at narrower breakpoints changes width in whole visible columns', () => {
   const geometry = getResizedTileGeometry({
     position: { col: 1, row: 1 },
