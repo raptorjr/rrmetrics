@@ -24,6 +24,33 @@ const formatBytes = (bytes) => {
 const formatDate = (value) => value ? `${formatDateEST(value)} ${formatTimeEST(value)}` : '—';
 const formatNumber = (value) => Number(value || 0).toLocaleString();
 
+const getFileImportPlan = (file) => {
+  const metadata = file?.detectedMetadata || {};
+  const symbols = metadata.detectedSymbols || [];
+  const importedSymbols = [...(file.datasets || []), ...(file.tickDatasets || [])]
+    .map(dataset => dataset.source_symbol).filter(Boolean);
+  const remainingSymbols = symbols.filter(symbol => !importedSymbols.includes(symbol));
+  const isTickData = metadata.dataKind === 'trades';
+  const invalidRows = Number(metadata.invalidRowCount || 0);
+  if (invalidRows > 0 || metadata.timezoneNeedsConfirmation) return null;
+
+  const symbolsToImport = symbols.length > 1 ? remainingSymbols : [symbols[0] || ''];
+  if (!symbolsToImport.length) return null;
+  const plans = symbolsToImport.map(sourceSymbol => {
+    const instrument = metadata.detectedInstrument || instrumentFromSymbol(sourceSymbol);
+    const timeframe = metadata.detectedTimeframe || '';
+    if (!instrument || (!isTickData && !/^\d+(s|m|h|d)$/.test(timeframe))) return null;
+    return {
+      instrument,
+      ...(isTickData ? {} : { timeframe }),
+      timezone: metadata.timezone === 'explicit' ? 'UTC' : (metadata.timezone || undefined),
+      sourceSymbol: sourceSymbol || undefined,
+      skipInvalidRows: false,
+    };
+  });
+  return plans.some(plan => !plan) ? null : plans;
+};
+
 const statusLabel = (status) => ({
   ready: 'Ready',
   needs_review: 'Awaiting import',
@@ -49,6 +76,14 @@ const HistoricalFuturesProviderPanel = () => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+
+  const automaticImports = files
+    .filter(file => ['needs_review', 'failed'].includes(file.import_status))
+    .map(file => ({ file, plans: getFileImportPlan(file) }))
+    .filter(item => item.plans);
+  const manualReviewCount = files.filter(file =>
+    ['needs_review', 'failed'].includes(file.import_status) && !getFileImportPlan(file)
+  ).length;
 
   const loadFiles = async (providerId) => {
     if (!providerId) {
@@ -193,6 +228,61 @@ const HistoricalFuturesProviderPanel = () => {
     }
   };
 
+  const handleImportAllReady = async () => {
+    if (!automaticImports.length || busy) return;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    let importedDatasets = 0;
+    let importedFiles = 0;
+    const failures = [];
+    try {
+      for (const { file, plans } of automaticImports) {
+        let fileImported = false;
+        for (const plan of plans) {
+          const tickImport = file.detectedMetadata?.dataKind === 'trades';
+          try {
+            const response = await authFetch(`/api/market-data/files/${file.id}/${tickImport ? 'import-ticks' : 'import'}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(plan),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Import failed.');
+            importedDatasets += 1;
+            fileImported = true;
+          } catch (err) {
+            failures.push(`${file.original_filename}${plan.sourceSymbol ? ` (${plan.sourceSymbol})` : ''}: ${err.message}`);
+            break;
+          }
+        }
+        if (fileImported) importedFiles += 1;
+      }
+      const refreshed = await loadFiles(provider.id);
+      if (selectedFileId) {
+        const updated = refreshed.find(file => file.id === selectedFileId);
+        if (updated) {
+          setInspection(updated.detectedMetadata || inspection);
+          const symbols = updated.detectedMetadata?.detectedSymbols || [];
+          const imported = [...(updated.datasets || []), ...(updated.tickDatasets || [])]
+            .map(dataset => dataset.source_symbol).filter(Boolean);
+          const next = symbols.find(symbol => !imported.includes(symbol)) || '';
+          setForm(previous => ({
+            ...previous,
+            sourceSymbol: next,
+            instrument: next ? (updated.detectedMetadata?.detectedInstrument || instrumentFromSymbol(next) || previous.instrument) : previous.instrument,
+          }));
+        }
+      }
+      const summary = `Imported ${importedDatasets} dataset${importedDatasets === 1 ? '' : 's'} from ${importedFiles} file${importedFiles === 1 ? '' : 's'}.`;
+      setNotice(failures.length ? `${summary} Some imports need attention: ${failures.join(' · ')}` : summary);
+    } catch (err) {
+      setError(err.message || 'Unable to complete bulk import.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleDeletePreview = async (file) => {
     setBusy(true);
     setError('');
@@ -267,8 +357,21 @@ const HistoricalFuturesProviderPanel = () => {
           <div>
             <h4 className="text-sm font-semibold text-text-primary">Source files</h4>
             <p className="text-xs text-text-tertiary">{files.length} file{files.length === 1 ? '' : 's'} · each file owns its own datasets</p>
+            {automaticImports.length > 0 && (
+              <p className="mt-1 text-xs text-positive">{automaticImports.length} file{automaticImports.length === 1 ? '' : 's'} ready for automatic import{manualReviewCount ? ` · ${manualReviewCount} need${manualReviewCount === 1 ? 's' : ''} attention` : ''}</p>
+            )}
+            {manualReviewCount > 0 && automaticImports.length === 0 && (
+              <p className="mt-1 text-xs text-warning">{manualReviewCount} file{manualReviewCount === 1 ? '' : 's'} need information or a decision before import</p>
+            )}
           </div>
-          <button onClick={() => provider?.id && loadFiles(provider.id)} disabled={!provider?.id || busy} className="text-xs text-accent hover:underline disabled:opacity-50">Refresh</button>
+          <div className="flex items-center gap-3">
+            {automaticImports.length > 0 && (
+              <button onClick={handleImportAllReady} disabled={busy} className="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-text disabled:opacity-50">
+                {busy ? 'Importing…' : `Import all ready (${automaticImports.length})`}
+              </button>
+            )}
+            <button onClick={() => provider?.id && loadFiles(provider.id)} disabled={!provider?.id || busy} className="text-xs text-accent hover:underline disabled:opacity-50">Refresh</button>
+          </div>
         </div>
         {files.length === 0 ? (
           <div className="px-4 py-8 text-center text-sm text-text-tertiary">No historical files have been uploaded yet.</div>
@@ -320,7 +423,7 @@ const HistoricalFuturesProviderPanel = () => {
               <div>
                 <h4 className="text-sm font-semibold text-text-primary">Review import</h4>
                 <p className="mt-0.5 text-xs text-text-tertiary">{selectedFile.original_filename}</p>
-                <p className="mt-1 text-xs text-text-secondary">This file has been inspected, but it is not available for replay yet. Check the detected details below and confirm the import. You only need to change fields that were not detected correctly or are marked as required.</p>
+                <p className="mt-1 text-xs ${canImport && !invalidRows && !timezoneRequired ? 'text-positive' : 'text-text-secondary'}">{canImport && !invalidRows && !timezoneRequired ? 'Ready to import. All required details were detected; no changes are needed.' : 'This file needs your attention before it can be imported. Only fields that are missing or incorrect need to be completed.'}</p>
               </div>
               <span className="text-xs text-text-tertiary">{inspection.format?.toUpperCase()} · {formatNumber(inspection.rowCount)} rows</span>
             </div>
@@ -449,7 +552,7 @@ const HistoricalFuturesProviderPanel = () => {
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border">
                 <p className="text-xs text-text-tertiary">Each source symbol becomes a separate dataset owned by this file.</p>
                 <button onClick={handleImport} disabled={!canImport || busy} className="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-text disabled:opacity-50">
-                  {busy ? 'Importing…' : isTickData ? 'Confirm and import ticks' : 'Confirm and import dataset'}
+                  {busy ? 'Importing…' : isTickData ? 'Import ticks' : 'Import dataset'}
                 </button>
               </div>
             )}
