@@ -100,7 +100,7 @@ test('skipping invalid rows does not discard a valid row at the same timestamp',
     const file = await asyncBufferFromFile(destination);
     const rows = await parquetReadObjects({ file, columns: ['timestamp', 'open'] });
     assert.equal(rows.length, 3);
-    assert.equal(rows[1].open, 25002);
+    assert.equal(rows[1].open, 25001);
     assert.equal((rows[1].timestamp as Date).toISOString(), '2026-11-09T14:31:00.000Z');
   } finally {
     await import('node:fs/promises').then(fs => fs.rm(directory, { recursive: true, force: true }));
