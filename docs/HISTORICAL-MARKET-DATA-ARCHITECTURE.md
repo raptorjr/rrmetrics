@@ -167,3 +167,24 @@ File deletion first returns an impact preview (HTTP 409 with `requiresConfirmati
 ### Real Parquet compatibility smoke test
 
 The supplied ES and NQ one-minute Parquet files were run through the actual RR Metrics service functions: inspection, normalization, and bounded range query. Each contained 1,380 valid OHLCV rows, used Zstandard compression and nanosecond timestamps, and was correctly identified as 1-minute UTC data without timezone confirmation. Both normalized to Snappy Parquet and returned all 1,380 bars through the central query service with matching first/last timestamps. The separate ESZ6 and NQZ6 tick files were correctly rejected by the OHLCV inspector because they do not contain OHLCV columns. Their metadata reports 1,481,669 and 710,815 trade events respectively. Tick event decoding/import remains outside the OHLCV first release.
+
+
+## Current OHLCV reader/writer and query contract
+
+The first OHLCV implementation uses the pure-JavaScript Hyparquet stack:
+
+- `hyparquet` for Parquet metadata inspection and column reads.
+- `hyparquet-compressors` for Zstandard and other supported input codecs.
+- `hyparquet-writer` for normalized Parquet output.
+- Normalized files use millisecond UTC timestamps and Snappy compression. The timestamp column includes a page index for bounded range reads.
+
+DuckDB was not selected for this phase. The pure-JavaScript implementation avoids a native runtime dependency in the Alpine Docker image and has been exercised against the supplied Zstandard-compressed files. Revisit DuckDB only if real workload measurements show that the current reader is insufficient.
+
+Provider-independent endpoints:
+
+- `GET /api/market-data/datasets` lists ready datasets and their source/file provenance.
+- `GET /api/market-data/query` returns ordered OHLCV bars for instrument, timeframe and time range, optionally constrained by source symbol or dataset ID.
+
+Source resolution is deliberately conservative. Distinct contract symbols are never automatically merged into a continuous contract. Multiple files for the same instrument/timeframe/source symbol can be combined only when their date coverage does not overlap. If coverage overlaps, the caller must select a specific dataset ID. This prevents silent conflict resolution until explicit source-priority controls are implemented.
+
+Chart Replay now consumes this query API for stored historical data. Its synthetic demo candles and manual CSV upload remain available as separate data sources.
