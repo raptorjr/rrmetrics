@@ -17,6 +17,7 @@ import backtestingRoutes from './routes/backtesting';
 import syncerRoutes from './routes/syncer';
 import robinhoodRoutes from './routes/robinhood';
 import webullRoutes from './routes/webull';
+import dashboardRoutes from './routes/dashboard';
 import pageRoutes from './routes/pages';
 
 type HonoEnv = {
@@ -48,6 +49,7 @@ app.route('/', backtestingRoutes);
 app.route('/', syncerRoutes);
 app.route('/', robinhoodRoutes);
 app.route('/', webullRoutes);
+app.route('/', dashboardRoutes);
 
 // Static assets from public/ (bundles, css, manifest, service worker, ...)
 app.use('/*', serveStatic({ root: './public' }));
