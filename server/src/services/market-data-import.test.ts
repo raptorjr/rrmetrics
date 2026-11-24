@@ -36,3 +36,36 @@ test('rejects missing OHLC columns and invalid prices', () => {
   assert.equal(result.invalidRowCount, 1);
   assert.equal(result.validRowCount, 0);
 });
+
+
+test('detects semicolon and tab-delimited CSV files', () => {
+  const fixtures = [
+    { delimiter: ';', csv: 'timestamp;open;high;low;close\\n2026-11-09T14:30:00Z;25000;25002;24999;25001\\n2026-11-09T14:31:00Z;25001;25003;25000;25002' },
+    { delimiter: '\\t', csv: 'timestamp\\topen\\thigh\\tlow\\tclose\\n2026-11-09T14:30:00Z\\t25000\\t25002\\t24999\\t25001\\n2026-11-09T14:31:00Z\\t25001\\t25003\\t25000\\t25002' },
+  ] as const;
+
+  for (const fixture of fixtures) {
+    const result = inspectOhlcvCsv(Buffer.from(fixture.csv), 'NQ_1m.csv');
+    assert.equal(result.delimiter, fixture.delimiter);
+    assert.equal(result.validRowCount, 2);
+  }
+});
+
+test('allows matching timestamps for different symbols but rejects duplicates per symbol', () => {
+  const csv = [
+    'timestamp,symbol,open,high,low,close,volume',
+    '2026-11-09T14:30:00Z,NQ,25000,25002,24999,25001,100',
+    '2026-11-09T14:30:00Z,ES,6000,6002,5999,6001,200',
+    '2026-11-09T14:31:00Z,NQ,25001,25003,25000,25002,110',
+    '2026-11-09T14:31:00Z,ES,6001,6003,6000,6002,210',
+    '2026-11-09T14:31:00Z,NQ,25001,25003,25000,25002,110',
+  ].join('\\n');
+
+  const result = inspectOhlcvCsv(Buffer.from(csv), 'multi-symbol.csv');
+  assert.equal(result.validRowCount, 4);
+  assert.equal(result.invalidRowCount, 1);
+  assert.deepEqual(result.detectedSymbols, ['NQ', 'ES']);
+  assert.equal(result.detectedInstrument, null);
+  assert.equal(result.sample[0].sourceSymbol, 'NQ');
+  assert.ok(result.warnings.some(warning => warning.includes('multiple instrument symbols')));
+});
