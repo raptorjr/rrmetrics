@@ -50,7 +50,6 @@ const ReplayTradeCanvasGrid = ({
       trading: false,
       features: { replay: false, 'dock.watchlist': false, depthLadder: false },
       resampleTimeframes: true,
-      layouts: false,
     }));
     const grid = new ChartWidgetGrid(hostRef.current, {
       layout,
