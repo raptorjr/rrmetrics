@@ -1,6 +1,7 @@
 const React = require('react');
 const { useState, useEffect } = React;
 const { authFetch } = require('../../helper.js');
+const { formatDateEST, formatTimeEST } = require('../../utils/dateUtils');
 
 const TIME_ZONE_OPTIONS = (() => {
   try {
@@ -20,12 +21,12 @@ const formatBytes = (bytes) => {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
-const formatDate = (value) => value ? new Date(value).toLocaleString() : '—';
+const formatDate = (value) => value ? `${formatDateEST(value)} ${formatTimeEST(value)}` : '—';
 const formatNumber = (value) => Number(value || 0).toLocaleString();
 
 const statusLabel = (status) => ({
   ready: 'Ready',
-  needs_review: 'Needs review',
+  needs_review: 'Awaiting import',
   inspecting: 'Processing',
   deleting: 'Deleting',
   failed: 'Failed',
@@ -319,6 +320,7 @@ const HistoricalFuturesProviderPanel = () => {
               <div>
                 <h4 className="text-sm font-semibold text-text-primary">Review import</h4>
                 <p className="mt-0.5 text-xs text-text-tertiary">{selectedFile.original_filename}</p>
+                <p className="mt-1 text-xs text-text-secondary">This file has been inspected, but it is not available for replay yet. Check the detected details below and confirm the import. You only need to change fields that were not detected correctly or are marked as required.</p>
               </div>
               <span className="text-xs text-text-tertiary">{inspection.format?.toUpperCase()} · {formatNumber(inspection.rowCount)} rows</span>
             </div>
@@ -331,12 +333,12 @@ const HistoricalFuturesProviderPanel = () => {
                 ['Data type', 'Trade ticks'],
                 ['Total volume', formatNumber(inspection.totalVolume)],
                 ['Trade count', inspection.totalTradeCount == null ? 'Unavailable' : formatNumber(inspection.totalTradeCount)],
-                ['Coverage', inspection.startTime && inspection.endTime ? `${new Date(inspection.startTime).toLocaleDateString()} – ${new Date(inspection.endTime).toLocaleDateString()}` : 'Unknown'],
+                ['Coverage', inspection.startTime && inspection.endTime ? `${formatDateEST(inspection.startTime)} – ${formatDateEST(inspection.endTime)}` : 'Unknown'],
               ] : [
                 ['Valid rows', formatNumber(inspection.validRowCount)],
                 ['Invalid rows', formatNumber(inspection.invalidRowCount)],
                 ['Detected timeframe', inspection.detectedTimeframe || 'Unknown'],
-                ['Coverage', inspection.startTime && inspection.endTime ? `${new Date(inspection.startTime).toLocaleDateString()} – ${new Date(inspection.endTime).toLocaleDateString()}` : 'Unknown'],
+                ['Coverage', inspection.startTime && inspection.endTime ? `${formatDateEST(inspection.startTime)} – ${formatDateEST(inspection.endTime)}` : 'Unknown'],
               ]).map(([label, value]) => (
                 <div key={label} className="rounded-lg bg-bg-page/60 p-3">
                   <div className="text-[10px] uppercase tracking-wide text-text-tertiary">{label}</div>
