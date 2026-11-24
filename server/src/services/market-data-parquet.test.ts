@@ -4,7 +4,7 @@ import { asyncBufferFromFile, parquetMetadataAsync, parquetReadObjects } from 'h
 import { parquetWriteBuffer } from 'hyparquet-writer';
 import { inspectOhlcvParquet, normalizeOhlcvParquet, writeOhlcvBarsToParquet } from './market-data-parquet';
 import { readOhlcvParquetRange } from './market-data-query';
-import { inspectTradeTicksParquet, normalizeTradeTicksParquet, readTradeTicksParquetRange, stripTimestampAnnotation } from './market-data-ticks';
+import { inspectTradeTicksParquet, normalizeTradeTicksParquet, readTradeTicksParquetRange } from './market-data-ticks';
 
 function makeParquet(columns: Array<{ name: string; data: unknown[]; type: string }>): Buffer {
   return Buffer.from(parquetWriteBuffer({ columnData: columns as never }));
@@ -274,8 +274,16 @@ test('reads Parquet nanosecond timestamps as raw BigInt instead of lossy JavaScr
   const lossyRows = await parquetReadObjects({ file, metadata: annotatedMetadata, columns: ['ts'] });
   assert.ok(lossyRows[0].ts instanceof Date);
 
-  const rawMetadata = stripTimestampAnnotation(annotatedMetadata, 'ts');
-  const rawRows = await parquetReadObjects({ file, metadata: rawMetadata, columns: ['ts'] });
+  const rawRows = await parquetReadObjects({
+    file,
+    metadata: annotatedMetadata,
+    columns: ['ts'],
+    parsers: {
+      timestampFromMilliseconds: (value: bigint) => value,
+      timestampFromMicroseconds: (value: bigint) => value,
+      timestampFromNanoseconds: (value: bigint) => value,
+    },
+  });
   assert.equal(typeof rawRows[0].ts, 'bigint');
   assert.equal(String(rawRows[0].ts), base.toString());
   assert.equal(String(rawRows[1].ts), (base + 1n).toString());

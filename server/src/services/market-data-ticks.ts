@@ -83,7 +83,6 @@ interface TickMapping {
 interface TickLayout {
   file: AsyncBuffer;
   metadata: FileMetaData;
-  readMetadata: FileMetaData;
   columns: string[];
   mapping: TickMapping;
   timestampUnit: string;
@@ -148,15 +147,6 @@ function detectInstrument(filename: string, symbols: string[]): string | null {
     }
   }
   return matches.size === 1 ? [...matches][0] : null;
-}
-
-export function stripTimestampAnnotation(metadata: FileMetaData, columnName: string): FileMetaData {
-  return {
-    ...metadata,
-    schema: metadata.schema.map(element => element.name === columnName
-      ? { ...element, logical_type: undefined, converted_type: undefined }
-      : element),
-  };
 }
 
 function timestampUnitFromSchema(element: FileMetaData['schema'][number] | undefined): string {
@@ -268,17 +258,7 @@ async function inspectLayout(buffer: Uint8Array): Promise<TickLayout> {
       group.columns.map(column => column.meta_data?.codec).filter((codec): codec is NonNullable<typeof codec> => Boolean(codec)),
     ),
   )];
-  return {
-    file,
-    metadata,
-    readMetadata: stripTimestampAnnotation(metadata, mapping.timestamp),
-    columns,
-    mapping,
-    timestampUnit,
-    timezone,
-    timezoneNeedsConfirmation,
-    compressionCodecs,
-  };
+  return { file, metadata, columns, mapping, timestampUnit, timezone, timezoneNeedsConfirmation, compressionCodecs };
 }
 
 function readValues(row: Record<string, unknown>, mapping: TickMapping) {
@@ -348,7 +328,7 @@ export async function inspectTradeTicksParquet(
     const rowEnd = Math.min(rowCount, rowStart + READ_BATCH_SIZE);
     const rows = await parquetReadObjects({
       file: layout.file,
-      metadata: layout.readMetadata,
+      metadata: layout.metadata,
       columns: readColumns,
       rowStart,
       rowEnd,
@@ -522,7 +502,7 @@ export async function normalizeTradeTicksParquet(
       const rowEnd = Math.min(totalRows, rowStart + READ_BATCH_SIZE);
       const rows = await parquetReadObjects({
         file: layout.file,
-        metadata: layout.readMetadata,
+        metadata: layout.metadata,
         columns: readColumns,
         rowStart,
         rowEnd,
