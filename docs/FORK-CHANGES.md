@@ -1,5 +1,7 @@
 ## Replay workspace refinements
 
+- Grouped and centered replay session selector/account metrics with stable header columns during autosave; disabled individual chart fullscreen. Leading play action in the replay list, replay-first tabs, accurate manual-journal description and one centered Start Session action.
+
 - Replay polish: session selector with save-before-switch, centered account values, quieter save status, one replay progress readout, visible BE styling, restart clears drawings, chart display starts at a compatible favourite, source intervals in menu, and candle-matched default volume colours.
 
 - Brighter labels, centered playback controls, simulated-time speed, explicit loading state, bottom-aligned statistics, and revision-checked Restart retaining layout and indicators. Same-symbol drawings synchronize, new charts keep the correct instrument, chart viewports are captured/restored independently and native dialogs follow the workspace fullscreen. Existing broker trades untouched.
