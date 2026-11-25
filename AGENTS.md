@@ -37,6 +37,8 @@ Do not deploy to the user's running Unraid installation unless the user explicit
 
 - Preserve existing workflows and functionality unless a change explicitly calls for altering them.
 - Prefer reusable components and shared systems over duplicated implementations.
+- TradeCanvas is the standard chart engine for all market-price, execution, replay and future live-trading charts. Do not introduce TradingView Lightweight Charts, KLineCharts or another competing market-chart library. Migrate remaining chart needs to TradeCanvas when suitable; existing lightweight statistical visualizations need not be rewritten gratuitously. Preserve required historical copyright and attribution notices.
+- Public distribution through Unraid Community Applications is a long-term product goal. Follow [the public release roadmap](docs/PUBLIC-RELEASE-ROADMAP.md); do not publish images or submit an application until the user explicitly approves release and the compliance/security gates are satisfied.
 - Maintain consistent visual language, responsive behaviour, accessibility, and clear explanations for trading metrics.
 - For Dashboard and Analytics, preserve the shared tile-catalogue direction: useful components should be reusable, tile content should adapt to available space, and existing page layouts should not be disrupted without an explicit design decision.
 - Keep visual/design decisions documented and distinguish established decisions from proposals and unfinished work.

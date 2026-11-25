@@ -24,7 +24,7 @@ Historical data is imported and managed centrally under Settings â†’ Providers â
 - Offer only chart timeframes that can be served from the available data. This includes native stored timeframes and higher timeframes that RR Metrics can reliably aggregate from a lower timeframe. Never offer a timeframe that would require inventing missing resolution or unsupported downsampling.
 - RR Metrics automatically chooses the appropriate source dataset(s), queries the selected range, and prepares the requested timeframe(s). Source selection and dataset IDs remain internal implementation details unless the user explicitly opens an advanced diagnostic view.
 - Changing the market, date range, or timeframe updates the replay data automatically. There is no separate manual data-loading workflow in the normal path.
-- The replay chart supports multi-panel layouts similar to TradingView: each panel can use its own supported timeframe, while all panels share one replay clock and reveal only information available at that replay instant.
+- The replay chart supports multi-panel layouts using TradeCanvas: each panel can use its own supported timeframe, while all panels share one replay clock and reveal only information available at that replay instant.
 - The primary execution chart is distinct from context charts. Orders, fills, stops and targets are managed against the chosen execution timeframe; other panels provide market context.
 - All displayed dates and times respect the user's RR Metrics date, time and timezone preferences. Stored timestamps and query boundaries remain unmodified UTC instants.
 - Keep the experience automatic and maintainable. Prefer straightforward, deterministic aggregation and execution assumptions over exchange-level simulation complexity.

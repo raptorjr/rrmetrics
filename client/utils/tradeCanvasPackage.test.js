@@ -149,3 +149,14 @@ test('installed chart package supports independent static replay markets',()=>{
   assert.match(String(ChartWidgetGrid),/onChartMenuItems/);
   assert.match(String(ChartWidgetGrid),/onChartUnpark/);
 });
+
+
+test('RR Metrics does not install retired market-chart libraries',()=>{
+  const manifest=require('../../package.json'),lock=require('../../package-lock.json');
+  for(const name of ['lightweight-charts','klinecharts','fancy-canvas']){
+    assert.equal(Object.hasOwn(manifest.dependencies||{},name),false,name);
+    assert.equal(Object.hasOwn(manifest.devDependencies||{},name),false,name);
+    assert.equal(Object.keys(lock.packages).some(path=>path==='node_modules/'+name||path.endsWith('/node_modules/'+name)),false,name);
+  }
+  assert.ok(manifest.dependencies['@tradecanvas/chart']);
+});

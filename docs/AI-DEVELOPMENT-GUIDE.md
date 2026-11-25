@@ -44,6 +44,11 @@ The project has a test command in `package.json`; do not repeat older documentat
 
 ## 4. Durable product and architecture direction
 
+### Public distribution and chart engine policy
+
+- Public distribution through Unraid Community Applications (install/update without Docker Compose) is an approved long-term goal. See [PUBLIC-RELEASE-ROADMAP.md](PUBLIC-RELEASE-ROADMAP.md) for licence, security, packaging and release gates. Babylon remains the development/test installation.
+- TradeCanvas is the sole standard market-chart engine. Use its existing host APIs and improve the fork when necessary instead of introducing other price-chart libraries. Audit any existing analytics visualizations for suitable TradeCanvas reuse over time, without sacrificing their usability. Do not remove genuine historical attribution or notices. Lightweight Charts, KLineCharts and their unused Fancy Canvas dependency have been removed after inspecting client and server source and the dependency graph.
+
 ### User experience across devices
 
 - User-level preferences should be server-backed (SQLite scoped to the existing local profile), not tied to a browser. Browser-local storage is appropriate only for genuinely device-specific state or an explicitly labelled cache.
