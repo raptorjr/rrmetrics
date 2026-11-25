@@ -1,8 +1,10 @@
 const helper = require('./helper.js');
 const { authFetch } = helper;
 const React = require('react');
-const { NO_ACCOUNTS, getTradeAccountKey, getTradeAccountEntries } = require('./utils/accountIdentity');
+const { NO_ACCOUNTS, getTradeAccountEntries } = require('./utils/accountIdentity');
 const { useState, useEffect } = React;
+const useAccountScope=require('./utils/useAccountScope');
+const {filterAccountDomain,filterReplayAccounts,analyticsPage,tradingPage}=require('./utils/accountScope');
 const { createRoot } = require('react-dom/client');
 require('./styles/globals.css');
 
@@ -83,38 +85,32 @@ const App = () => {
     localStorage.setItem('evalFilter', val);
   };
 
-  const [selectedAccounts, setSelectedAccounts] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('rrmetrics_selectedAccounts'));
-      if (Array.isArray(saved)) return saved;
-    } catch {}
-    return [];
-  });
-
-  useEffect(() => {
-    localStorage.setItem('rrmetrics_selectedAccounts', JSON.stringify(selectedAccounts));
-  }, [selectedAccounts]);
-
-  useEffect(() => {
-    if (trades && trades.length > 0 && selectedAccounts.length > 0) {
-      if (selectedAccounts.includes(NO_ACCOUNTS)) return;
-      const entries = getTradeAccountEntries(trades, accountBrokers);
-      const validKeys = new Set(entries.map(account => account.key));
-      const byName = new Map();
-      for (const account of entries) {
-        if (!byName.has(account.name)) byName.set(account.name, []);
-        byName.get(account.name).push(account.key);
-      }
-      // Migrate saved filters from the old name-only format to provider-scoped identities.
-      const cleaned = [...new Set(selectedAccounts.flatMap(value =>
-        validKeys.has(value) ? [value] : (byName.get(value) || [])
-      ))];
-      if (cleaned.length !== selectedAccounts.length || cleaned.some((value, index) => value !== selectedAccounts[index])) {
-        setSelectedAccounts(cleaned);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trades, accountBrokers]);
+  const scope=useAccountScope(currentPage);
+  const selectedAccounts=scope.settings.trading;
+  const setSelectedAccounts=value=>scope.setSelection('trading',value);
+  const mode=tradingPage(currentPage)?'trading':scope.settings.mode;
+  const isBacktesting=mode==='backtesting';
+  const navigate=page=>{
+    if(tradingPage(page))scope.setMode('trading');
+    setCurrentPage(page);
+  };
+  const changeMode=next=>{
+    if(next==='backtesting'){setIsFormOpen(false);setEditingTrade(null);setPrefillDate(null);}
+    scope.setMode(next);
+    if(next==='backtesting'&&!analyticsPage(currentPage))setCurrentPage('dashboard');
+  };
+  const showStatistics=id=>{setIsFormOpen(false);setEditingTrade(null);setPrefillDate(null);scope.selectReplay(id);setCurrentPage('dashboard');};
+  useEffect(()=>{
+    if(!scope.ready||!trades?.length||!selectedAccounts.length||selectedAccounts.includes(NO_ACCOUNTS))return;
+    const entries=getTradeAccountEntries(trades,accountBrokers);
+    const keys=new Set(entries.map(a=>a.key));
+    const cleaned=[...new Set(selectedAccounts.flatMap(value=>{
+      if(keys.has(value)||value.includes('::'))return [value];
+      const matches=entries.filter(a=>a.name===value).map(a=>a.key);
+      return matches.length?matches:[value];
+    }))];
+    if(cleaned.length!==selectedAccounts.length||cleaned.some((v,i)=>v!==selectedAccounts[i]))setSelectedAccounts(cleaned.length?cleaned:[NO_ACCOUNTS]);
+  },[scope.ready,trades,accountBrokers,selectedAccounts]);
 
   const triggerReload = () => setReloadTrades(!reloadTrades);
 
@@ -492,14 +488,17 @@ const App = () => {
   const openFormWithDate = (dateKey) => { setForceEditModal(true); setPrefillDate(dateKey); setIsFormOpen(true); };
   const openEditForm = (trade) => { setForceEditModal(currentPage === 'dashboard'); setEditingTrade(trade); setIsFormOpen(true); };
 
-  const filteredTrades = selectedAccounts.length === 0
-    ? trades
-    : (trades || []).filter(t => selectedAccounts.includes(getTradeAccountKey(t, accountBrokers)));
+  const filteredTrades=filterAccountDomain(trades,'trading',selectedAccounts,accountBrokers);
+  const scopedTrades=isBacktesting?filterAccountDomain(scope.replay.trades,'backtesting',scope.settings.backtesting):filteredTrades;
+  const scopedAccounts=filterReplayAccounts(scope.replay.accounts,scope.settings.backtesting);
+  const dashboardProps=isBacktesting?{trades:scopedTrades,backtesting:true,replayAccounts:scopedAccounts,evalFilter:'all',sidebarCollapsed}:{trades:filteredTrades,onOpenForm:openForm,onManualSync:handleManualSync,brokerStatuses,onOpenAddTrade:openFormWithDate,onEditTrade:openEditForm,dailyNotes,onSaveNote:handleSaveNote,onDeleteNote:handleDeleteNote,tags,strategyRules,evalFilter,setEvalFilter,sidebarCollapsed};
 
   const renderPage = () => {
+    if(analyticsPage(currentPage)&&!scope.ready)return <div className="p-6 text-text-secondary text-sm">{scope.loadError?<><p role="alert">Could not load account preferences: {scope.loadError}</p><button className="text-accent underline mt-2" onClick={scope.retryLoad}>Retry</button></>:'Loading account preferences…'}</div>;
+    if(analyticsPage(currentPage)&&isBacktesting&&(scope.replayLoading||scope.replayError))return <div className="p-6 text-text-secondary text-sm">{scope.replayError?<><p role="alert">Could not load backtesting accounts: {scope.replayError}</p><button className="text-accent underline mt-2" onClick={scope.refreshReplay}>Retry</button></>:'Loading backtesting accounts…'}</div>;
     switch (currentPage) {
       case 'dashboard':
-        return <DashboardPage trades={filteredTrades} onOpenForm={openForm} onManualSync={handleManualSync} brokerStatuses={brokerStatuses} onOpenAddTrade={openFormWithDate} onEditTrade={openEditForm} dailyNotes={dailyNotes} onSaveNote={handleSaveNote} onDeleteNote={handleDeleteNote} tags={tags} strategyRules={strategyRules} evalFilter={evalFilter} setEvalFilter={setEvalFilter} sidebarCollapsed={sidebarCollapsed} />;
+        return <DashboardPage key={mode} {...dashboardProps} />;
       case 'trades':
         return (
           <TradeListPage
@@ -516,21 +515,21 @@ const App = () => {
           />
         );
       case 'analytics':
-        return <AnalyticsPage trades={filteredTrades} evalFilter={evalFilter} setEvalFilter={setEvalFilter} />;
+        return <AnalyticsPage key={mode} trades={scopedTrades} backtesting={isBacktesting} evalFilter={isBacktesting?'all':evalFilter} setEvalFilter={isBacktesting?undefined:setEvalFilter} />;
       case 'strategy':
         return <StrategyPage trades={filteredTrades} evalFilter={evalFilter} setEvalFilter={setEvalFilter} />;
       case 'premarket':
         return <PreMarketPage trades={filteredTrades} />;
       case 'backtesting':
-        return <BacktestingPage />;
+        return <BacktestingPage onStatistics={scope.ready?showStatistics:undefined} />;
       case 'settings':
-        return <SettingsPage onSyncComplete={triggerReload} onNavigate={setCurrentPage} onOpenImport={() => setCsvImportOpen(true)} theme={theme} onThemeChange={handleThemeChange} customColors={customColors} tags={tags} triggerReload={triggerReload} />;
+        return <SettingsPage onSyncComplete={triggerReload} onNavigate={navigate} onOpenImport={() => setCsvImportOpen(true)} theme={theme} onThemeChange={handleThemeChange} customColors={customColors} tags={tags} triggerReload={triggerReload} />;
       case 'syncer':
         return <TradeSyncerPage />;
       case 'tradezella':
         return <TradeZellaImportPage triggerReload={triggerReload} />;
       default:
-        return <DashboardPage trades={filteredTrades} onOpenForm={openForm} onManualSync={handleManualSync} brokerStatuses={brokerStatuses} onOpenAddTrade={openFormWithDate} onEditTrade={openEditForm} dailyNotes={dailyNotes} onSaveNote={handleSaveNote} onDeleteNote={handleDeleteNote} tags={tags} strategyRules={strategyRules} evalFilter={evalFilter} setEvalFilter={setEvalFilter} sidebarCollapsed={sidebarCollapsed} />;
+        return <DashboardPage key={mode} {...dashboardProps} />;
     }
   };
 
@@ -540,12 +539,14 @@ const App = () => {
     <div className="flex min-h-screen relative z-[1]">
       <Sidebar
         currentPage={currentPage}
-        onNavigate={setCurrentPage}
+        onNavigate={navigate}
         onCollapsedChange={setSidebarCollapsed}
         onWidthChange={setSidebarWidth}
         trades={trades}
-        selectedAccounts={selectedAccounts}
-        setSelectedAccounts={setSelectedAccounts}
+        selectedAccounts={isBacktesting?scope.settings.backtesting:selectedAccounts}
+        setSelectedAccounts={isBacktesting?value=>scope.setSelection('backtesting',value):setSelectedAccounts}
+        accountMode={mode} onAccountModeChange={scope.ready?changeMode:undefined}
+        replayAccounts={scope.replay.accounts} accountLoading={!scope.ready||isBacktesting&&scope.replayLoading}
         accountBrokers={accountBrokers}
       />
       <main className="flex-1 min-h-screen transition-[margin] duration-200 max-lg:!ml-0" style={{ marginLeft: sidebarWidth, paddingRight: sidePanelOffset }}>
@@ -556,6 +557,7 @@ const App = () => {
               <span>{syncNotification}</span>
             </div>
           )}
+          {scope.saveError&&<div role="alert" className="mb-3 text-sm text-negative">Account preferences could not be saved. <button className="underline" onClick={scope.retrySave}>Retry</button></div>}
           {renderPage()}
         </div>
       </main>

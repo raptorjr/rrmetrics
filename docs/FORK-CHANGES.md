@@ -1,5 +1,7 @@
 ## Replay workspace refinements
 
+- Shared Dashboard and Analytics now accept isolated replay accounts through a read-only projection; Trading/Backtesting selector, SQLite-backed independent selections, Statistics navigation, and read-only backtesting calendar. No simulated trades inserted into the real journal.
+
 - Replay session row actions: Rename and confirmed Delete, using owner/revision-checked APIs and cascading only the selected replay account's trades. Documented future Statistics navigation and user-confirmed multi-symbol acceptance.
 
 - Create-session historical range shortcuts and eligible market names; viewport-bounded calendar popup outside the dialog scroll container, minute-precision date/time selection with inward-rounded coverage.

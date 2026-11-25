@@ -277,7 +277,7 @@ const DayDetailPanel = ({ dateKey, dayData, onClose, dailyNotes, onSaveNote, onD
           )}
 
           {/* Daily Note */}
-          <div className="border-t border-border pt-3">
+          {onSaveNote&&<div className="border-t border-border pt-3">
             <label className="text-text-secondary text-xs font-medium mb-1.5 block">Daily Note</label>
             <textarea
               className="w-full px-3 py-2 bg-bg-input border border-border rounded-lg text-text-primary text-sm placeholder-text-muted focus:outline-none focus:border-accent transition-colors resize-none"
@@ -304,7 +304,7 @@ const DayDetailPanel = ({ dateKey, dayData, onClose, dailyNotes, onSaveNote, onD
                 </button>
               )}
             </div>
-          </div>
+          </div>}
 
           {/* Daily Rule Checks */}
           {dayRules.length > 0 && (
@@ -331,9 +331,9 @@ const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'Ju
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, strategyRules, onOpenAddTrade, onEditTrade, sidebarCollapsed }) => {
+const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, strategyRules, onOpenAddTrade, onEditTrade, sidebarCollapsed,readOnly=false }) => {
   const [viewMode, setViewMode] = useState('daily'); // 'daily' | 'heatmap' | 'monthly' | 'yearly'
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(()=>readOnly&&trades.length?new Date(trades.reduce((latest,t)=>Math.max(latest,new Date(t.exitTime).getTime()),-Infinity)):new Date());
   const [selectedDay, setSelectedDay] = useState(null);
   const [selectedNoteDate, setSelectedNoteDate] = useState(null);
   const dailyData = groupTradesByDate(trades);
@@ -450,9 +450,9 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
           month={month}
           dailyData={dailyData}
           onSelectDay={setSelectedDay}
-          onOpenNote={setSelectedNoteDate}
-          dailyNotes={dailyNotes}
-          onOpenAddTrade={onOpenAddTrade}
+          onOpenNote={readOnly?undefined:setSelectedNoteDate}
+          dailyNotes={readOnly?[]:dailyNotes}
+          onOpenAddTrade={readOnly?undefined:onOpenAddTrade}
         />
       )}
 
@@ -482,18 +482,18 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
         />
       )}
 
-      {selectedNoteDate && <DailyNotePopup dateKey={selectedNoteDate} dailyNotes={dailyNotes || []} onClose={() => setSelectedNoteDate(null)} onSave={onSaveNote} onDelete={onDeleteNote} />}
+      {!readOnly&&selectedNoteDate && <DailyNotePopup dateKey={selectedNoteDate} dailyNotes={dailyNotes || []} onClose={() => setSelectedNoteDate(null)} onSave={onSaveNote} onDelete={onDeleteNote} />}
       {selectedDay && (
         <DayDetailPanel
           dateKey={selectedDay}
           dayData={dailyData[selectedDay] || { totalPL: 0, tradeCount: 0, trades: [] }}
           onClose={() => setSelectedDay(null)}
-          dailyNotes={dailyNotes}
-          onSaveNote={onSaveNote}
-          onDeleteNote={onDeleteNote}
-          tags={tags}
-          strategyRules={strategyRules}
-          onEditTrade={onEditTrade}
+          dailyNotes={readOnly?[]:dailyNotes}
+          onSaveNote={readOnly?undefined:onSaveNote}
+          onDeleteNote={readOnly?undefined:onDeleteNote}
+          tags={readOnly?[]:tags}
+          strategyRules={readOnly?[]:strategyRules}
+          onEditTrade={readOnly?undefined:onEditTrade}
           sidebarCollapsed={sidebarCollapsed}
         />
       )}
@@ -600,12 +600,12 @@ const DailyCalendar = ({ year, month, dailyData, onSelectDay, onOpenNote, dailyN
                   <div className="flex items-center justify-between">
                     <span className={`text-xs font-medium ${isToday ? 'text-accent' : 'text-text-primary'}`}>{slot.day}</span>
                     <div className="flex items-center gap-1">
-                      <button type="button"
+                      {onOpenNote&&<button type="button"
                         className={`absolute bottom-1.5 right-1.5 transition-opacity w-5 h-5 rounded flex items-center justify-center text-xs ${isFuture ? 'hidden' : hasNote ? 'text-accent opacity-100' : 'text-text-secondary opacity-0 group-hover:opacity-100'} hover:bg-accent/15`}
                         onClick={event => { event.stopPropagation(); if (!isFuture) onOpenNote(slot.dateKey); }}
                         title={hasNote ? 'View or edit daily note' : 'Add daily note'} aria-label={hasNote ? 'Edit daily note' : 'Add daily note'}>
                         {hasNote ? '▤' : '✎'}
-                      </button>
+                      </button>}
                       {onOpenAddTrade && (
                         <button type="button"
                           className={`absolute top-1.5 right-1.5 transition-opacity w-5 h-5 rounded flex items-center justify-center bg-accent/20 hover:bg-accent/40 text-accent text-xs font-bold ${isFuture ? 'hidden' : 'opacity-0 group-hover:opacity-100'}`}

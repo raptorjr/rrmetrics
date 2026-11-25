@@ -3,6 +3,7 @@ import type { Env, AuthContext } from '../bindings';
 import * as backtestingDb from '../db/backtesting';
 import { readReplayChartSettings, saveReplayChartSettings, validateReplayChartSettings } from '../db/replay-chart-settings';
 import { readGoToSettings, saveGoToSettings, validateGoToSettings } from '../db/replay-go-to-settings';
+import { readAccountView, saveAccountView, validateAccountView, initializeAccountView } from '../db/account-view-settings';
 import * as replaySessions from '../db/replay-sessions';
 import { requiresLogin } from '../middleware/auth';
 
@@ -197,6 +198,20 @@ backtesting.delete('/api/backtesting/trades/:id', requiresLogin, async (c) => {
     console.error('deleteTrade error:', err);
     return c.json({ error: 'Failed to delete trade' }, 500);
   }
+});
+
+// Separate, read-only analytics catalogue and profile-scoped account selection.
+backtesting.get('/api/backtesting/replay-analytics', requiresLogin, (c) =>
+  c.json(replaySessions.replayAnalytics(c.get('db'),c.get('user').id)));
+backtesting.get('/api/backtesting/account-view', requiresLogin, (c) =>
+  c.json({settings:readAccountView(c.get('db'),c.get('user').id)}));
+backtesting.put('/api/backtesting/account-view', requiresLogin, async (c) => {
+  let body:unknown;try{body=await c.req.json();}catch{return c.json({error:'Invalid account selection.'},400);}
+  const settings=validateAccountView(body);
+  if(!settings)return c.json({error:'Invalid account selection.'},400);
+  if(c.req.query('initialize')==='1')return c.json({settings:initializeAccountView(c.get('db'),c.get('user').id,settings)});
+  saveAccountView(c.get('db'),c.get('user').id,settings);
+  return c.json({settings});
 });
 
 // Independent virtual replay accounts. Never write to broker or manual journal tables.
