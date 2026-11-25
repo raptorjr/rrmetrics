@@ -1,5 +1,7 @@
 ## Replay workspace refinements
 
+- Replay session row actions: Rename and confirmed Delete, using owner/revision-checked APIs and cascading only the selected replay account's trades. Documented future Statistics navigation and user-confirmed multi-symbol acceptance.
+
 - Create-session historical range shortcuts and eligible market names; viewport-bounded calendar popup outside the dialog scroll container, minute-precision date/time selection with inward-rounded coverage.
 
 - Independent chart symbols and contract-specific historical context, per-symbol timeframe menus and drawings, and exact-origin execution guards. Restore context source fingerprints without mixing contracts or exposing future bars.

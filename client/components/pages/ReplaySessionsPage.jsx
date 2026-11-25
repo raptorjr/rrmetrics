@@ -1,5 +1,6 @@
 const React = require('react');
-const { useEffect, useState } = React;
+const { useEffect, useState, useRef, useLayoutEffect } = React;
+const { createPortal } = require('react-dom');
 const { authFetch } = require('../../helper');
 const { replaySessionRangeChoices, getSessionMarkets } = require('../../utils/historicalReplay');
 const Workspace = require('./BacktestingReplayWorkspace').default;
@@ -15,12 +16,47 @@ async function request(url, options) {
   if (!response.ok) throw Error(data.error || 'Request failed.');
   return data;
 }
+function SessionActions({session,disabled,onAction}){
+  const trigger=useRef(null),menu=useRef(null);
+  const [open,setOpen]=useState(false),[style,setStyle]=useState({visibility:'hidden'});
+  useLayoutEffect(()=>{
+    if(!open)return;
+    const rect=trigger.current.getBoundingClientRect(),width=160,height=menu.current.offsetHeight;
+    setStyle({left:Math.max(8,Math.min(rect.right-width,window.innerWidth-width-8)),
+      top:rect.bottom+height+12<=window.innerHeight?rect.bottom+4:Math.max(8,rect.top-height-4),width});
+    menu.current.querySelector('button')?.focus();
+  },[open]);
+  useEffect(()=>{
+    if(!open)return;
+    const close=e=>{if(!trigger.current?.contains(e.target)&&!menu.current?.contains(e.target))setOpen(false);};
+    const key=e=>{if(e.key==='Escape'){setOpen(false);trigger.current?.focus();}};
+    const move=e=>{if(!menu.current?.contains(e.target))setOpen(false);};
+    document.addEventListener('pointerdown',close);document.addEventListener('keydown',key);
+    window.addEventListener('scroll',move,true);window.addEventListener('resize',move);
+    return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',key);window.removeEventListener('scroll',move,true);window.removeEventListener('resize',move);};
+  },[open]);
+  useEffect(()=>{if(disabled)setOpen(false);},[disabled]);
+  const action=kind=>{setOpen(false);onAction(kind,session);};
+  return <>
+    <button ref={trigger} type="button" title="Session actions" aria-label={'Actions for '+session.name} aria-expanded={open}
+      disabled={disabled} onClick={()=>{if(!open)setStyle({visibility:'hidden'});setOpen(v=>!v);}}
+      className="inline-flex w-9 h-9 items-center justify-center rounded-lg text-text-secondary hover:bg-bg-input hover:text-text-primary focus-visible:outline focus-visible:outline-2 disabled:opacity-40">
+      <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
+    </button>
+    {open&&createPortal(<div ref={menu} style={style} className="fixed z-[1100] rounded-lg border border-border bg-bg-surface shadow-xl p-1 text-sm" role="group" aria-label="Session actions">
+      <button type="button" onClick={()=>action('rename')} className="w-full flex items-center gap-2 rounded px-3 py-2 text-left text-text-primary hover:bg-bg-input"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z"/></svg>Rename</button>
+      <button type="button" onClick={()=>action('delete')} className="w-full flex items-center gap-2 rounded px-3 py-2 text-left text-negative hover:bg-bg-input"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5m4-5v5"/></svg>Delete</button>
+    </div>,document.body)}
+  </>;
+}
 function ReplaySessionsPage() {
   const [sessions,setSessions] = useState([]), [datasets,setDatasets] = useState([]);
   const [active,setActive] = useState(null), [creating,setCreating] = useState(false), [busy,setBusy] = useState(true);
   const [error,setError] = useState(''), [filter,setFilter] = useState('all');
   const [name,setName] = useState(''), [description,setDescription] = useState(''), [balance,setBalance] = useState('50000');
   const [start,setStart] = useState(''), [end,setEnd] = useState('');
+  const [action,setAction]=useState(null),[renameName,setRenameName]=useState(''),[actionError,setActionError]=useState(''),[actionBusy,setActionBusy]=useState(false);
+  const actionLock=useRef(false),actionDialog=useRef(null);
   const ranges = replaySessionRangeChoices(datasets);
   const chooseRange=range=>{setStart(toDisplayDateTimeInput(range.start));setEnd(toDisplayDateTimeInput(range.end));};
   const rangeTime=ms=>formatDateEST(new Date(ms))+' '+formatTimeEST(new Date(ms));
@@ -50,6 +86,33 @@ function ReplaySessionsPage() {
       setCreating(false);setSessions(previous=>[session,...previous.filter(s=>s.id!==session.id)]);setActive(session);
     } catch(e) {setError(e.message);} finally {setBusy(false);}
   };
+  const openAction=(kind,session)=>{
+    setActionError('');setRenameName(session.name);setAction({kind,session});
+  };
+  useEffect(()=>{
+    if(action&&!actionDialog.current?.open)actionDialog.current?.showModal();
+  },[action]);
+  const closeAction=()=>{
+    if(actionLock.current)return;
+    actionDialog.current?.close();setAction(null);
+    if(actionError)void load();
+  };
+  const confirmAction=async e=>{
+    e.preventDefault();
+    if(!action||actionLock.current)return;
+    const {kind,session}=action;
+    if(kind==='rename'&&!renameName.trim())return;
+    actionLock.current=true;setActionBusy(true);setActionError('');
+    try{
+      const result=await request('/api/backtesting/replay-sessions/'+encodeURIComponent(session.id),
+        {method:kind==='rename'?'PATCH':'DELETE',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({revision:session.revision,...(kind==='rename'?{name:renameName.trim()}: {})})});
+      if(kind==='rename')setSessions(old=>old.map(s=>s.id===session.id?result.session:s));
+      else setSessions(old=>old.filter(s=>s.id!==session.id));
+      actionDialog.current?.close();setAction(null);
+    }catch(e){setActionError(e.message);}
+    finally{actionLock.current=false;setActionBusy(false);}
+  };
   const resume = async id => {
     setBusy(true);setError('');
     try { const {session}=await request('/api/backtesting/replay-sessions/'+encodeURIComponent(id));setActive(session); }
@@ -65,6 +128,7 @@ function ReplaySessionsPage() {
     <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-semibold text-text-primary">Replay sessions</h2><p className="text-sm text-text-muted">Independent simulated accounts. Resume on any device.</p></div><button className={primary} disabled={busy||!ranges.length} onClick={openCreate}>+ Create session</button></div>
     {!ranges.length&&!busy&&<p className="text-sm text-text-muted">Import historical OHLCV data under Settings → Providers → Historical Futures to create a session.</p>}
     {error&&<div role="alert" className="text-sm text-negative">{error}</div>}
+    {action&&<dialog ref={actionDialog} onCancel={e=>{e.preventDefault();closeAction();}} aria-labelledby="session-action-title" className="m-auto w-[440px] max-w-[calc(100%-2rem)] rounded-xl border border-border bg-bg-surface text-text-primary shadow-xl p-5 backdrop:bg-black/60"><form onSubmit={confirmAction} className="space-y-4"><h3 id="session-action-title" className="text-lg font-semibold">{action.kind==='rename'?'Rename session':'Delete session?'}</h3>{action.kind==='rename'?<label className="block text-sm text-text-secondary">Session name<input autoFocus required maxLength={120} className={input+' mt-1'} value={renameName} disabled={actionBusy} onChange={e=>setRenameName(e.target.value)}/></label>:<div className="text-sm space-y-2"><p>Delete <strong className="break-words">{action.session.name}</strong>?</p><p className="text-text-secondary">This permanently removes the virtual account, its {action.session.tradeCount} completed trade(s), saved orders, positions and chart state. Imported historical data and other accounts are not affected.</p></div>}{actionError&&<p role="alert" className="text-sm text-negative">{actionError}</p>}<div className="flex justify-end gap-2"><button autoFocus={action.kind==='delete'} type="button" className={secondary} disabled={actionBusy} onClick={closeAction}>Cancel</button><button type="submit" disabled={actionBusy||(action.kind==='rename'&&!renameName.trim())} className={action.kind==='delete'?'border border-current text-negative rounded-lg px-4 py-2 text-sm font-semibold hover:bg-bg-input disabled:opacity-40':primary}>{actionBusy?'Working…':action.kind==='rename'?'Save':'Delete session'}</button></div></form></dialog>}
     {creating&&<div className="fixed inset-0 z-[1000] bg-black/60 flex items-center justify-center p-4"><form onSubmit={create} className="w-full max-w-xl max-h-[90dvh] overflow-y-auto bg-bg-surface border border-border rounded-xl p-5 space-y-4 shadow-xl">
       <h3 className="text-lg font-semibold text-text-primary">Create backtesting session</h3>
       <label className="block text-sm text-text-secondary">Session name<input className={input+' mt-1'} required maxLength={120} value={name} onChange={e=>setName(e.target.value)}/></label>
@@ -79,7 +143,7 @@ function ReplaySessionsPage() {
     </form></div>}
     <div className="bg-bg-surface border border-border rounded-xl overflow-hidden">
       <div className="flex gap-2 p-2 border-b border-border">{[['all','All'],['in_progress','In progress'],['completed','Completed']].map(([id,label])=><button key={id} className={'px-3 py-2 rounded text-sm '+(filter===id?'text-accent bg-bg-input':'text-text-muted')} onClick={()=>setFilter(id)}>{label}</button>)}</div>
-      <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm text-left"><thead className="bg-bg-input text-text-muted text-xs"><tr>{['','Session','Period','Starting balance','Balance','Realized P/L','Trades','Win %','Progress'].map((label,i)=><th key={i} className="p-3">{label}</th>)}</tr></thead><tbody>{filtered.map(s=><tr key={s.id} className="border-t border-border text-text-primary"><td className="p-3 w-12"><button type="button" className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-bg-input border border-border text-accent hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40" disabled={busy} onClick={()=>resume(s.id)} title={(s.revision?'Resume ':'Start ')+s.name} aria-label={(s.revision?'Resume ':'Start ')+s.name}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 4.5v15l12-7.5z"/></svg></button></td><td className="p-3"><strong>{s.name}</strong>{s.description&&<p className="text-xs text-text-muted max-w-[220px] truncate">{s.description}</p>}</td><td className="p-3 text-xs text-text-secondary">{formatDateEST(s.startTime)} – {formatDateEST(s.endTime)}</td><td className="p-3">{money(s.startingBalance)}</td><td className="p-3">{money(s.balance)}</td><td className={'p-3 '+(s.realizedPnl<0?'text-negative':'text-positive')}>{money(s.realizedPnl)}</td><td className="p-3">{s.tradeCount}</td><td className="p-3">{s.winRate.toFixed(1)}%</td><td className="p-3"><div className="flex items-center gap-2"><div className="w-16 h-1.5 rounded bg-bg-input"><div className="h-full rounded bg-accent" style={{width:s.progress+'%'}}/></div>{s.progress}%</div></td></tr>)}</tbody></table></div>
+      <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm text-left"><thead className="bg-bg-input text-text-muted text-xs"><tr>{['','Session','Period','Starting balance','Balance','Realized P/L','Trades','Win %','Progress',''].map((label,i)=><th key={i} className="p-3">{label}</th>)}</tr></thead><tbody>{filtered.map(s=><tr key={s.id} className="border-t border-border text-text-primary"><td className="p-3 w-12"><button type="button" className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-bg-input border border-border text-accent hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40" disabled={busy} onClick={()=>resume(s.id)} title={(s.revision?'Resume ':'Start ')+s.name} aria-label={(s.revision?'Resume ':'Start ')+s.name}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 4.5v15l12-7.5z"/></svg></button></td><td className="p-3"><strong>{s.name}</strong>{s.description&&<p className="text-xs text-text-muted max-w-[220px] truncate">{s.description}</p>}</td><td className="p-3 text-xs text-text-secondary">{formatDateEST(s.startTime)} – {formatDateEST(s.endTime)}</td><td className="p-3">{money(s.startingBalance)}</td><td className="p-3">{money(s.balance)}</td><td className={'p-3 '+(s.realizedPnl<0?'text-negative':'text-positive')}>{money(s.realizedPnl)}</td><td className="p-3">{s.tradeCount}</td><td className="p-3">{s.winRate.toFixed(1)}%</td><td className="p-3"><div className="flex items-center gap-2"><div className="w-16 h-1.5 rounded bg-bg-input"><div className="h-full rounded bg-accent" style={{width:s.progress+'%'}}/></div>{s.progress}%</div></td><td className="p-3 w-12 text-right"><SessionActions session={s} disabled={busy||actionBusy||!!action} onAction={openAction}/></td></tr>)}</tbody></table></div>
       {!filtered.length&&<p className="p-6 text-center text-text-muted text-sm">{busy?'Loading sessions…':'No sessions in this view.'}</p>}
     </div>
   </div>;
