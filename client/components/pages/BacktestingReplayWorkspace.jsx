@@ -203,6 +203,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
   const workspaceRef = useRef(null), chartCaptureRef = useRef(null), fingerprintRef = useRef('');
   const revisionRef = useRef(session.revision), saveInFlight = useRef(null), lastSavedRef = useRef('');
   const exitRef = useRef(false), conflictRef = useRef(false), snapshotRef = useRef(null);
+  const [jumpRevision,setJumpRevision]=useState(0);
   const [restartLayout,setRestartLayout]=useState(null), [chartGeneration,setChartGeneration]=useState(0);
   const [chartReady,setChartReady] = useState(false), [saveStatus,setSaveStatus] = useState(saved?'Restoring…':'Not saved yet');
   useEffect(()=>{
@@ -400,7 +401,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
       advanceOneRef.current?.();
       if(currentIndexRef.current===before)return;
     }
-    currentIndexRef.current=target;setCurrentIndex(target);
+    currentIndexRef.current=target;setCurrentIndex(target);setJumpRevision(v=>v+1);
   };
 
   const handleMarketChange = event => {
@@ -664,7 +665,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
             pendingOrder={pendingOrder}
             spec={spec}
             currentPrice={currentPrice}
-            onGoTo={jumpToTime}
+            onGoTo={jumpToTime} jumpRevision={jumpRevision}
             chartMenuItems={chartMenuItems}
             onOrderModify={modifyPendingOrder}
             onOrderCancel={({ orderId }) => cancelPendingOrder(orderId)}

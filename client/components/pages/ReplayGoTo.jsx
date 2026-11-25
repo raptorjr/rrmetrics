@@ -15,7 +15,7 @@ function ReplayGoTo({openRef,onGoTo}){
   };
   useEffect(()=>{alive.current=true;void refresh();return()=>{alive.current=false;++generation.current;};},[]);
   useEffect(()=>{
-    openRef.current=button=>{const rect=button.getBoundingClientRect();setAnchor(previous=>previous?null:{left:Math.max(8,Math.min(rect.left,window.innerWidth-320)),top:rect.bottom+4});};
+    openRef.current=button=>{const rect=button.getBoundingClientRect();setAnchor(previous=>previous?null:{left:Math.max(8,Math.min(rect.left,window.innerWidth-320)),top:rect.bottom+4,maxHeight:Math.max(80,window.innerHeight-rect.bottom-12)});};
     return()=>{openRef.current=null;};
   },[openRef]);
   useEffect(()=>{
@@ -44,7 +44,8 @@ function ReplayGoTo({openRef,onGoTo}){
   </div>;
   return <>
     {anchor&&<><div className="fixed inset-0 z-[10001]" onPointerDown={()=>setAnchor(null)}/>
-      <div ref={menu} className="fixed z-[10002] w-[312px] max-w-[calc(100vw-16px)] rounded-lg border border-border bg-bg-surface shadow-xl p-1 text-sm" style={anchor}>
+      <div ref={menu} className="fixed z-[10002] w-[312px] max-w-[calc(100vw-16px)] rounded-lg border border-border bg-bg-surface shadow-xl p-1 text-sm overflow-y-auto" style={anchor}>
+        <p className="px-3 py-1 text-xs text-text-secondary">Next occurrence · New York time</p>
         {status==='ready'&&options.filter(x=>x.enabled).map(item=><button key={item.id} type="button" className="w-full px-3 py-2 rounded text-left hover:bg-bg-input flex items-center justify-between gap-2" onClick={()=>{setAnchor(null);onGoTo?.(item);}}><span>{item.label}</span><span className="text-text-secondary tabular-nums">{item.time}</span></button>)}
         {status==='ready'&&!options.some(x=>x.enabled)&&<p className="px-3 py-2 text-text-secondary">No enabled destinations.</p>}
         {status==='loading'&&<p className="px-3 py-2 text-text-secondary">Loading settings…</p>}
@@ -54,7 +55,7 @@ function ReplayGoTo({openRef,onGoTo}){
     <dialog ref={dialog} aria-labelledby="rr-go-to-title" className="m-auto rounded-xl border border-border bg-bg-surface text-text-primary shadow-2xl p-0 overflow-y-auto backdrop:bg-black/60" style={{width:520,maxWidth:'calc(100% - 2rem)',maxHeight:'calc(100% - 2rem)'}} onCancel={e=>{if(status==='saving')e.preventDefault();}} onClick={e=>{if(e.target===e.currentTarget)close();}}>
       <div className="p-5 space-y-4">
         <div className="flex items-center justify-between"><h2 id="rr-go-to-title" className="text-lg font-semibold">Go to settings</h2><button type="button" aria-label="Close" disabled={status==='saving'} onClick={close}>×</button></div>
-        <p className="text-xs text-text-secondary">All times are New York time (Eastern Time), including daylight saving. Go to advances to the next available occurrence.</p>
+        <p className="text-xs text-text-secondary">All times are New York time (Eastern Time), including daylight saving. Go to advances to the next available occurrence and pauses. If the market is closed, a time with data up to two hours later is used; otherwise that occurrence is skipped.</p>
         <section className="border-t border-border pt-3"><h3 className="text-sm font-semibold text-text-secondary mb-2">Next session</h3>{draft.filter(x=>['asian','london','new-york'].includes(x.id)).map(x=>row(x))}</section>
         <section className="border-t border-border pt-3"><h3 className="text-sm font-semibold text-text-secondary mb-2">Next day open</h3>{draft.filter(x=>x.id==='next-day').map(x=>row(x))}</section>
         <section className="border-t border-border pt-3"><div className="flex justify-between items-center mb-2"><h3 className="text-sm font-semibold text-text-secondary">Custom Go to options</h3><button type="button" disabled={status!=='ready'||draft.length>=24} className={input+' disabled:opacity-40'} onClick={()=>setDraft(old=>[...old,{id:'custom-'+Date.now().toString(36)+'-'+old.length,label:'Custom time',time:'09:30',enabled:true}])}>+ Add option</button></div>{draft.filter(x=>!builtIns.includes(x.id)).map(x=>row(x,true))}</section>

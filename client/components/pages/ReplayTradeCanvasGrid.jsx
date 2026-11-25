@@ -51,7 +51,7 @@ const ReplayTradeCanvasGrid = ({
   baseTimeframe,
   position,
   pendingOrder,
-  onActiveChartChange, onGoTo,
+  onActiveChartChange, onGoTo, jumpRevision=0,
   spec, currentPrice, chartMenuItems, onOrderModify, onOrderCancel, onPositionModify, onPositionClose,
 }) => {
   const interactionRef = useRef(null);
@@ -113,6 +113,7 @@ const ReplayTradeCanvasGrid = ({
   const barsRef = useRef([]);
   const baseTimeframeRef = useRef(baseTimeframe);
   const dataIdentityRef = useRef('');
+  const appliedJumpRef=useRef(jumpRevision);
   const [gridRevision, setGridRevision] = useState(0);
   // Read the widget's existing pinned intervals; no new browser preference is written.
   const readIntervals = key => {try{const value=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(value)?value.filter(v=>typeof v==='string'):[];}catch{return [];}};
@@ -215,9 +216,13 @@ const ReplayTradeCanvasGrid = ({
     const isAppend = !identityChanged && previous.length > 0
       && visibleBars.length >= previous.length
       && previous.every((bar, index) => visibleBars[index]?.time === bar.time);
-    if (!previous.length || identityChanged || !isAppend) {
+    const jumped=appliedJumpRef.current!==jumpRevision;
+    appliedJumpRef.current=jumpRevision;
+    if (jumped || !previous.length || identityChanged || !isAppend) {
       grid.getWidgets().forEach(widget => {
         loadReplayData(widget, visibleBars, baseTimeframe, previous.length > 0 && !identityChanged);
+        // Explicit Go to should show its destination, unlike ordinary playback.
+        if(jumped)widget.getChart().scrollToEnd();
       });
     } else if (visibleBars.length > previous.length) {
       const additions = visibleBars.slice(previous.length);
@@ -227,7 +232,7 @@ const ReplayTradeCanvasGrid = ({
     }
     barsRef.current = visibleBars;
     dataIdentityRef.current = identity;
-  }, [visibleBars, ticker, baseTimeframe]);
+  }, [visibleBars, ticker, baseTimeframe, jumpRevision]);
 
   useEffect(() => {
     const grid = gridRef.current;
