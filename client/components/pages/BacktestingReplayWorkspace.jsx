@@ -393,7 +393,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
   // working order exists; when flat, no bar can create an execution by itself.
   const jumpToTime = option => {
     if(!chartReady||historicalLoading||exitRef.current||conflictRef.current)return;
-    const target=nextGoToIndex(candlesRef.current,currentIndexRef.current,option.time);
+    const target=nextGoToIndex(candlesRef.current,currentIndexRef.current,option.time,option.timeZone);
     if(target<0){setError('No later '+option.label+' with historical data in this session.');return;}
     setIsPlaying(false);setLockedMarket(true);setError('');
     while(currentIndexRef.current<target&&(positionRef.current||pendingOrderRef.current)){

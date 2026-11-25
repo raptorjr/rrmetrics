@@ -1,6 +1,6 @@
 import type { Db } from './connection';
 const BUILT_INS = ['asian','london','new-york','next-day'];
-interface GoToOption { id:string;label:string;time:string;enabled:boolean }
+interface GoToOption { id:string;label:string;time:string;enabled:boolean;timeZone?:string }
 interface GoToSettings { version:1;options:GoToOption[] }
 export function validateGoToSettings(input:unknown):GoToSettings|null {
   if(!input||typeof input!=='object')return null;
@@ -9,11 +9,15 @@ export function validateGoToSettings(input:unknown):GoToSettings|null {
   const options:GoToOption[]=[],ids=new Set<string>();
   for(const item of v.options){
     if(!item||typeof item!=='object')return null;
-    const {id,label,time,enabled}=item;
+    const {id,label,time,enabled,timeZone}=item;
+    if(timeZone!==undefined){
+      if(typeof timeZone!=='string'||timeZone.length>100)return null;
+      try{new Intl.DateTimeFormat('en-US',{timeZone});}catch{return null;}
+    }
     if(typeof id!=='string'||!(/^[a-zA-Z0-9_-]{1,80}$/.test(id))||ids.has(id)||
       typeof label!=='string'||!label.trim()||label.length>80||
       typeof time!=='string'||!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)||typeof enabled!=='boolean')return null;
-    ids.add(id);options.push({id,label:label.trim(),time,enabled});
+    ids.add(id);options.push({id,label:label.trim(),time,enabled,...(timeZone!==undefined?{timeZone}:{})});
   }
   if(!BUILT_INS.every(id=>ids.has(id)))return null;
   return {version:1,options};
