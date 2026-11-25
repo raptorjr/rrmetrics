@@ -88,10 +88,12 @@ const ReplayTradeCanvasGrid = ({
       layout: '1x1',
       layoutChoices,
       cells,
-      bar: false,
+      // Keep the grid arrangement picker in its own persistent grid bar.
+      // It must not depend on which chart's native toolbar is currently active.
+      bar: true,
       layouts: false,
-      sharedToolbar: true,
-      layoutPickerInToolbar: true,
+      sharedToolbar: false,
+      layoutPickerInToolbar: false,
       sharedDrawingTools: true,
       sync: { symbol: false, interval: false, crosshair: true, time: false, drawings: false, replay: false },
       onActiveChange: index => {
