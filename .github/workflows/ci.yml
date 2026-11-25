@@ -40,3 +40,32 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+  replay-picker:
+    name: Replay picker browser verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install browser test tooling outside the project
+        run: |
+          npm install --prefix "$RUNNER_TEMP/replay-smoke" --no-package-lock playwright@1.56.1
+          "$RUNNER_TEMP/replay-smoke/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Inspect and test current preview dependency
+        id: baseline
+        continue-on-error: true
+        run: |
+          node -e "const fs=require('fs');const p=require.resolve('@tradecanvas/chart/widget');console.log(p, 'picker option present:',fs.readFileSync(p,'utf8').includes('layoutPickerInToolbar'))"
+          NODE_PATH="$RUNNER_TEMP/replay-smoke/node_modules" node client/smoke/checkReplayPicker.cjs
+      - name: Install the exact tested TradeCanvas commit
+        run: |
+          node -e "const fs=require('fs');for(const f of ['package.json','package-lock.json']){const s=fs.readFileSync(f,'utf8');fs.writeFileSync(f,s.replace(/(https:\/\/pkg\.pr\.new\/@tradecanvas\/(?:chart|commons|core))@5/g,(_,prefix)=>prefix+'@987c6d6'))}"
+          npm ci
+      - name: Test the immutable preview in the browser
+        run: |
+          node -e "const fs=require('fs');const p=require.resolve('@tradecanvas/chart/widget');console.log(p, 'picker option present:',fs.readFileSync(p,'utf8').includes('layoutPickerInToolbar'))"
+          NODE_PATH="$RUNNER_TEMP/replay-smoke/node_modules" node client/smoke/checkReplayPicker.cjs
