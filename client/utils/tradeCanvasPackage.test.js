@@ -79,10 +79,12 @@ test('replay Trading settings uses a native toolbar button exempt from responsiv
   assert.equal(addReplayTradingSettingsButton(widget, () => opened++), handle);
   assert.equal(spec.id, 'rr-trading-settings');
   assert.equal(spec.side, 'right');
-  assert.equal(spec.text, 'Trading');
+  assert.equal(spec.text, '');
+  assert.equal(spec.icon, 'settings');
+  assert.equal(spec.label, 'Settings');
   assert.equal(classes.has('tcw-toolbar-overflow'), false);
   assert.equal(attrs.has('data-tcw-folded'), false);
-  assert.equal(attrs.get('aria-label'), 'Trading settings');
+  assert.equal(attrs.get('aria-label'), 'Settings');
   assert.ok(classes.has('tcw-host-btn'));
   spec.onClick();
   assert.equal(opened, 1);

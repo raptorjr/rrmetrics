@@ -18,8 +18,8 @@ function ReplayTradingSettings({ dialogRef, units, onChange, spec, status, error
       onClose={onDiscard}>
       <div className="p-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <h2 id="rr-trading-settings-title" className="text-lg font-semibold">Trading settings</h2>
-          <button type="button" aria-label="Close trading settings" disabled={saving} onClick={close} className="text-text-muted hover:text-text-primary text-xl px-2">×</button>
+          <h2 id="rr-trading-settings-title" className="text-lg font-semibold">Settings</h2>
+          <button type="button" aria-label="Close settings" disabled={saving} onClick={close} className="text-text-muted hover:text-text-primary text-xl px-2">×</button>
         </div>
         <div>
           <h3 className="font-semibold text-sm">Order and position labels</h3>

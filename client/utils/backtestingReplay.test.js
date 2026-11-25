@@ -152,3 +152,63 @@ test('chart positions carry the same point value as replay execution for every c
     }
   }
 });
+
+const { validateReplayQuantity, createReplayPosition, applyReplayFill, advanceReplayOrders, replayBreakevenPrice, seedReplayOrderPrice } = require('./backtestingReplay');
+test('scaling long and short positions uses weighted average, realized P/L and one completed trade', () => {
+  const spec = { pointValue: 20, tickSize: .25, decimals: 2 };
+  for (const direction of ['long', 'short']) {
+    const opposite = direction === 'long' ? 'short' : 'long', sign = direction === 'long' ? 1 : -1;
+    const order = (direction, quantity) => ({ id: 'p1', direction, quantity, type: 'market', stopPrice: null, targetPrice: null });
+    let p = createReplayPosition(order(direction, 2), 100, 1);
+    p = updateReplayLevels(p, { stopPrice: 100 - sign * 5, targetPrice: 100 + sign * 20 }, 100, spec).position;
+    p = applyReplayFill(p, order(direction, 2), 100 + sign * 4, 2, spec, 'Scale in').position;
+    assert.equal(p.quantity, 4);
+    assert.equal(p.entryPrice, 100 + sign * 2);
+    assert.equal(p.stopPrice, 100 - sign * 5);
+    assert.equal(p.targetPrice, 100 + sign * 20);
+    assert.equal(p.riskBudgetPoints, 28);
+    p = applyReplayFill(p, order(opposite, 1), 100 + sign * 6, 3, spec, 'Scale out').position;
+    assert.equal(p.quantity, 3);
+    assert.equal(p.realizedPnl, 80);
+    assert.equal(calculateTradePnl(p, 100 + sign * 8, 20), 360);
+    const result = applyReplayFill(p, order(opposite, 3), 100 + sign * 8, 4, spec, 'Manual close');
+    assert.equal(result.position, null);
+    assert.equal(result.trade.pnl, 440);
+    assert.equal(result.trade.quantity, 4);
+    assert.equal(result.trade.fills.length, 4);
+    assert.equal(result.trade.rMultiple, 440 / 560);
+    assert.equal(calculateTradeStats([result.trade]).total, 1);
+  }
+});
+test('pending scaling honors protective exit priority, never reverses and cancels on flat', () => {
+  const spec = { pointValue: 20, tickSize: .25, decimals: 2 };
+  const p = createReplayPosition({ id: 'p', direction: 'long', quantity: 2, stopPrice: 95, targetPrice: 110 }, 100, 1);
+  const pending = { id: 'o', positionId: 'p', direction: 'short', quantity: 1, type: 'limit', triggerPrice: 105 };
+  const partial = advanceReplayOrders(p, pending, { open: 101, high: 106, low: 100, close: 105, time: 2 }, spec);
+  assert.equal(partial.position.quantity, 1);
+  assert.equal(partial.position.realizedPnl, 100);
+  assert.equal(partial.pendingOrder, null);
+  const exit = advanceReplayOrders(p, pending, { open: 101, high: 106, low: 94, close: 105, time: 2 }, spec);
+  assert.equal(exit.position, null);
+  assert.equal(exit.pendingOrder, null);
+  assert.equal(exit.trade.pnl, -200);
+  assert.ok(validateReplayQuantity(p, 'short', 3));
+  assert.ok(validateReplayQuantity({ ...p, quantity: 99 }, 'long', 2));
+  assert.equal(validateReplayQuantity(p, 'short', 2), '');
+  const flat = advanceReplayOrders(p, { ...pending, quantity: 2 }, { open: 101, high: 106, low: 100, close: 105, time: 2 }, spec);
+  assert.equal(flat.trade.pnl, 200);
+  assert.equal(flat.position, null);
+});
+test('fractional average entry uses protective tick rounding at BE and seeds price only on type selection', () => {
+  const spec = { pointValue: 20, tickSize: .25, decimals: 2 };
+  const long = { direction: 'long', entryPrice: 100.125, stopPrice: 99 };
+  const short = { ...long, direction: 'short', stopPrice: 101 };
+  assert.equal(replayBreakevenPrice(long, spec), 100.25);
+  assert.equal(replayBreakevenPrice(short, spec), 100);
+  assert.equal(canMoveToBreakeven(long, 100.25, spec), false);
+  assert.equal(canMoveToBreakeven(long, 100.5, spec), true);
+  assert.equal(seedReplayOrderPrice('limit', 100.25, spec), '100.25');
+  assert.equal(seedReplayOrderPrice('stop_market', 100.25, spec), '100.25');
+  assert.equal(seedReplayOrderPrice('market', 100.25, spec), '');
+  assert.equal(seedReplayOrderPrice('limit', 0, spec), '');
+});
