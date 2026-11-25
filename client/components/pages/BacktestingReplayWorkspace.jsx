@@ -224,7 +224,6 @@ const BacktestingReplayWorkspace = () => {
   const [historicalStart, setHistoricalStart] = useState('');
   const [historicalEnd, setHistoricalEnd] = useState('');
   const [selectedCoverageIndex, setSelectedCoverageIndex] = useState(0);
-  const [contextTimeframes, setContextTimeframes] = useState(['5m', '15m']);
   const currentIndexRef = useRef(80);
   const candlesRef = useRef(candles);
   const positionRef = useRef(null);
@@ -312,21 +311,6 @@ const BacktestingReplayWorkspace = () => {
   const spec = getInstrumentSpec(ticker);
   const currentCandle = candles[currentIndex] || candles[0];
   const replayTime = currentCandle ? currentCandle.time + timeframeSeconds(historicalTimeframe) : 0;
-  const contextChartCandles = contextTimeframes.map(timeframe => ({ timeframe, candles: marketBaseCandles }));
-  const contextOptions = historicalTimeframes.filter(timeframe => timeframe !== historicalTimeframe);
-
-  useEffect(() => {
-    if (!historicalTimeframes.length) {
-      setContextTimeframes([]);
-      return;
-    }
-    const choices = historicalTimeframes.filter(timeframe => timeframe !== historicalTimeframe);
-    setContextTimeframes(previous => {
-      const retained = previous.filter(timeframe => choices.includes(timeframe));
-      const defaults = choices.filter(timeframe => ['5m', '15m'].includes(timeframe));
-      return [...new Set([...retained, ...defaults, ...choices])].slice(0, 2);
-    });
-  }, [historicalTimeframes.join(','), historicalTimeframe]);
   const currentPrice = currentCandle ? currentCandle.close : 0;
   const intervalSeconds = useMemo(() => getIntervalSeconds(candles), [candles]);
   const intervalLabel = historicalTimeframe || formatInterval(intervalSeconds);
@@ -544,29 +528,6 @@ const BacktestingReplayWorkspace = () => {
               {historicalTimeframes.map(value => <option key={value} value={value}>{value}{value === baseTimeframe ? ' · source' : ' · aggregated'}</option>)}
             </select>
           </label>
-          <div className="space-y-1">
-            <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">Additional chart timeframes</span>
-            <div className="flex flex-wrap gap-1.5 min-h-[38px] items-center" role="group" aria-label="Additional chart timeframes">
-              {contextOptions.map(value => {
-                const selected = contextTimeframes.includes(value);
-                const limitReached = contextTimeframes.length >= 2;
-                return <button
-                  key={value}
-                  type="button"
-                  aria-pressed={selected}
-                  disabled={historicalLoading || (!selected && limitReached)}
-                  onClick={() => setContextTimeframes(previous => selected
-                    ? previous.filter(item => item !== value)
-                    : previous.length < 2 ? [...previous, value] : previous)}
-                  className={"px-2.5 py-2 rounded-lg border text-xs font-medium transition-colors " + (selected
-                    ? "border-accent bg-accent/15 text-text-primary"
-                    : "border-border bg-bg-input text-text-secondary hover:text-text-primary") + " disabled:opacity-35"}
-                >{value}</button>;
-              })}
-              {!contextOptions.length && <span className="text-xs text-text-muted">No other timeframes available</span>}
-            </div>
-            <span className="text-[10px] text-text-muted">Select up to two secondary charts</span>
-          </div>
           {selectedMarket?.coverage.length > 1 && <label className="space-y-1">
             <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">Continuous data period</span>
             <select value={selectedCoverageIndex} onChange={handleCoverageChange} disabled={historicalLoading} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
@@ -615,14 +576,18 @@ const BacktestingReplayWorkspace = () => {
             baseTimeframe={baseTimeframe}
             position={position}
             pendingOrder={pendingOrder}
-            contextTimeframes={contextTimeframes}
           />
           <div className="px-4 py-3 border-t border-border space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <button type="button" onClick={() => { if (!canSeek) return; setIsPlaying(false); currentIndexRef.current = 0; setCurrentIndex(0); }} disabled={!candles.length || !canSeek || currentIndex === 0} title="Jump to beginning" aria-label="Jump to beginning" className="w-9 h-9 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30">|◀</button>
-              <button type="button" onClick={() => { if (!canSeek) return; setIsPlaying(false); const next = Math.max(0, currentIndexRef.current - 1); currentIndexRef.current = next; setCurrentIndex(next); }} disabled={!candles.length || !canSeek || currentIndex === 0} title="Previous candle" aria-label="Previous candle" className="w-9 h-9 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30"><span aria-hidden="true">‹</span></button>
+              <button type="button" onClick={() => {
+                if (!canSeek || !window.confirm('Jump to the beginning of this replay? The chart will return to the first candle.')) return;
+                setIsPlaying(false);
+                currentIndexRef.current = 0;
+                setCurrentIndex(0);
+              }} disabled={!candles.length || !canSeek || currentIndex === 0} title="Jump to beginning" aria-label="Jump to beginning" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30"><span aria-hidden="true" className="text-xl leading-none tracking-[-0.12em]">||◀</span></button>
+              <button type="button" onClick={() => { if (!canSeek) return; setIsPlaying(false); const next = Math.max(0, currentIndexRef.current - 1); currentIndexRef.current = next; setCurrentIndex(next); }} disabled={!candles.length || !canSeek || currentIndex === 0} title="Previous candle" aria-label="Previous candle" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30"><span aria-hidden="true" className="inline-block rotate-180 text-xl leading-none">▶|</span></button>
               <button type="button" onClick={() => setIsPlaying(value => !value)} disabled={!candles.length || (!isPlaying && currentIndex >= candles.length - 1)} aria-label={isPlaying ? 'Pause replay' : 'Play replay'} className="w-10 h-10 inline-flex items-center justify-center rounded-lg bg-accent text-accent-text text-sm font-semibold disabled:opacity-40">{isPlaying ? 'Ⅱ' : '▶'}</button>
-              <button type="button" onClick={() => { setIsPlaying(false); advanceOne(); }} disabled={!candles.length || currentIndex >= candles.length - 1} title="Next candle" aria-label="Next candle" className="w-9 h-9 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30"><span aria-hidden="true">›</span></button>
+              <button type="button" onClick={() => { setIsPlaying(false); advanceOne(); }} disabled={!candles.length || currentIndex >= candles.length - 1} title="Next candle" aria-label="Next candle" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30"><span aria-hidden="true" className="text-xl leading-none">▶|</span></button>
               <button type="button" onClick={resetReplay} title="Reset replay and clear simulated trades" aria-label="Reset replay" className="w-9 h-9 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary">↺</button>
               <div className="ml-auto flex items-center gap-2 text-xs text-text-muted">
                 <label htmlFor="replay-speed">Bars/sec</label>

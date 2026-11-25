@@ -12,6 +12,21 @@ const toBars = candles => candles.map(bar => ({
   volume: Number(bar.volume || 0),
 }));
 
+const appendDataKeepingReplayViewport = (widget, additions, visibleBars, baseTimeframe) => {
+  const chart = widget.getChart();
+  const visible = chart.getVisibleTimeRange?.();
+  if (typeof widget.appendDataBar === 'function') {
+    additions.forEach(bar => widget.appendDataBar(bar));
+  } else {
+    widget.setData(visibleBars, baseTimeframe);
+  }
+  // Incremental updates can auto-scroll to the newest bar. Restore the
+  // user's exact visible time range after the append.
+  if (visible && typeof chart.setVisibleRange === 'function' && visible.to >= visible.from) {
+    chart.setVisibleRange(visible.from, visible.to);
+  }
+};
+
 const setDataKeepingReplayViewport = (widget, data, baseTimeframe, previousBars) => {
   const chart = widget.getChart();
   const visible = chart.getVisibleTimeRange?.();
@@ -37,7 +52,6 @@ const ReplayTradeCanvasGrid = ({
   baseTimeframe,
   position,
   pendingOrder,
-  contextTimeframes = [],
   onActiveChartChange,
 }) => {
   const hostRef = useRef(null);
@@ -47,21 +61,13 @@ const ReplayTradeCanvasGrid = ({
   const dataIdentityRef = useRef('');
   const [gridRevision, setGridRevision] = useState(0);
   const lastExternalTimeframeRef = useRef(timeframe);
-  const contextTimeframesRef = useRef(contextTimeframes);
   const [activeChart, setActiveChart] = useState(0);
-  const primaryTimeframeRef = useRef(timeframe);
-
-  useEffect(() => {
-    contextTimeframesRef.current = contextTimeframes;
-  }, [contextTimeframes.join('|')]);
 
   const visibleBars = useMemo(() => {
     if (!baseTimeframe || !replayTime) return [];
     const interval = timeframeSeconds(baseTimeframe);
     return toBars(baseCandles.filter(bar => bar.time + interval <= replayTime));
   }, [baseCandles, baseTimeframe, replayTime]);
-
-  useEffect(() => { primaryTimeframeRef.current = timeframe; }, [timeframe]);
 
   const layoutChoices = [
     '1x1',
@@ -73,16 +79,15 @@ const ReplayTradeCanvasGrid = ({
 
   useEffect(() => {
     if (!hostRef.current) return undefined;
-    const defaultTimeframes = [timeframe, ...contextTimeframesRef.current];
-    const cells = defaultTimeframes.map((tf, index) => ({
+    const cells = [{
       symbol: ticker,
-      timeframe: tf,
+      timeframe,
       theme: 'dark',
       ui: 'modern',
       trading: false,
       features: { replay: false, 'dock.watchlist': false, depthLadder: false },
       resampleTimeframes: true,
-    }));
+    }];
     const grid = new ChartWidgetGrid(hostRef.current, {
       layout: '1x1',
       layoutChoices,
@@ -97,13 +102,7 @@ const ReplayTradeCanvasGrid = ({
         setActiveChart(index);
         if (onActiveChartChange) onActiveChartChange(index);
       },
-      onChartAdd: (widget, index) => {
-        if (index > 0) {
-          const desiredTimeframe = [primaryTimeframeRef.current, ...contextTimeframesRef.current][index] || primaryTimeframeRef.current;
-          if (desiredTimeframe && widget.getTimeframe() !== desiredTimeframe) {
-            void widget.setTimeframe(desiredTimeframe);
-          }
-        }
+      onChartAdd: widget => {
         if (barsRef.current.length) widget.setData(barsRef.current, baseTimeframeRef.current);
         setGridRevision(value => value + 1);
       },
@@ -140,13 +139,7 @@ const ReplayTradeCanvasGrid = ({
     } else if (visibleBars.length > previous.length) {
       const additions = visibleBars.slice(previous.length);
       grid.getWidgets().forEach(widget => {
-        if (typeof widget.appendDataBar === 'function') {
-          additions.forEach(bar => widget.appendDataBar(bar));
-        } else {
-          // Compatibility with chart package builds that expose setData but
-          // do not yet expose the incremental replay method.
-          widget.setData(visibleBars, baseTimeframe);
-        }
+        appendDataKeepingReplayViewport(widget, additions, visibleBars, baseTimeframe);
       });
     }
     barsRef.current = visibleBars;
@@ -167,20 +160,6 @@ const ReplayTradeCanvasGrid = ({
     lastExternalTimeframeRef.current = timeframe;
     void grid.getActiveWidget().setTimeframe(timeframe);
   }, [timeframe]);
-
-  useEffect(() => {
-    const grid = gridRef.current;
-    if (!grid) return;
-    contextTimeframes.forEach((nextTimeframe, index) => {
-      const chartIndex = index + 1;
-      const widget = grid.getWidget(chartIndex);
-      // A context chart becomes user-controlled when it is active. Do not
-      // overwrite its independent timeframe when the replay selection changes.
-      if (widget && grid.getActiveIndex() !== chartIndex && widget.getTimeframe() !== nextTimeframe) {
-        void widget.setTimeframe(nextTimeframe);
-      }
-    });
-  }, [contextTimeframes.join('|'), gridRevision]);
 
   useEffect(() => {
     const grid = gridRef.current;
