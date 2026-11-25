@@ -12,8 +12,10 @@ test('Go to preferences are validated, independently persisted and owner scoped'
     for(const id of ['a','b'])db.prepare('INSERT INTO profiles (id,email,password_hash,created_at) VALUES (?,?,?,?)').run(id,id+'@example.test','','2026-01-01');
     const options=['asian','london','new-york','next-day'].map(id=>({id,label:id,time:'02:00',enabled:true}));
     const settings=validateGoToSettings({version:1,options});assert.ok(settings);
-    saveGoToSettings(db,'a',settings);assert.equal(readGoToSettings(db,'b'),null);
-    db.exec(schema);assert.deepEqual(readGoToSettings(db,'a'),settings);
+    const local=validateGoToSettings({version:1,options:options.map(x=>({...x,timeZone:'Europe/Oslo'}))});assert.ok(local);
+    assert.equal(validateGoToSettings({version:1,options:options.map(x=>({...x,timeZone:'Not/AZone'}))}),null);
+    saveGoToSettings(db,'a',local);assert.equal(readGoToSettings(db,'b'),null);
+    db.exec(schema);assert.deepEqual(readGoToSettings(db,'a'),local);
     assert.equal(validateGoToSettings({version:1,options:options.slice(1)}),null);
     assert.equal(validateGoToSettings({version:1,options:[...options,{...options[0]}]}),null);
     assert.equal(validateGoToSettings({version:1,options:options.map(x=>({...x,time:'25:00'}))}),null);

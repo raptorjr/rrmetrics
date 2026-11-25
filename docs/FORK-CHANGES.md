@@ -1,5 +1,7 @@
 ## Replay workspace refinements
 
+- Positioned Go to before candle type and aligned its display and time controls with user timezone and 12/24-hour preferences, preserving existing timezone-anchored schedules until edited.
+
 - Added configurable New York-time Go to destinations in the shared chart toolbar, SQLite-backed profile preferences, forward-only execution-safe jumps and immediate clearing of the restored status once ready.
 
 - Grouped and centered replay session selector/account metrics with stable header columns during autosave; disabled individual chart fullscreen. Leading play action in the replay list, replay-first tabs, accurate manual-journal description and one centered Start Session action.

@@ -183,10 +183,20 @@ const ReplayTradeCanvasGrid = ({
         };
         matchVolumeColors();chart.on('styleChange',matchVolumeColors);chart.on('themeChange',matchVolumeColors);
         addReplayTradingSettingsButton(widget, () => openSettingsRef.current());
-        widget.addToolbarButton({id:'rr-replay-go-to',label:'Go to',text:'Go to',side:'right',onClick:button=>{
+        const goToButton=widget.addToolbarButton({id:'rr-replay-go-to',label:'Go to',text:'Go to',side:'left',onClick:button=>{
           const anchor=button.getClientRects().length?button:button.closest('.tcw-toolbar')?.querySelector('.tcw-toolbar-more');
           goToRef.current?.(anchor||button);
         }});
+        // The native host slots come after Indicators. Move only our button to
+        // the interval/chart-type boundary; the shared toolbar carries it along.
+        if(goToButton){
+          const button=goToButton.element,toolbar=button.closest('.tcw-toolbar');
+          const chartType=toolbar?.querySelector('[data-role="charttype"]')?.parentElement;
+          if(chartType?.parentElement===toolbar){
+            button.classList.remove('tcw-toolbar-overflow');button.removeAttribute('data-tcw-folded');
+            toolbar.insertBefore(button,chartType);
+          }
+        }
         chart.setTradingConfig({ lineButtons: { reverse: false, trailStop: false, addStops: true, cancel: true, close: true, removeStops: true } });
         chart.on('orderModify', event => interactionRef.current.onOrderModify(event.payload));
         chart.on('orderCancel', event => interactionRef.current.onOrderCancel(event.payload));
@@ -286,7 +296,7 @@ const ReplayTradeCanvasGrid = ({
       {/* The grid moves its active toolbar outside the widget's feature-scoped root. */}
       <style>{'[data-replay-workspace] .tcw-toolbar [data-role="fullscreen"] { display: none !important; }'}</style>
       <div className={fullHeight?"w-full flex-1 min-h-0 min-w-0":"w-full h-[430px] min-w-0"} ref={hostRef} data-active-chart={activeChart} />
-      <ReplayGoTo openRef={goToRef} onGoTo={onGoTo}/>
+      <ReplayGoTo openRef={goToRef} onGoTo={onGoTo} replayTime={replayTime}/>
       <ReplayTradingSettings dialogRef={settingsRef} units={labelUnits} onChange={setLabelUnits} spec={spec}
         status={settingsStatus} error={settingsError} onRetry={refreshSettings} onSave={saveSettings} onDiscard={cancelSettings} />
     </>
