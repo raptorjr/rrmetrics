@@ -228,3 +228,30 @@ test('adding after a reduction preserves realized P/L and records actual fills',
   assert.equal(closed.exitPrice, 112.5);
   assert.equal(closed.rMultiple, null);
 });
+
+test('live order draft validation tracks the latest market without changing the chosen price', () => {
+  const { validateReplayOrderDraft, getInstrumentSpec } = require('./backtestingReplay');
+  const spec = getInstrumentSpec('NQ');
+  const check = (direction, type, price, market, position = null, quantity = 1) =>
+    validateReplayOrderDraft(position, direction, quantity, type, price, market, spec);
+  for (const type of ['limit', 'stop_market']) {
+    const draft = '27000.00';
+    const above = 27020, below = 26980;
+    const buyMarket = type === 'limit' ? above : below;
+    const sellMarket = type === 'limit' ? below : above;
+    assert.deepEqual(check('long', type, draft, buyMarket), { triggerPrice: 27000, error: '' });
+    assert.deepEqual(check('short', type, draft, sellMarket), { triggerPrice: 27000, error: '' });
+    assert.ok(check('long', type, draft, sellMarket).error);
+    assert.ok(check('short', type, draft, buyMarket).error);
+    for (const direction of ['long', 'short']) {
+      assert.ok(check(direction, type, draft, 27000).error);
+      assert.ok(check(direction, type, '', above).error);
+      assert.ok(check(direction, type, 'bad', above).error);
+      assert.ok(check(direction, type, '27000.01', 27000).error);
+    }
+  }
+  assert.deepEqual(check('long', 'market', '', 27020), { triggerPrice: 27020, error: '' });
+  assert.ok(check('long', 'market', '', 0).error);
+  assert.ok(check('short', 'limit', '27040', 27020, { direction: 'long', quantity: 1 }, 2).error);
+  assert.ok(check('long', 'limit', '27000', 27020, { direction: 'long', quantity: 100 }, 1).error);
+});

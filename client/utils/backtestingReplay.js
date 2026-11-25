@@ -152,8 +152,20 @@ function validateReplayEntry(direction, type, price, marketPrice) {
   if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(marketPrice) || marketPrice <= 0) return 'No valid order price.';
   if (type === 'market') return '';
   const above = direction === 'long' ? type === 'stop_market' : type === 'limit';
-  if (!['limit', 'stop_market'].includes(type) || (above ? price <= marketPrice : price >= marketPrice)) return 'Order price is no longer on the valid side of the market.';
+  if (!['limit', 'stop_market'].includes(type)) return 'Unsupported order type.';
+  if (above ? price <= marketPrice : price >= marketPrice) {
+    return (direction === 'long' ? 'Buy' : 'Sell') + (type === 'limit' ? ' limit' : ' stop') + ' price must be ' + (above ? 'above' : 'below') + ' the current market price.';
+  }
   return '';
+}
+
+// Used by both the live panel and final submission against the latest replay price.
+function validateReplayOrderDraft(position, direction, quantity, type, draftPrice, marketPrice, spec) {
+  const triggerPrice = type === 'market' ? marketPrice : snapReplayPrice(draftPrice, spec);
+  return {
+    triggerPrice,
+    error: validateReplayQuantity(position, direction, quantity) || validateReplayEntry(direction, type, triggerPrice, marketPrice),
+  };
 }
 
 function updateReplayLevels(position, changes, marketPrice, spec) {
@@ -319,5 +331,5 @@ module.exports = {
   calculateTradeStats,
   toReplayChartPosition,
   replayBreakevenPrice, validateReplayQuantity, createReplayPosition, applyReplayFill, advanceReplayOrders, seedReplayOrderPrice,
-  snapReplayPrice, validateReplayLevels, validateReplayEntry, updateReplayLevels, canMoveToBreakeven, replayOrderMenu,
+  snapReplayPrice, validateReplayLevels, validateReplayEntry, validateReplayOrderDraft, updateReplayLevels, canMoveToBreakeven, replayOrderMenu,
 };
