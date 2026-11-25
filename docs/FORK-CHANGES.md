@@ -1,3 +1,7 @@
+## Replay workspace refinements
+
+- Brighter labels, centered playback controls, simulated-time speed, explicit loading state, bottom-aligned statistics, and revision-checked Restart retaining drawings and layout. Same-symbol drawings synchronize, new charts keep the correct instrument, chart viewports are captured/restored independently and native dialogs follow the workspace fullscreen. Existing broker trades untouched.
+
 ## 2026-11-25 — Persistent replay sessions (first version)
 
 - Added isolated virtual replay accounts with create/list/resume, SQLite checkpoint revisions and append-only completed trade records. Historical source fingerprint prevents silent substitution. Full-window workspace, compact balance/equity header, Save & exit and workspace fullscreen; collapse trade history and statistics. One execution instrument per session; multi-symbol and shared analytics are deferred. Browser restoration verification required.

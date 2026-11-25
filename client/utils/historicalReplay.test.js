@@ -77,3 +77,18 @@ test('saved replay date ranges only offer eligible base-resolution markets', () 
   const markets = getSessionMarkets([row('NQ','1m',start,end),row('ES','1m',start,end-60000),row('ES','5m',start,end)],start,end);
   assert.deepEqual(markets.map(m=>m.instrument),['NQ']);
 });
+
+test('time-based playback progresses equally on different execution intervals', () => {
+  const {restoreReplaySpeed,replayStepBudget}=require('./historicalReplay');
+  assert.equal(restoreReplaySpeed(null,10),60);
+  assert.equal(restoreReplaySpeed({speed:10},10),120);
+  assert.equal(restoreReplaySpeed({speed:60,speedMode:'time'},1),60);
+  for(const seconds of [1,10,60]) {
+    let carry=0,bars=0;
+    for(let n=0;n<20;n++){
+      const result=replayStepBudget(50,carry,60,seconds);carry=result.carry;bars+=result.count;
+    }
+    assert.equal(bars*seconds,60);assert.ok(carry<1e-8);
+  }
+  assert.equal(replayStepBudget(60000,0,60,1).count,15);
+});

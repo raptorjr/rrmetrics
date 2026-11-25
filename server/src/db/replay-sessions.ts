@@ -75,7 +75,7 @@ export function saveReplaySession(db: Db, owner: string, session: string, input:
     || !integer(c.index) || c.index < 0 || !integer(c.barCount) || c.barCount < 2 || c.index >= c.barCount || !integer(c.time)
     || !integer(c.orderSequence) || c.orderSequence < 0 || !qty(c.quantity)
     || !Array.isArray(c.quantityPresets) || c.quantityPresets.length !== 5 || !c.quantityPresets.every(qty)
-    || ![.25,.5,1,2,5,10,20].includes(c.speed) || !type(c.orderType) || typeof c.orderPrice !== 'string' || c.orderPrice.length > 80
+    || !(c.speedMode === 'time' ? [1,10,30,60,120,300,600,1200].includes(c.speed) : c.speedMode == null && [.25,.5,1,2,5,10,20].includes(c.speed)) || !type(c.orderType) || typeof c.orderPrice !== 'string' || c.orderPrice.length > 80
     || (c.position != null && !position(c.position)) || (c.pendingOrder != null && !pending(c.pendingOrder))
     || !record(c.layout) || c.layout.kind !== 'grid' || c.layout.v !== 1 || !Array.isArray(c.layout.cells) || c.layout.cells.length > 4
     || trades.length > 20000 || !trades.every(trade) || new Set(trades.map(t=>t.id)).size !== trades.length
@@ -87,10 +87,14 @@ export function saveReplaySession(db: Db, owner: string, session: string, input:
     if (c.time * 1000 < Date.parse(row.start_time) || c.time * 1000 > Date.parse(row.end_time)) return {error:'Replay time is outside this session.',status:400} as const;
     const prior = row.checkpoint_json ? JSON.parse(row.checkpoint_json) : null;
     if (prior && (prior.marketKey !== c.marketKey || prior.timeframe !== c.timeframe || prior.fingerprint !== c.fingerprint)) return {error:'Session historical source changed.',status:409} as const;
+    // Reset is an explicit, revision-checked destructive operation, never a normal autosave.
+    const restart = input.restart === true;
+    if (restart && (c.index !== 0 || c.position != null || c.pendingOrder != null || trades.length !== 0 || (prior && c.orderSequence < prior.orderSequence))) return {error:'Invalid restart checkpoint.',status:400} as const;
     const existing = allTrades(db,session);
     const incoming = new Map(trades.map(t=>[t.id,JSON.stringify(t)]));
-    if (existing.some(t=>incoming.get(t.id)!==JSON.stringify(t))) return {error:'Saved trade history cannot be changed or removed.',status:409} as const;
-    if (existing.length && prior && c.index < prior.index) return {error:'Cannot rewind executed history.',status:409} as const;
+    if (!restart && existing.some(t=>incoming.get(t.id)!==JSON.stringify(t))) return {error:'Saved trade history cannot be changed or removed.',status:409} as const;
+    if (!restart && (existing.length || prior?.position || prior?.pendingOrder) && prior && c.index < prior.index) return {error:'Cannot rewind executed history.',status:409} as const;
+    if (restart) db.prepare('DELETE FROM replay_session_trades WHERE session_id=?').run(session);
     const insert = db.prepare('INSERT OR IGNORE INTO replay_session_trades(session_id,trade_id,trade_json) VALUES(?,?,?)');
     for (const t of trades) insert.run(session,t.id,JSON.stringify(t));
     db.prepare('UPDATE replay_sessions SET checkpoint_json=?, revision=revision+1, updated_at=? WHERE id=? AND user_id=?')

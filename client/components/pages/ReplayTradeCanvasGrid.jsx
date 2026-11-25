@@ -31,9 +31,14 @@ const loadReplayData = (widget, bars, baseTimeframe, preserveViewport = true) =>
 
 // Native layout includes chart drawings, indicators and viewport. Orders belong only to the host.
 function cleanReplayLayout(layout,ticker){
-  return {...layout,sync:{...layout.sync,symbol:false,replay:false},
+  // Old sessions had independent drawings: merge once, never discard existing lines.
+  // After sync is enabled, active chart state is canonical, including deletions on parked cells.
+  const drawings=layout.sync?.drawings
+    ? (layout.cells[layout.active]?.chart?.drawings || [])
+    : [...new Map(layout.cells.flatMap(cell=>cell.chart?.drawings || []).map(d=>[d.id,d])).values()];
+  return {...layout,sync:{...layout.sync,symbol:true,drawings:true,replay:false},
     cells:layout.cells.map(cell=>({...cell,symbol:ticker,
-      chart:cell.chart?{...cell.chart,symbol:ticker,orders:[],positions:[]}:null}))};
+      chart:cell.chart?{...cell.chart,symbol:ticker,drawings,orders:[],positions:[]}:null}))};
 }
 const ReplayTradeCanvasGrid = ({
   ticker,
@@ -126,7 +131,7 @@ const ReplayTradeCanvasGrid = ({
   useEffect(() => {
     if (!hostRef.current) return undefined;
     // The widget's native ticket/account are disabled. Only its chart-level trading visuals emit intents to RR Metrics.
-    const tradingOptions = { trading: false, chartOptions: { features: { trading: true, tradingContextMenu: false } }, chartMenuItems: context => interactionRef.current.chartMenuItems(context) };
+    const tradingOptions = { overlayContainer: hostRef.current.closest('[data-replay-workspace]') || undefined, trading: false, chartOptions: { features: { trading: true, tradingContextMenu: false } }, chartMenuItems: context => interactionRef.current.chartMenuItems(context) };
     const cells = [{
       symbol: ticker,
       timeframe,
@@ -144,7 +149,7 @@ const ReplayTradeCanvasGrid = ({
       cells,
       // Apply replay restrictions to every future chart, not just cells[0].
       widget: {
-        theme: 'dark', ui: 'modern', ...tradingOptions, resampleTimeframes: true,
+        symbol: ticker, timeframe, theme: 'dark', ui: 'modern', ...tradingOptions, resampleTimeframes: true,
         features: { replay: false, 'toolbar.replay': false, 'dock.watchlist': false, depthLadder: false, symbolSearch: false, symbolTyping: false, 'hotkeys.symbolSearch': false },
       },
       // Replace the native Replay button with the layout picker in the active
@@ -154,7 +159,7 @@ const ReplayTradeCanvasGrid = ({
       sharedToolbar: true,
       layoutPickerInToolbar: true,
       sharedDrawingTools: true,
-      sync: { symbol: false, interval: false, crosshair: true, time: false, drawings: false, replay: false },
+      sync: { symbol: true, interval: false, crosshair: true, time: false, drawings: true, replay: false },
       onActiveChange: index => {
         setActiveChart(index);
         if (onActiveChartChange) onActiveChartChange(index);
