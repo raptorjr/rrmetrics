@@ -272,6 +272,8 @@ const ReplayTradeCanvasGrid = ({
   }, [position, pendingOrder, gridRevision, currentPrice, spec, labelUnits]);
   return (
     <>
+      {/* The grid moves its active toolbar outside the widget's feature-scoped root. */}
+      <style>{'[data-replay-workspace] .tcw-toolbar [data-role="fullscreen"] { display: none !important; }'}</style>
       <div className={fullHeight?"w-full flex-1 min-h-0 min-w-0":"w-full h-[430px] min-w-0"} ref={hostRef} data-active-chart={activeChart} />
       <ReplayTradingSettings dialogRef={settingsRef} units={labelUnits} onChange={setLabelUnits} spec={spec}
         status={settingsStatus} error={settingsError} onRetry={refreshSettings} onSave={saveSettings} onDiscard={cancelSettings} />
