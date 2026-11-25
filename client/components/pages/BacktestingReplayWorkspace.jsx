@@ -402,7 +402,7 @@ const BacktestingReplayWorkspace = () => {
     if (!isPlaying) return undefined;
     const interval = setInterval(() => {
       if (advanceOneRef.current) advanceOneRef.current();
-    }, Math.max(70, Math.round(1000 / speed)));
+    }, Math.max(50, Math.round(1000 / speed)));
     return () => clearInterval(interval);
   }, [isPlaying, speed]);
 
