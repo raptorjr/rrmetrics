@@ -3,6 +3,8 @@ const {useEffect,useRef,useState}=React;
 const {authFetch}=require('../../helper');
 const {defaultGoTo,loadGoTo,saveGoTo,displayGoToTime,formatGoToTime}=require('../../utils/replayGoTo');
 const {getDisplayTimeZone,getTimeFormat}=require('../../utils/dateUtils');
+const ClockTimeInput=require('../shared/ClockTimeInput');
+const {parseClockTime,formatClockTime}=require('../../utils/clockTime');
 const input='bg-bg-input border border-border rounded-lg px-2 py-1.5 text-sm text-text-primary';
 function ReplayGoTo({openRef,onGoTo,replayTime}){
   const zone=getDisplayTimeZone(),timeFormat=getTimeFormat();
@@ -35,23 +37,25 @@ function ReplayGoTo({openRef,onGoTo,replayTime}){
   const save=async()=>{
     if(status!=='ready')return;
     setStatus('saving');setError('');
-    try{const saved=await saveGoTo(draft,authFetch);if(!alive.current)return;setOptions(saved);setStatus('ready');dialog.current?.close();}
+    try{const saved=await saveGoTo(draft.map(({clockText,...option})=>option),authFetch);if(!alive.current)return;setOptions(saved);setStatus('ready');dialog.current?.close();}
     catch(e){if(alive.current){setError(e.message);setStatus('ready');}}
   };
   const close=()=>{if(status!=='saving')dialog.current?.close();};
   const builtIns=defaultGoTo().map(x=>x.id);
-  const changeTime=(item,time)=>patch(item.id,{time,timeZone:zone});
+  const changeTime=(item,clockText)=>{
+    const parsed=parseClockTime(clockText,timeFormat,false);
+    patch(item.id,parsed?{clockText,time:formatClockTime(parsed,'24h',false),timeZone:zone}:{clockText});
+  };
+  const invalidTime=item=>item.clockText!==undefined&&!parseClockTime(item.clockText,timeFormat,false);
   const row=(item,custom=false)=>{
-    const local=displayGoToTime(item,zone,editReference),[hour,minute]=local.split(':').map(Number),is24=timeFormat==='24h';
-    const setTime=(h,m=minute)=>changeTime(item,String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'));
+    const clockText=item.clockText??formatGoToTime(displayGoToTime(item,zone,editReference),timeFormat);
     return <div key={item.id} className="flex items-center gap-2 py-1.5">
     <input type="checkbox" aria-label={'Enable '+item.label} checked={item.enabled} disabled={status!=='ready'} onChange={e=>patch(item.id,{enabled:e.target.checked})} className="accent-accent"/>
     {custom?<input aria-label="Custom option name" maxLength={80} className={input+' min-w-0 flex-1'} value={item.label} disabled={status!=='ready'} onChange={e=>patch(item.id,{label:e.target.value})}/>:<span className="flex-1 text-sm">{item.label}</span>}
-    <div className="flex items-center gap-1 shrink-0" title={(item.timeZone||'America/New_York')!==zone?'Existing schedule anchored to '+(item.timeZone||'America/New_York')+'; editing anchors it to '+zone:zone}>
-      <select aria-label={item.label+' hour'} className={input+' px-1'} value={is24?hour:hour%12||12} disabled={status!=='ready'} onChange={e=>setTime(is24?Number(e.target.value):Number(e.target.value)%12+(hour>=12?12:0))}>{Array.from({length:is24?24:12},(_,i)=>is24?i:i+1).map(h=><option key={h} value={h}>{String(h).padStart(2,'0')}</option>)}</select>
-      <span>:</span><select aria-label={item.label+' minute'} className={input+' px-1'} value={minute} disabled={status!=='ready'} onChange={e=>setTime(hour,Number(e.target.value))}>{Array.from({length:60},(_,i)=>i).map(m=><option key={m} value={m}>{String(m).padStart(2,'0')}</option>)}</select>
-      {!is24&&<select aria-label={item.label+' AM or PM'} className={input+' px-1'} value={hour>=12?'PM':'AM'} disabled={status!=='ready'} onChange={e=>setTime(hour%12+(e.target.value==='PM'?12:0))}><option>AM</option><option>PM</option></select>}
-    </div>
+    <ClockTimeInput label={item.label+' time'} value={clockText} onChange={value=>changeTime(item,value)}
+      timeFormat={timeFormat} includeSeconds={false} disabled={status!=='ready'} invalid={invalidTime(item)}
+      placement={custom?'above':'below'} className="w-[144px] shrink-0"
+      title={(item.timeZone||'America/New_York')!==zone?'Existing schedule anchored to '+(item.timeZone||'America/New_York')+'; editing anchors it to '+zone:zone}/>
     {custom&&<button type="button" aria-label={'Remove '+item.label} disabled={status!=='ready'} className="px-2 text-text-secondary hover:text-negative" onClick={()=>setDraft(old=>old.filter(x=>x.id!==item.id))}>×</button>}
   </div>;};
   return <>
@@ -71,8 +75,9 @@ function ReplayGoTo({openRef,onGoTo,replayTime}){
         <section className="border-t border-border pt-3"><h3 className="text-sm font-semibold text-text-secondary mb-2">Next session</h3>{draft.filter(x=>['asian','london','new-york'].includes(x.id)).map(x=>row(x))}</section>
         <section className="border-t border-border pt-3"><h3 className="text-sm font-semibold text-text-secondary mb-2">Next day open</h3>{draft.filter(x=>x.id==='next-day').map(x=>row(x))}</section>
         <section className="border-t border-border pt-3"><div className="flex justify-between items-center mb-2"><h3 className="text-sm font-semibold text-text-secondary">Custom Go to options</h3><button type="button" disabled={status!=='ready'||draft.length>=24} className={input+' disabled:opacity-40'} onClick={()=>setDraft(old=>[...old,{id:'custom-'+Date.now().toString(36)+'-'+old.length,label:'Custom time',time:'09:30',enabled:true,timeZone:zone}])}>+ Add option</button></div>{draft.filter(x=>!builtIns.includes(x.id)).map(x=>row(x,true))}</section>
+        {draft.some(invalidTime)&&<p role="alert" className="text-xs text-negative">Enter a valid time in {timeFormat==='24h'?'HH:mm':'hh:mm AM/PM'} format.</p>}
         {error&&<p role="alert" className="text-xs text-negative">{error}</p>}
-        <div className="flex justify-end gap-2 border-t border-border pt-3"><button type="button" disabled={status==='saving'} className={input} onClick={close}>Cancel</button><button type="button" disabled={status!=='ready'||draft.some(x=>!x.label.trim()||!x.time)} className="bg-accent text-accent-text rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-40" onClick={save}>{status==='saving'?'Saving…':'Save'}</button></div>
+        <div className="flex justify-end gap-2 border-t border-border pt-3"><button type="button" disabled={status==='saving'} className={input} onClick={close}>Cancel</button><button type="button" disabled={status!=='ready'||draft.some(x=>!x.label.trim()||!x.time||invalidTime(x))} className="bg-accent text-accent-text rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-40" onClick={save}>{status==='saving'?'Saving…':'Save'}</button></div>
       </div>
     </dialog>
   </>;
