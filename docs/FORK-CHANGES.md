@@ -2,6 +2,8 @@
 
 ### Interactive chart replay trading
 
+- Corrected SL/TP dollar labels to use the same futures point value and contract quantity as simulated execution, including drag previews. No execution or statistics changes.
+
 - New SL/TP drags start directly at the position entry rather than jumping to a preset distance. Clicking without dragging does not create a protective order.
 
 - Added native TradeCanvas position and pending-order lines, draggable entry, SL and TP levels, chart cancel/close actions and synchronized order state on every replay chart.

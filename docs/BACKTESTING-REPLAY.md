@@ -48,7 +48,7 @@ Historical source files and normalized datasets are managed by the central Histo
 - Stop and target checks use the high/low of each subsequent candle.
 - If a candle touches both stop and target, the stop is assumed to have executed first. This is a conservative bar-based assumption, not a reconstruction of actual intrabar sequence.
 - Stop and target fills are simulated at their configured prices. Limit entries may receive a better fill at the candle open; stop-market entries account for gaps through the stop price. Intrabar sequencing, queue position, bid/ask spread, slippage, fees, commissions, partial fills and market depth are not yet modelled.
-- P/L uses the selected instrument's point value. It is a gross estimate before trading costs.
+- P/L uses the selected instrument's point value and quantity in the entry label, SL/TP labels (including drag previews), and simulated results. It is a gross estimate before trading costs.
 - The workspace uses the available Historical Futures catalogue; synthetic fixtures used in tests are not selectable historical markets.
 
 ## Data and replay roadmap

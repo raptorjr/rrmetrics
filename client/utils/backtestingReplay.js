@@ -188,6 +188,16 @@ function replayOrderMenu(price, marketPrice, presets, quantity, format, submit) 
   }));
 }
 
+// Chart overlays use the same contract specification as the replay engine.
+function toReplayChartPosition(position, spec) {
+  return {
+    id: position.id, side: position.direction === 'long' ? 'buy' : 'sell',
+    quantity: position.quantity, entryPrice: position.entryPrice,
+    pointValue: spec.pointValue, currencySymbol: '$',
+    stopLoss: position.stopPrice ?? undefined, takeProfit: position.targetPrice ?? undefined,
+  };
+}
+
 function calculateTradePnl(position, exitPrice, pointValue) {
   if (!position || !Number.isFinite(exitPrice)) return 0;
   const direction = position.direction === 'short' ? -1 : 1;
@@ -224,5 +234,6 @@ module.exports = {
   evaluateCandleExit,
   calculateTradePnl,
   calculateTradeStats,
+  toReplayChartPosition,
   snapReplayPrice, validateReplayLevels, validateReplayEntry, updateReplayLevels, canMoveToBreakeven, replayOrderMenu,
 };
