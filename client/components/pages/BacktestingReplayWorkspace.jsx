@@ -402,7 +402,7 @@ const BacktestingReplayWorkspace = () => {
     if (!isPlaying) return undefined;
     const interval = setInterval(() => {
       if (advanceOneRef.current) advanceOneRef.current();
-    }, Math.max(70, Math.round(1000 / speed)));
+    }, Math.max(50, Math.round(1000 / speed)));
     return () => clearInterval(interval);
   }, [isPlaying, speed]);
 
@@ -545,14 +545,6 @@ const BacktestingReplayWorkspace = () => {
               {historicalTimeframes.map(value => <option key={value} value={value}>{value}{value === baseTimeframe ? ' · source' : ' · aggregated'}</option>)}
             </select>
           </label>
-          <label className="space-y-1">
-            <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">Chart layout</span>
-            <select value={replayLayout} onChange={event => setReplayLayout(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
-              <option value="single">Single chart</option>
-              <option value="split2" disabled={!contextOptions.length}>2 charts</option>
-              <option value="split3" disabled={contextOptions.length < 2}>3 charts</option>
-            </select>
-          </label>
           {selectedMarket?.coverage.length > 1 && <label className="space-y-1">
             <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">Continuous data period</span>
             <select value={selectedCoverageIndex} onChange={handleCoverageChange} disabled={historicalLoading} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
@@ -603,23 +595,35 @@ const BacktestingReplayWorkspace = () => {
             pendingOrder={pendingOrder}
             replayLayout={replayLayout}
             contextTimeframes={contextTimeframes}
+            onLayoutChange={setReplayLayout}
           />
-          <div className="px-4 py-3 border-t border-border flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => setIsPlaying(value => !value)} disabled={!candles.length || (!isPlaying && currentIndex >= candles.length - 1)} aria-label={isPlaying ? 'Pause replay' : 'Play replay'} className="w-10 h-10 inline-flex items-center justify-center rounded-lg bg-accent text-accent-text text-sm font-semibold disabled:opacity-40">{isPlaying ? 'Ⅱ' : '▶'}</button>
-            <button type="button" onClick={advanceOne} disabled={!candles.length || currentIndex >= candles.length - 1} className="px-3 py-2 rounded-lg border border-border text-sm text-text-secondary hover:text-text-primary">Step +1</button>
-            <button type="button" onClick={resetReplay} className="px-3 py-2 rounded-lg border border-border text-sm text-text-secondary hover:text-text-primary">Reset</button>
-            <div className="ml-auto flex items-center gap-2 text-xs text-text-muted">
-              <label htmlFor="replay-speed">Speed</label>
-              <select id="replay-speed" value={speed} onChange={event => setSpeed(Number(event.target.value))} className="bg-bg-input border border-border rounded-lg px-2 py-2 text-text-primary">
-                <option value="0.5">0.5×</option>
-                <option value="1">1×</option>
-                <option value="2">2×</option>
-                <option value="5">5×</option>
-                <option value="10">10×</option>
-              </select>
+          <div className="px-4 py-3 border-t border-border space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => { if (!canSeek) return; setIsPlaying(false); currentIndexRef.current = 0; setCurrentIndex(0); }} disabled={!candles.length || !canSeek || currentIndex === 0} title="Jump to beginning" aria-label="Jump to beginning" className="w-9 h-9 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30">|◀</button>
+              <button type="button" onClick={() => { if (!canSeek) return; setIsPlaying(false); const next = Math.max(0, currentIndexRef.current - 1); currentIndexRef.current = next; setCurrentIndex(next); }} disabled={!candles.length || !canSeek || currentIndex === 0} title="Previous candle" aria-label="Previous candle" className="w-9 h-9 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30">◀</button>
+              <button type="button" onClick={() => setIsPlaying(value => !value)} disabled={!candles.length || (!isPlaying && currentIndex >= candles.length - 1)} aria-label={isPlaying ? 'Pause replay' : 'Play replay'} className="w-10 h-10 inline-flex items-center justify-center rounded-lg bg-accent text-accent-text text-sm font-semibold disabled:opacity-40">{isPlaying ? 'Ⅱ' : '▶'}</button>
+              <button type="button" onClick={() => { setIsPlaying(false); advanceOne(); }} disabled={!candles.length || currentIndex >= candles.length - 1} title="Next candle" aria-label="Next candle" className="w-9 h-9 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30">▶|</button>
+              <button type="button" onClick={resetReplay} title="Reset replay and clear simulated trades" aria-label="Reset replay" className="w-9 h-9 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary">↺</button>
+              <div className="ml-auto flex items-center gap-2 text-xs text-text-muted">
+                <label htmlFor="replay-speed">Bars/sec</label>
+                <select id="replay-speed" value={speed} onChange={event => setSpeed(Number(event.target.value))} className="bg-bg-input border border-border rounded-lg px-2 py-2 text-text-primary">
+                  <option value="0.25">0.25</option>
+                  <option value="0.5">0.5</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="20">20</option>
+                </select>
+              </div>
             </div>
-          </div>
-          <div className="px-4 pb-4">
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <div className="min-w-0">
+                <div className="font-medium text-text-primary">{currentCandle ? formatBarTime(currentCandle.time) : 'Waiting for historical data'}</div>
+                <div className="text-text-muted">{candles.length ? (currentIndex + 1).toLocaleString() + ' of ' + candles.length.toLocaleString() + ' candles' : 'No candles loaded'}</div>
+              </div>
+              <div className="text-right text-text-muted">{candles.length ? Math.round((currentIndex / Math.max(1, candles.length - 1)) * 100) + '%' : '—'}</div>
+            </div>
             <input
               type="range"
               min="0"
@@ -627,6 +631,7 @@ const BacktestingReplayWorkspace = () => {
               value={currentIndex}
               disabled={!candles.length || !canSeek}
               onChange={event => {
+                setIsPlaying(false);
                 const next = Number(event.target.value);
                 currentIndexRef.current = next;
                 setCurrentIndex(next);
@@ -638,7 +643,7 @@ const BacktestingReplayWorkspace = () => {
               <span>{candles.length ? formatBarTime(candles[0].time) : ''}</span>
               <span>{candles.length ? formatBarTime(candles[candles.length - 1].time) : ''}</span>
             </div>
-            {!canSeek && <div className="text-[10px] text-text-muted mt-1">Rewind is disabled after the first trade to keep the trade sequence consistent. Reset to start over.</div>}
+            {!canSeek && <div className="text-[10px] text-text-muted">Rewind and seeking are disabled after a simulated trade to preserve execution history. Reset to start over.</div>}
           </div>
         </div>
 

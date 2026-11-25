@@ -23,6 +23,7 @@ const ReplayTradeCanvasGrid = ({
   replayLayout,
   contextTimeframes = [],
   onActiveChartChange,
+  onLayoutChange,
 }) => {
   const hostRef = useRef(null);
   const gridRef = useRef(null);
@@ -177,9 +178,43 @@ const ReplayTradeCanvasGrid = ({
       widget.__rrReplayDrawingIds = ids;
     });
   }, [position, pendingOrder, visibleBars, gridRevision]);
+  const layoutOptions = [
+    { value: 'single', label: '1', title: 'Single chart' },
+    { value: 'split2', label: '2', title: 'Two charts' },
+    { value: 'split3', label: '3', title: 'Three charts' },
+  ];
 
   return (
-    <div className="w-full h-[430px] min-w-0" ref={hostRef} data-active-chart={activeChart} />
+    <div className="w-full min-w-0">
+      <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-border bg-bg-surface">
+        <div className="flex items-center gap-2 text-xs text-text-muted">
+          <span className="font-medium text-text-secondary">Chart layout</span>
+          <span>{replayLayout === 'single' ? 'Single' : replayLayout === 'split2' ? '2 charts' : '3 charts'}</span>
+        </div>
+        <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-bg-input p-1" role="group" aria-label="Chart layout">
+          {layoutOptions.map(option => {
+            const disabled = option.value === 'split2'
+              ? contextTimeframes.length < 1
+              : option.value === 'split3' && contextTimeframes.length < 2;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                title={option.title}
+                aria-label={option.title}
+                aria-pressed={replayLayout === option.value}
+                disabled={disabled}
+                onClick={() => onLayoutChange && onLayoutChange(option.value)}
+                className={"min-w-8 h-7 rounded-md px-2 text-xs font-semibold transition-colors disabled:opacity-30 disabled:cursor-not-allowed " + (replayLayout === option.value ? 'bg-accent text-accent-text' : 'text-text-secondary hover:text-text-primary hover:bg-bg-surface')}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="w-full h-[430px] min-w-0" ref={hostRef} data-active-chart={activeChart} />
+    </div>
   );
 };
 
