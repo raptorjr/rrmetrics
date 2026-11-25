@@ -70,9 +70,10 @@ const ReplayTradeCanvasGrid = ({
       layout: '1x1',
       layoutChoices,
       cells,
-      bar: true,
+      bar: false,
       layouts: false,
       sharedToolbar: true,
+      layoutPickerInToolbar: true,
       sharedDrawingTools: true,
       sync: { symbol: false, interval: false, crosshair: true, time: false, drawings: false, replay: false },
       onActiveChange: index => {
