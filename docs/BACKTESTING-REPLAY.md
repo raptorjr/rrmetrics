@@ -36,6 +36,8 @@ Historical source files and normalized datasets are managed by the central Histo
 
 ## Interactive chart orders
 
+- Trading settings in the active chart toolbar controls currency, points, ticks and percentage labels (multiple allowed). Shared across replay charts and devices, stored by the local user profile in SQLite, and display-only. Preferences load from the server before editing; changes preview immediately and Save & close persists them. Cancelling restores the last saved values; failed saves are shown and can be retried. Pending entries show distance from the last revealed market price; active position and protective labels show signed movement from entry. Currency uses total contracts; other units describe price movement. History overlays remain future work.
+
 - Right-click a price on any chart to place market, limit or stop-market entries using the order panel's configurable quantity presets. The available pending types depend on the last revealed execution candle's close, not the chart's own timeframe.
 - Drag a pending order to move its entry; drag the SL and TP buttons from an open position to create protective levels, or drag their existing lines to move them. New levels start at the entry line and follow the pointer; clicking without dragging does not place a protective order. The chart's close and cancel buttons route to RR Metrics. Changes synchronize across every chart and the order panel.
 - The BE button moves or creates the stop at the entry price, leaving the target untouched. It is only available when the revealed market price permits the stop and it would not loosen existing protection. BE refers to gross entry-price breakeven, not net of fees or slippage.
