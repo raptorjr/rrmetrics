@@ -47,10 +47,11 @@ const ReplayTradeCanvasGrid = ({
   useEffect(() => { primaryTimeframeRef.current = timeframe; }, [timeframe]);
 
   const layoutChoices = [
-    '1x1', '1x2', '2x1',
+    '1x1',
+    '1x2', '2x1',
     '1x3', '3x1', '1+2', '2+1', '1/2', '2/1',
-    '2x2', '1x4', '4x1', '1+3', '1/3',
-    '2x3', '3x2', '2x4', '3x3',
+    '2x2',
+    '1x4', '4x1', '1+3', '1/3',
   ];
 
   useEffect(() => {
