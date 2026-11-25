@@ -21,7 +21,7 @@ const getCssColor = (name, fallback) => {
 const formatMoney = value => (value < 0 ? '-$' : '$') + Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatPrice = (value, decimals = 2) => Number(value).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 const { formatDateEST, formatTimeEST, getDisplayTimeZone, getDateFormat, getTimeFormat } = require('../../utils/dateUtils');
-const { getSessionMarkets, isRangeWithinCoverage, aggregateCandles, timeframeSeconds } = require('../../utils/historicalReplay');
+const { getSessionMarkets, isRangeWithinCoverage, aggregateCandles, timeframeSeconds, REPLAY_SPEEDS, restoreReplaySpeed, replayStepBudget } = require('../../utils/historicalReplay');
 
 const formatBarTime = value => {
   const date = new Date(value * 1000);
@@ -149,7 +149,7 @@ const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeForma
           <div className="text-sm font-semibold text-text-primary">{monthLabel}</div>
           <button type="button" disabled={!monthStepAllowed(1)} onClick={() => setVisibleMonth(new Date(Date.UTC(visibleMonth.getUTCFullYear(), visibleMonth.getUTCMonth() + 1, 1)))} className="px-2 py-1 rounded hover:bg-bg-input disabled:opacity-30" aria-label="Next month">›</button>
         </div>
-        <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-text-muted mb-1">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(label => <div key={label} className="py-1">{label}</div>)}</div>
+        <div className="grid grid-cols-7 gap-1 text-center text-xs text-text-secondary mb-1">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(label => <div key={label} className="py-1">{label}</div>)}</div>
         <div className="grid grid-cols-7 gap-1">
           {calendarCells.map((calendarDay, index) => {
             if (!calendarDay) return <span key={'empty-' + index} />;
@@ -160,16 +160,16 @@ const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeForma
           })}
         </div>
         <div className="border-t border-border mt-3 pt-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-2">Time · {timeFormat === '24h' ? '24-hour' : '12-hour'}</div>
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-text-secondary mb-2">Time · {timeFormat === '24h' ? '24-hour' : '12-hour'}</div>
           <div className="grid gap-2 items-center" style={{ gridTemplateColumns: timeFormat === '24h' ? '1fr auto 1fr auto 1fr' : '1fr auto 1fr auto 1fr auto' }}>
             <select aria-label="Hour" value={displayHour} onChange={event => setHourDisplay(Number(event.target.value))} className="min-w-0 bg-bg-input border border-border rounded-md px-2 py-2 text-sm text-text-primary">
               {(timeFormat === '24h' ? Array.from({length:24},(_,i)=>i) : Array.from({length:12},(_,i)=>i+1)).map(value => <option key={value} value={value}>{pad(value)}</option>)}
             </select>
-            <span className="text-text-muted">:</span>
+            <span className="text-text-secondary">:</span>
             <select aria-label="Minute" value={minute} onChange={event => setTime(hour,Number(event.target.value))} className="min-w-0 bg-bg-input border border-border rounded-md px-2 py-2 text-sm text-text-primary">
               {Array.from({length:60},(_,i)=>i).map(value => <option key={value} value={value}>{pad(value)}</option>)}
             </select>
-            <span className="text-text-muted">:</span>
+            <span className="text-text-secondary">:</span>
             <select aria-label="Second" value={second} onChange={event => setTime(hour,minute,Number(event.target.value))} className="min-w-0 bg-bg-input border border-border rounded-md px-2 py-2 text-sm text-text-primary">
               {Array.from({length:60},(_,i)=>i).map(value => <option key={value} value={value}>{pad(value)}</option>)}
             </select>
@@ -202,6 +202,7 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
   const workspaceRef = useRef(null), chartCaptureRef = useRef(null), fingerprintRef = useRef('');
   const revisionRef = useRef(session.revision), saveInFlight = useRef(null), lastSavedRef = useRef('');
   const exitRef = useRef(false), conflictRef = useRef(false), snapshotRef = useRef(null);
+  const [restartLayout,setRestartLayout]=useState(null), [chartGeneration,setChartGeneration]=useState(0);
   const [chartReady,setChartReady] = useState(false), [saveStatus,setSaveStatus] = useState(saved?'Restoring…':'Not saved yet');
   const [savingExit,setSavingExit] = useState(false), [fullscreen,setFullscreen] = useState(false);
   const [lockedMarket,setLockedMarket] = useState(!!saved), [showDetails,setShowDetails] = useState(false);
@@ -216,7 +217,7 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
   const [marketBaseCandles, setMarketBaseCandles] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(80);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1);
+  const [speed, setSpeed] = useState(60);
   const [quantity, setQuantity] = useState(1);
   const [quantityPresets, setQuantityPresets] = useState([1, 2, 3, 5, 10]);
   const [editingPresets, setEditingPresets] = useState(false);
@@ -304,7 +305,7 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
         closedTradesRef.current=session.trades || [];setClosedTrades(closedTradesRef.current);
         orderSequence.current=saved?.orderSequence ?? 0;
         setQuantity(saved?.quantity ?? 1);setQuantityPresets(saved?.quantityPresets ?? [1,2,3,5,10]);
-        setOrderType(saved?.orderType ?? 'market');setOrderPrice(saved?.orderPrice ?? '');setSpeed(saved?.speed ?? 1);
+        setOrderType(saved?.orderType ?? 'market');setOrderPrice(saved?.orderPrice ?? '');setSpeed(restoreReplaySpeed(saved,timeframeSeconds(historicalTimeframe)));
         setMessage(saved ? 'Session restored paused.' : 'Select your execution market before trading.');
       } catch (loadError) {
         if (!cancelled) { setMarketBaseCandles([]); setCandles([]); setCurrentIndex(0); currentIndexRef.current = 0; setImportError(loadError.message || 'Unable to prepare historical market data.'); }
@@ -371,11 +372,17 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
 
   useEffect(() => {
     if (!isPlaying) return undefined;
+    let last=performance.now(), carry=0;
     const interval = setInterval(() => {
-      if (advanceOneRef.current) advanceOneRef.current();
-    }, Math.max(50, Math.round(1000 / speed)));
+      const now=performance.now();
+      const step=replayStepBudget(now-last,carry,speed,timeframeSeconds(historicalTimeframe));last=now;carry=step.carry;
+      for(let i=0;i<step.count && currentIndexRef.current<candlesRef.current.length-1;i++) {
+        if(exitRef.current||conflictRef.current)break;
+        advanceOneRef.current?.();
+      }
+    },50);
     return () => clearInterval(interval);
-  }, [isPlaying, speed]);
+  }, [isPlaying, speed, historicalTimeframe]);
 
   const handleMarketChange = event => {
     if (lockedMarket || exitRef.current || historicalLoading) return;
@@ -507,7 +514,7 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
     if(!chartReady||historicalLoading||!candle||!layout||!fingerprintRef.current)return null;
     return {checkpoint:{version:1,marketKey:selectedMarketKey,timeframe:historicalTimeframe,fingerprint:fingerprintRef.current,
       index:currentIndexRef.current,barCount:candlesRef.current.length,time:candle.time,orderSequence:orderSequence.current,
-      quantity,quantityPresets,speed,orderType,orderPrice,position:positionRef.current,pendingOrder:pendingOrderRef.current,layout},trades:closedTradesRef.current};
+      quantity,quantityPresets,speed,speedMode:'time',orderType,orderPrice,position:positionRef.current,pendingOrder:pendingOrderRef.current,layout},trades:closedTradesRef.current};
   };
   const save=async()=>{
     if(conflictRef.current)return false;
@@ -550,6 +557,34 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
     if(ok){if(document.fullscreenElement===workspaceRef.current)try{await document.exitFullscreen();}catch{}onExit();}
     else{exitRef.current=false;setSavingExit(false);}
   };
+  const restartSession=async()=>{
+    if(!chartReady||savingExit||exitRef.current||conflictRef.current)return;
+    if(!window.confirm('Restart this session from its first candle? This permanently clears its simulated trades, open position and working orders and restores the starting balance. Chart layout, indicators and drawings are kept.'))return;
+    exitRef.current=true;setIsPlaying(false);setSavingExit(true);
+    try{
+      if(saveInFlight.current)await saveInFlight.current;
+      if(conflictRef.current)throw Error('Session changed on another device.');
+      const payload=snapshotRef.current?.();
+      if(!payload)throw Error('Session is not ready.');
+      const checkpoint={...payload.checkpoint,index:0,time:candlesRef.current[0].time,position:null,pendingOrder:null,orderType:'market',orderPrice:''};
+      checkpoint.layout={...checkpoint.layout,cells:checkpoint.layout.cells.map(cell=>{
+        if(!cell.chart)return cell;
+        const {hostReplayView,...chart}=cell.chart;return {...cell,chart};
+      })};
+      setSaveStatus('Restarting…');
+      const response=await authFetch('/api/backtesting/replay-sessions/'+encodeURIComponent(session.id)+'/checkpoint',{
+        method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:revisionRef.current,restart:true,checkpoint,trades:[]})});
+      const data=await response.json();
+      if(!response.ok){if(response.status===409)conflictRef.current=true;throw Error(data.error||'Restart failed.');}
+      revisionRef.current=data.revision;lastSavedRef.current=JSON.stringify({checkpoint,trades:[]});
+      positionRef.current=null;pendingOrderRef.current=null;closedTradesRef.current=[];
+      setPosition(null);setPendingOrder(null);setClosedTrades([]);setOrderType('market');setOrderPrice('');
+      currentIndexRef.current=0;setCurrentIndex(0);setLockedMarket(true);setSaveStatus('Saved');
+      setError('');setMessage('Session restarted. Layout and drawings retained.');
+      setRestartLayout(checkpoint.layout);setChartReady(false);setChartGeneration(v=>v+1);
+    }catch(e){setSaveStatus(e.message||'Restart failed');setError(e.message||'Restart failed');}
+    finally{exitRef.current=false;setSavingExit(false);}
+  };
   const toggleFullscreen=async()=>{
     try{if(document.fullscreenElement===workspaceRef.current)await document.exitFullscreen();else await workspaceRef.current.requestFullscreen();}
     catch{setError('Fullscreen is not available in this browser.');}
@@ -559,14 +594,14 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
     : stats.profitFactor.toFixed(2);
 
   return createPortal(
-    <div ref={workspaceRef} className="fixed inset-0 z-[9999] bg-bg-page text-text-primary flex flex-col overflow-hidden" style={{height:'100dvh'}}>
+    <div ref={workspaceRef} data-replay-workspace="true" className="fixed inset-0 z-[9999] bg-bg-page text-text-primary flex flex-col overflow-hidden" style={{height:'100dvh'}}>
       <header className="shrink-0 flex items-center gap-3 border-b border-border bg-bg-surface px-3 py-2">
         <button type="button" disabled={savingExit} onClick={saveExit} className="shrink-0 rounded-lg border border-border bg-bg-input px-3 py-1.5 text-sm font-semibold disabled:opacity-40">← {savingExit?'Saving…':'Save & exit'}</button>
         <div className="flex-1 min-w-0 overflow-x-auto flex items-center gap-5 whitespace-nowrap text-xs">
           <strong className="text-sm">{session.name}</strong>
-          {[['Starting',session.startingBalance],['Balance',balance],['Equity',balance+unrealizedPnl],['Realized P/L',realized],['Unrealized P/L',unrealizedPnl]].map(([label,value])=><div key={label}><span className="text-text-muted mr-2">{label}</span><strong className={label.includes('P/L')?(value<0?'text-negative':'text-positive'):'text-text-primary'}>{formatMoney(value)}</strong></div>)}
+          {[['Starting',session.startingBalance],['Balance',balance],['Equity',balance+unrealizedPnl],['Realized P/L',realized],['Unrealized P/L',unrealizedPnl]].map(([label,value])=><div key={label}><span className="text-text-secondary mr-2">{label}</span><strong className={label.includes('P/L')?(value<0?'text-negative':'text-positive'):'text-text-primary'}>{formatMoney(value)}</strong></div>)}
         </div>
-        <span role="status" className="max-w-[180px] text-xs text-text-muted truncate" title={saveStatus}>{saveStatus}</span>
+        <span role="status" className="max-w-[180px] text-xs text-text-secondary truncate" title={saveStatus}>{saveStatus}</span>
         <button type="button" onClick={toggleFullscreen} className="shrink-0 bg-bg-input border border-border rounded-lg px-2 py-1.5 text-sm" aria-label={fullscreen?'Exit fullscreen':'Fullscreen'} title={fullscreen?'Exit fullscreen':'Fullscreen'}>{fullscreen?'↙':'⛶'}</button>
       </header>
       {importError&&<div className="shrink-0 px-3 py-2 text-xs text-negative" role="alert">{importError}</div>}
@@ -576,18 +611,19 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
         <div className="bg-bg-surface flex flex-col min-h-0 overflow-hidden min-w-0">
           <div className="shrink-0 flex items-center justify-between gap-3 px-3 py-1 border-b border-border">
             <div>
-              <div className="flex items-center gap-2"><select aria-label="Execution market" value={selectedMarketKey} onChange={handleMarketChange} disabled={lockedMarket||historicalLoading||!availableMarkets.length} className="bg-bg-input rounded px-2 py-1 text-sm text-text-primary">{availableMarkets.map(m=><option key={m.key} value={m.key}>{m.label}</option>)}</select><span className="text-xs text-text-muted">{intervalLabel} execution</span></div>
-              <div className="text-text-muted text-xs">{currentCandle ? formatBarTime(currentCandle.time) : 'No data'} · {currentIndex + 1} / {candles.length} bars revealed</div>
+              <div className="flex items-center gap-2"><select aria-label="Execution market" value={selectedMarketKey} onChange={handleMarketChange} disabled={lockedMarket||historicalLoading||!availableMarkets.length} className="bg-bg-input rounded px-2 py-1 text-sm text-text-primary">{availableMarkets.map(m=><option key={m.key} value={m.key}>{m.label}</option>)}</select><span className="text-xs text-text-secondary">{intervalLabel} execution</span></div>
+              <div className="text-text-secondary text-xs">{currentCandle ? formatBarTime(currentCandle.time) : 'No data'} · {currentIndex + 1} / {candles.length} bars revealed</div>
             </div>
             <div className="text-right">
               <div className="font-mono text-text-primary text-lg">{formatPrice(currentPrice, spec.decimals)}</div>
-              <div className="text-text-muted text-[11px]">Last revealed close</div>
+              <div className="text-text-secondary text-[11px]">Last revealed close</div>
             </div>
           </div>
+          <div className="relative flex flex-1 min-h-0 min-w-0">
           <ReplayTradeCanvasGrid
-            key={selectedMarketKey || 'loading'}
+            key={(selectedMarketKey || 'loading')+'|'+chartGeneration}
             ticker={ticker}
-            fullHeight={true} captureRef={chartCaptureRef} restoreLayout={saved?.layout} onReady={setChartReady} onRestoreError={setImportError}
+            fullHeight={true} captureRef={chartCaptureRef} restoreLayout={restartLayout || saved?.layout} onReady={setChartReady} onRestoreError={setImportError}
             timeframe={historicalTimeframe}
             baseCandles={marketBaseCandles}
             replayTime={replayTime}
@@ -602,8 +638,12 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
             onPositionModify={({ positionId, stopLoss, takeProfit }) => applyPositionLevels(positionId, { stopPrice: stopLoss, targetPrice: takeProfit })}
             onPositionClose={({ positionId }) => closeFromChart(positionId)}
           />
+          {!chartReady && <div className="absolute inset-0 z-30 flex items-center justify-center bg-bg-page/90"><div role="status" className="text-center text-sm text-text-secondary space-y-3">{!importError&&<div className="mx-auto h-8 w-8 border-2 border-accent border-t-transparent rounded-full animate-spin"/>}<div className="font-semibold text-text-primary">{importError?'Historical replay unavailable':historicalLoading||!candles.length?'Loading historical market data…':'Restoring chart layout…'}</div><p>{importError||'Preparing the selected period. Playback will be ready when loading is complete.'}</p></div></div>}
+          </div>
           <div className="shrink-0 px-3 py-2 border-t border-border space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+              <div/>
+              <div className="flex items-center justify-center gap-2">
               <button type="button" onClick={() => {
                 if (!canSeek || !window.confirm('Jump to the beginning of this replay? The chart will return to the first candle.')) return;
                 setIsPlaying(false);
@@ -613,25 +653,21 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
               <button type="button" onClick={() => { if (!canSeek) return; setIsPlaying(false); const next = Math.max(0, currentIndexRef.current - 1); currentIndexRef.current = next; setCurrentIndex(next); }} disabled={!candles.length || !canSeek || currentIndex === 0} title="Previous candle" aria-label="Previous candle" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30"><span aria-hidden="true" className="inline-block rotate-180 text-xl leading-none">▶|</span></button>
               <button type="button" onClick={() => {setLockedMarket(true);setIsPlaying(value => !value);}} disabled={!chartReady || !candles.length || (!isPlaying && currentIndex >= candles.length - 1)} aria-label={isPlaying ? 'Pause replay' : 'Play replay'} className="w-10 h-10 inline-flex items-center justify-center rounded-lg bg-accent text-accent-text text-sm font-semibold disabled:opacity-40">{isPlaying ? 'Ⅱ' : '▶'}</button>
               <button type="button" onClick={() => { setIsPlaying(false); advanceOne(); }} disabled={!chartReady || !candles.length || currentIndex >= candles.length - 1} title="Next candle" aria-label="Next candle" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30"><span aria-hidden="true" className="text-xl leading-none">▶|</span></button>
-              <div className="ml-auto flex items-center gap-2 text-xs text-text-muted">
-                <label htmlFor="replay-speed">Bars/sec</label>
-                <select id="replay-speed" value={speed} onChange={event => setSpeed(Number(event.target.value))} className="bg-bg-input border border-border rounded-lg px-2 py-2 text-text-primary">
-                  <option value="0.25">0.25</option>
-                  <option value="0.5">0.5</option>
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                  <option value="5">5</option>
-                  <option value="10">10</option>
-                  <option value="20">20</option>
+              <button type="button" onClick={restartSession} disabled={!chartReady||savingExit} title="Restart session and reset its simulated trades" aria-label="Restart session" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30 text-xl">↺</button>
+              </div>
+              <div className="justify-self-end flex items-center gap-2 text-xs text-text-secondary">
+                <label htmlFor="replay-speed" title="Simulated active-market time per real second. Closed-market gaps are skipped.">Speed</label>
+                <select id="replay-speed" value={speed} onChange={event => setSpeed(Number(event.target.value))} className="bg-bg-input border border-border rounded-lg px-2 py-2 text-text-primary" title="60× = one minute of market time per real second">
+                  {REPLAY_SPEEDS.map(value=><option key={value} value={value}>{value}×</option>)}
                 </select>
               </div>
             </div>
             <div className="flex items-center justify-between gap-3 text-xs">
               <div className="min-w-0">
                 <div className="font-medium text-text-primary">{currentCandle ? formatBarTime(currentCandle.time) : 'Waiting for historical data'}</div>
-                <div className="text-text-muted">{candles.length ? (currentIndex + 1).toLocaleString() + ' of ' + candles.length.toLocaleString() + ' candles' : 'No candles loaded'}</div>
+                <div className="text-text-secondary">{candles.length ? (currentIndex + 1).toLocaleString() + ' of ' + candles.length.toLocaleString() + ' candles' : 'No candles loaded'}</div>
               </div>
-              <div className="text-right text-text-muted">{candles.length ? Math.round((currentIndex / Math.max(1, candles.length - 1)) * 100) + '%' : '—'}</div>
+              <div className="text-right text-text-secondary">{candles.length ? Math.round((currentIndex / Math.max(1, candles.length - 1)) * 100) + '%' : '—'}</div>
             </div>
             <input
               type="range"
@@ -649,29 +685,29 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
               className="w-full accent-accent disabled:opacity-40"
               aria-label="Replay position"
             />
-            <div className="flex justify-between text-[10px] text-text-muted">
+            <div className="flex justify-between text-xs text-text-secondary">
               <span>{candles.length ? formatBarTime(candles[0].time) : ''}</span>
               <span>{candles.length ? formatBarTime(candles[candles.length - 1].time) : ''}</span>
             </div>
-            {!canSeek && <div className="text-[10px] text-text-muted">Rewind and seeking are disabled after a simulated trade to preserve execution history.</div>}
+            {!canSeek && <div className="text-xs text-text-secondary">Rewind and seeking are disabled after a simulated trade to preserve execution history.</div>}
           </div>
         </div>
 
-        <div className="min-h-0 overflow-y-auto space-y-2 bg-bg-surface">
+        <div className="min-h-0 overflow-y-auto flex flex-col gap-2 bg-bg-surface">
           <div className="bg-bg-surface border border-border rounded-lg p-3 space-y-3">
             <h3 className="text-text-primary font-semibold text-sm">Order entry</h3>
             <div className={orderType === 'market' ? 'grid grid-cols-1' : 'grid grid-cols-2 gap-2'}>
-              <div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Order type</label><select aria-label="Order type" value={orderType} disabled={!!pendingOrder} onChange={event => changeOrderType(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-2 py-2 text-sm text-text-primary"><option value="market">Market</option><option value="limit">Limit</option><option value="stop_market">Stop Market</option></select></div>
-              {orderType !== 'market' && <div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Order price</label><div className="flex items-center gap-1"><input aria-label="Order price" type="number" step={spec.tickSize} value={orderPrice} disabled={!!pendingOrder} onChange={event => { setOrderPrice(event.target.value); setError(''); }} className="w-full min-w-0 bg-bg-input border border-border rounded-lg px-2 py-2 text-sm text-text-primary" placeholder="Price" /><button type="button" aria-label="Reset to current market price" title="Reset to current market price" disabled={!!pendingOrder || historicalLoading || !currentPrice} onClick={resetOrderPrice} className="shrink-0 w-7 h-9 rounded-lg border border-border text-text-muted hover:text-text-primary disabled:opacity-40 flex items-center justify-center"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7v5h-5M4 17v-5h5M6 8a7 7 0 0 1 11.5-2L20 9M4 15l2.5 3A7 7 0 0 0 18 16"/></svg></button></div></div>}
+              <div><label className="block text-text-secondary text-[11px] font-semibold uppercase tracking-wider mb-1">Order type</label><select aria-label="Order type" value={orderType} disabled={!!pendingOrder} onChange={event => changeOrderType(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-2 py-2 text-sm text-text-primary"><option value="market">Market</option><option value="limit">Limit</option><option value="stop_market">Stop Market</option></select></div>
+              {orderType !== 'market' && <div><label className="block text-text-secondary text-[11px] font-semibold uppercase tracking-wider mb-1">Order price</label><div className="flex items-center gap-1"><input aria-label="Order price" type="number" step={spec.tickSize} value={orderPrice} disabled={!!pendingOrder} onChange={event => { setOrderPrice(event.target.value); setError(''); }} className="w-full min-w-0 bg-bg-input border border-border rounded-lg px-2 py-2 text-sm text-text-primary" placeholder="Price" /><button type="button" aria-label="Reset to current market price" title="Reset to current market price" disabled={!!pendingOrder || historicalLoading || !currentPrice} onClick={resetOrderPrice} className="shrink-0 w-7 h-9 rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-40 flex items-center justify-center"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7v5h-5M4 17v-5h5M6 8a7 7 0 0 1 11.5-2L20 9M4 15l2.5 3A7 7 0 0 0 18 16"/></svg></button></div></div>}
             </div>
-            {orderType !== 'market' && <div className="flex items-center justify-between text-xs"><span className="text-text-muted">Current market price</span><span className="text-text-secondary tabular-nums">{currentPrice > 0 ? formatPrice(currentPrice, spec.decimals) : '—'}</span></div>}
+            {orderType !== 'market' && <div className="flex items-center justify-between text-xs"><span className="text-text-secondary">Current market price</span><span className="text-text-secondary tabular-nums">{currentPrice > 0 ? formatPrice(currentPrice, spec.decimals) : '—'}</span></div>}
             <div className="flex items-center gap-1">
               <button type="button" onClick={() => adjustQuantity(-1)} disabled={!!pendingOrder || quantity <= 1} className="w-7 h-8 shrink-0 rounded-full border border-border text-text-primary disabled:opacity-40" aria-label="Decrease contracts">−</button>
               <div className="flex flex-1 justify-center gap-1 min-w-0">{quantityPresets.map((preset, index) => <button key={index} type="button" onClick={() => setQuantity(preset)} disabled={!!pendingOrder} className={"min-w-0 flex-1 h-8 px-1 rounded-full text-xs font-semibold disabled:opacity-40 " + (quantity === preset ? 'bg-accent text-accent-text' : 'bg-bg-input text-text-secondary hover:text-text-primary')}>{preset}</button>)}</div>
               <button type="button" onClick={() => adjustQuantity(1)} disabled={!!pendingOrder || quantity >= 100} className="w-7 h-8 shrink-0 rounded-full border border-border text-text-primary disabled:opacity-40" aria-label="Increase contracts">+</button>
-              <button type="button" onClick={() => { setPresetDraft(quantityPresets.map(String)); setEditingPresets(value => !value); }} disabled={!!pendingOrder} className="w-6 h-8 shrink-0 rounded-lg text-text-muted hover:text-text-primary disabled:opacity-40" title="Edit contract presets" aria-label="Edit contract presets">✎</button>
+              <button type="button" onClick={() => { setPresetDraft(quantityPresets.map(String)); setEditingPresets(value => !value); }} disabled={!!pendingOrder} className="w-6 h-8 shrink-0 rounded-lg text-text-secondary hover:text-text-primary disabled:opacity-40" title="Edit contract presets" aria-label="Edit contract presets">✎</button>
             </div>
-            {editingPresets && <div className="rounded-lg border border-border bg-bg-input p-3 space-y-2"><div className="text-xs font-semibold text-text-secondary">Contract presets</div><div className="grid grid-cols-5 gap-2">{presetDraft.map((value, index) => <input key={index} type="number" min="1" max="100" step="1" value={value} onChange={event => setPresetDraft(previous => previous.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} className="min-w-0 w-full rounded border border-border bg-bg-surface px-1 py-2 text-center text-sm text-text-primary" aria-label={"Preset " + (index + 1)} />)}</div><div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingPresets(false)} className="px-3 py-1.5 text-xs text-text-muted">Cancel</button><button type="button" onClick={savePresets} className="px-3 py-1.5 rounded bg-accent text-accent-text text-xs font-semibold">Save</button></div></div>}
+            {editingPresets && <div className="rounded-lg border border-border bg-bg-input p-3 space-y-2"><div className="text-xs font-semibold text-text-secondary">Contract presets</div><div className="grid grid-cols-5 gap-2">{presetDraft.map((value, index) => <input key={index} type="number" min="1" max="100" step="1" value={value} onChange={event => setPresetDraft(previous => previous.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} className="min-w-0 w-full rounded border border-border bg-bg-surface px-1 py-2 text-center text-sm text-text-primary" aria-label={"Preset " + (index + 1)} />)}</div><div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingPresets(false)} className="px-3 py-1.5 text-xs text-text-secondary">Cancel</button><button type="button" onClick={savePresets} className="px-3 py-1.5 rounded bg-accent text-accent-text text-xs font-semibold">Save</button></div></div>}
             <div className="grid grid-cols-2 gap-2">
               {['long', 'short'].map(direction => {
                 const { error: draftError } = validateReplayOrderDraft(position, direction, quantity, orderType, orderPrice, currentPrice, spec);
@@ -683,26 +719,26 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
                 </button>;
               })}
             </div>
-            {!pendingOrder && orderType !== 'market' && <p className="text-[11px] text-text-muted">{orderType === 'limit' ? 'Buy below · Sell above market' : 'Buy above · Sell below market'}{snapReplayPrice(orderPrice, spec) === currentPrice && currentPrice > 0 ? ' — adjust the order price' : ''}</p>}
-            {pendingOrder && <div className="rounded-lg bg-bg-input p-3 text-xs space-y-2"><div className="flex justify-between"><span className="text-text-muted">Pending {pendingOrder.type.replace('_', ' ')}</span><strong>{pendingOrder.direction.toUpperCase()} × {pendingOrder.quantity}</strong></div><div className="flex justify-between"><span className="text-text-muted">Order price</span><span className="font-mono">{formatPrice(pendingOrder.triggerPrice, spec.decimals)}</span></div><button type="button" onClick={() => cancelPendingOrder(pendingOrder.id)} className="w-full py-2 rounded-lg bg-negative text-white text-sm font-semibold hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">Cancel pending order</button></div>}
-            {position && <div className="space-y-2"><div className="rounded-lg bg-bg-input p-3 text-xs space-y-1"><div className="flex justify-between"><span className="text-text-muted">Open position</span><strong className={position.direction === 'long' ? 'text-positive' : 'text-negative'}>{position.direction.toUpperCase()} × {position.quantity}</strong></div><div className="flex justify-between"><span className="text-text-muted">Avg entry</span><span className="font-mono">{formatPrice(position.entryPrice, spec.decimals)}</span></div><div className="flex justify-between"><span className="text-text-muted">Unrealized P/L</span><strong className={unrealizedPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(unrealizedPnl)}</strong></div>{position.fills?.some(fill => fill.kind === 'exit') && <div className="flex justify-between"><span className="text-text-muted">Realized P/L</span><strong className={realizedOpenPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(realizedOpenPnl)}</strong></div>}</div>
+            {!pendingOrder && orderType !== 'market' && <p className="text-xs text-text-secondary">{orderType === 'limit' ? 'Buy below · Sell above market' : 'Buy above · Sell below market'}{snapReplayPrice(orderPrice, spec) === currentPrice && currentPrice > 0 ? ' — adjust the order price' : ''}</p>}
+            {pendingOrder && <div className="rounded-lg bg-bg-input p-3 text-xs space-y-2"><div className="flex justify-between"><span className="text-text-secondary">Pending {pendingOrder.type.replace('_', ' ')}</span><strong>{pendingOrder.direction.toUpperCase()} × {pendingOrder.quantity}</strong></div><div className="flex justify-between"><span className="text-text-secondary">Order price</span><span className="font-mono">{formatPrice(pendingOrder.triggerPrice, spec.decimals)}</span></div><button type="button" onClick={() => cancelPendingOrder(pendingOrder.id)} className="w-full py-2 rounded-lg bg-negative text-white text-sm font-semibold hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">Cancel pending order</button></div>}
+            {position && <div className="space-y-2"><div className="rounded-lg bg-bg-input p-3 text-xs space-y-1"><div className="flex justify-between"><span className="text-text-secondary">Open position</span><strong className={position.direction === 'long' ? 'text-positive' : 'text-negative'}>{position.direction.toUpperCase()} × {position.quantity}</strong></div><div className="flex justify-between"><span className="text-text-secondary">Avg entry</span><span className="font-mono">{formatPrice(position.entryPrice, spec.decimals)}</span></div><div className="flex justify-between"><span className="text-text-secondary">Unrealized P/L</span><strong className={unrealizedPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(unrealizedPnl)}</strong></div>{position.fills?.some(fill => fill.kind === 'exit') && <div className="flex justify-between"><span className="text-text-secondary">Realized P/L</span><strong className={realizedOpenPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(realizedOpenPnl)}</strong></div>}</div>
               <div className="flex gap-2"><button type="button" onClick={() => closeFromChart(position.id)} className="flex-1 py-2 rounded-lg bg-accent text-accent-text text-sm font-semibold">Close position</button><button type="button" title="Move stop to remaining average entry (rounded to a protective tick, before fees)" disabled={!canMoveToBreakeven(position, currentPrice, spec)} onClick={moveToBreakeven} className="px-5 py-2 rounded-lg border border-border text-sm font-semibold text-text-primary disabled:opacity-40">BE</button></div>
             </div>}
-            {error && <p className="text-xs text-negative">{error}</p>}{message && <p className="text-xs text-text-muted">{message}</p>}
+            {error && <p className="text-xs text-negative">{error}</p>}{message && <p className="text-xs text-text-secondary">{message}</p>}
           </div>
 
-          <details className="bg-bg-surface border border-border rounded-lg p-3 space-y-3"><summary className="cursor-pointer text-sm font-semibold">Backtest statistics</summary>
+          <div className="mt-auto bg-bg-surface border border-border rounded-lg p-3 space-y-3"><h3 className="text-sm font-semibold">Backtest statistics</h3>
             <div className="grid grid-cols-2 gap-3">
-              <div><div className="text-[10px] uppercase tracking-wider text-text-muted">Closed trades</div><div className="text-xl font-semibold text-text-primary">{stats.total}</div></div>
-              <div><div className="text-[10px] uppercase tracking-wider text-text-muted">Win rate</div><div className="text-xl font-semibold text-text-primary">{stats.winRate.toFixed(1)}%</div></div>
-              <div><div className="text-[10px] uppercase tracking-wider text-text-muted">Net P/L</div><div className={'text-lg font-semibold ' + (stats.netPnl >= 0 ? 'text-positive' : 'text-negative')}>{formatMoney(stats.netPnl)}</div></div>
-              <div><div className="text-[10px] uppercase tracking-wider text-text-muted">Profit factor</div><div className="text-lg font-semibold text-text-primary">{statsProfitFactor}</div></div>
+              <div><div className="text-[10px] uppercase tracking-wider text-text-secondary">Closed trades</div><div className="text-xl font-semibold text-text-primary">{stats.total}</div></div>
+              <div><div className="text-[10px] uppercase tracking-wider text-text-secondary">Win rate</div><div className="text-xl font-semibold text-text-primary">{stats.winRate.toFixed(1)}%</div></div>
+              <div><div className="text-[10px] uppercase tracking-wider text-text-secondary">Net P/L</div><div className={'text-lg font-semibold ' + (stats.netPnl >= 0 ? 'text-positive' : 'text-negative')}>{formatMoney(stats.netPnl)}</div></div>
+              <div><div className="text-[10px] uppercase tracking-wider text-text-secondary">Profit factor</div><div className="text-lg font-semibold text-text-primary">{statsProfitFactor}</div></div>
             </div>
-            <div className="border-t border-border pt-2 flex justify-between text-xs"><span className="text-text-muted">Wins / losses / BE</span><span className="text-text-primary">{stats.wins} / {stats.losses} / {stats.breakeven}</span></div>
-            {position && position.fills?.some(fill => fill.kind === 'exit') && <div className="flex justify-between text-xs"><span className="text-text-muted">Realized on open trade (not included above)</span><strong className={realizedOpenPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(realizedOpenPnl)}</strong></div>}
-            {position && <div className="flex justify-between text-xs"><span className="text-text-muted">Open P/L (not included above)</span><strong className={unrealizedPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(unrealizedPnl)}</strong></div>}
-            {closedTrades.length === 0 && <p className="text-xs text-text-muted">Close your first simulated trade to start building statistics.</p>}
-          </details>
+            <div className="border-t border-border pt-2 flex justify-between text-xs"><span className="text-text-secondary">Wins / losses / BE</span><span className="text-text-primary">{stats.wins} / {stats.losses} / {stats.breakeven}</span></div>
+            {position && position.fills?.some(fill => fill.kind === 'exit') && <div className="flex justify-between text-xs"><span className="text-text-secondary">Realized on open trade (not included above)</span><strong className={realizedOpenPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(realizedOpenPnl)}</strong></div>}
+            {position && <div className="flex justify-between text-xs"><span className="text-text-secondary">Open P/L (not included above)</span><strong className={unrealizedPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(unrealizedPnl)}</strong></div>}
+            {closedTrades.length === 0 && <p className="text-xs text-text-secondary">Close your first simulated trade to start building statistics.</p>}
+          </div>
         </div>
       </div>
 
@@ -710,11 +746,11 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
         <button className="w-full text-left text-xs text-text-secondary py-1" onClick={()=>setShowDetails(v=>!v)}>{showDetails?"▾":"▸"} Trade history · {closedTrades.length} closed</button>
         {showDetails && <div>
         {closedTrades.length === 0 ? (
-          <p className="text-text-muted text-sm">No trades yet. Start the replay and place a simulated trade.</p>
+          <p className="text-text-secondary text-sm">No trades yet. Start the replay and place a simulated trade.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs min-w-[720px]">
-              <thead><tr className="text-text-muted border-b border-border text-left">
+              <thead><tr className="text-text-secondary border-b border-border text-left">
                 <th className="py-2 pr-3">Side</th><th className="py-2 pr-3">Entry time</th><th className="py-2 pr-3">Entry</th><th className="py-2 pr-3">Exit</th><th className="py-2 pr-3">Qty</th><th className="py-2 pr-3">P/L</th><th className="py-2">Exit reason</th>
               </tr></thead>
               <tbody>
@@ -736,7 +772,7 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
         </div>}
       </div>
 
-      <div className="shrink-0 px-3 py-1 text-[10px] text-text-muted">
+      <div className="shrink-0 px-3 py-1 text-xs text-text-secondary">
         <p>Simulated account · one completed trade per flat position · gross P/L before fees and slippage.</p>
       </div>
     </div>, document.body

@@ -121,4 +121,18 @@ function getSessionMarkets(datasets, start, end) {
   return getAvailableMarkets(datasets).filter(m => m.datasets.some(d => d.timeframe === m.baseTimeframe &&
     isRangeWithinCoverage(start, end, { start: Date.parse(d.start_time), end: Date.parse(d.end_time) })));
 }
-module.exports = { getSessionMarkets, TIMEFRAME_SECONDS, timeframeSeconds, compareTimeframes, getAvailableMarkets, isRangeWithinCoverage, aggregateCandles };
+// Simulated active-market seconds per wall-clock second, not bars/sec.
+const REPLAY_SPEEDS = [1,10,30,60,120,300,600,1200];
+function restoreReplaySpeed(checkpoint, intervalSeconds) {
+  if (!checkpoint) return 60;
+  const wanted = checkpoint.speedMode === 'time' ? checkpoint.speed : checkpoint.speed * intervalSeconds;
+  return REPLAY_SPEEDS.reduce((best,value)=>Math.abs(value-wanted)<Math.abs(best-wanted)?value:best,60);
+}
+// Bound background-tab catch-up without skipping any execution bars.
+function replayStepBudget(elapsedMs, carry, speed, intervalSeconds) {
+  if (!(intervalSeconds>0) || !(speed>0)) return { count:0, carry:0 };
+  const budget = Math.max(0,carry) + Math.min(250,Math.max(0,elapsedMs))*speed/1000;
+  const count = Math.min(100,Math.floor((budget+1e-9)/intervalSeconds));
+  return {count,carry:Math.max(0,budget-count*intervalSeconds)};
+}
+module.exports = { REPLAY_SPEEDS, restoreReplaySpeed, replayStepBudget, getSessionMarkets, TIMEFRAME_SECONDS, timeframeSeconds, compareTimeframes, getAvailableMarkets, isRangeWithinCoverage, aggregateCandles };

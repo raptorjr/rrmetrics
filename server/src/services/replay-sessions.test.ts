@@ -52,6 +52,15 @@ test('persistent replay accounts resume across clients, isolate trades and rejec
     db.prepare("DELETE FROM market_data_files WHERE id='f'").run();
     const again=(await (await laptop.request(url+'/'+session.id)).json() as any).session;
     assert.equal(again.revision,2);assert.equal(again.trades.length,1);
+    const reset={revision:2,restart:true,checkpoint:{...checkpoint,index:0,time,position:null,pendingOrder:null,speed:60,speedMode:'time'},trades:[]};
+    assert.equal((await write(other,save,'PUT',reset)).status,404);
+    assert.equal((await write(laptop,save,'PUT',{...reset,revision:1})).status,409);
+    assert.equal((await write(laptop,save,'PUT',{...reset,checkpoint:{...reset.checkpoint,position:open}})).status,400);
+    assert.equal((await write(laptop,save,'PUT',reset)).status,200);
+    const restarted=(await (await laptop.request(url+'/'+session.id)).json() as any).session;
+    assert.equal(restarted.revision,3);assert.equal(restarted.balance,50000);assert.equal(restarted.progress,0);assert.equal(restarted.trades.length,0);
+    assert.deepEqual(restarted.checkpoint.layout,checkpoint.layout);
+    assert.equal((await write(desktop,save,'PUT',payload)).status,409);
     assert.equal((db.prepare('SELECT COUNT(*) AS n FROM trades').get() as any).n,0);
     assert.equal((db.prepare('SELECT COUNT(*) AS n FROM backtesting_trades').get() as any).n,0);
   } finally {db.close();}

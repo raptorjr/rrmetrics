@@ -116,3 +116,11 @@ test('installed TradeCanvas provides the grid capture and restore APIs required 
   assert.equal(typeof ChartWidgetGrid.prototype.captureLayout, 'function');
   assert.equal(typeof ChartWidgetGrid.prototype.restoreLayout, 'function');
 });
+
+test('installed chart captures and restores independent host replay viewport and embedded overlay support', () => {
+  const { Chart } = require('@tradecanvas/chart');
+  assert.equal(typeof Chart.prototype.captureHostReplayView,'function');
+  assert.equal(typeof Chart.prototype.restoreHostReplayView,'function');
+  const {ChartWidget}=require('@tradecanvas/chart/widget');
+  assert.match(String(ChartWidget), /overlayContainer/);
+});
