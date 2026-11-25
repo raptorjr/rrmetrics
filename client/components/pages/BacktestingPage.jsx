@@ -241,20 +241,20 @@ const BacktestingPage = () => {
       <button
         type="button"
         role="tab"
-        aria-selected={activeView === 'journal'}
-        onClick={() => setActiveView('journal')}
-        className={"px-4 py-2 rounded-lg text-sm font-medium transition-colors " + (activeView === 'journal' ? 'bg-bg-surface border border-border text-accent' : 'text-text-muted hover:text-text-primary')}
-      >
-        Manual journal
-      </button>
-      <button
-        type="button"
-        role="tab"
         aria-selected={activeView === 'replay'}
         onClick={() => setActiveView('replay')}
         className={"px-4 py-2 rounded-lg text-sm font-medium transition-colors " + (activeView === 'replay' ? 'bg-bg-surface border border-border text-accent' : 'text-text-muted hover:text-text-primary')}
       >
         Replay sessions
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={activeView === 'journal'}
+        onClick={() => setActiveView('journal')}
+        className={"px-4 py-2 rounded-lg text-sm font-medium transition-colors " + (activeView === 'journal' ? 'bg-bg-surface border border-border text-accent' : 'text-text-muted hover:text-text-primary')}
+      >
+        Manual journal
       </button>
     </div>
   );
@@ -285,13 +285,8 @@ const BacktestingPage = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-text-primary text-2xl font-bold">Backtesting</h1>
-          <p className="text-text-muted text-sm mt-1">Replay historical price action or review your backtesting sessions</p>
+          <p className="text-text-muted text-sm mt-1">Manually record backtesting trades and review session performance.</p>
         </div>
-        {!activeSession && !showStartForm && (
-          <button className={btnPrimary} onClick={() => setShowStartForm(true)}>
-            + Start Session
-          </button>
-        )}
       </div>
       {renderModeTabs()}
 
@@ -569,16 +564,12 @@ const BacktestingPage = () => {
       <div className="bg-bg-surface border border-border rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <h2 className="text-text-primary font-semibold">Sessions</h2>
-          {!activeSession && !showStartForm && (
-            <button className={btnPrimary} onClick={() => setShowStartForm(true)}>+ Start Session</button>
-          )}
         </div>
 
         {sessions.length === 0 ? (
-          <div className="px-5 py-12 text-center">
+          <div className="px-5 pt-12 pb-4 text-center">
             <Icons.FlaskConical className="w-10 h-10 text-text-muted mx-auto mb-3" />
             <p className="text-text-muted text-sm">No sessions yet. Start your first backtesting session.</p>
-            <button className={`${btnPrimary} mt-4`} onClick={() => setShowStartForm(true)}>+ Start Session</button>
           </div>
         ) : (
           <div className="divide-y divide-border">
@@ -639,6 +630,11 @@ const BacktestingPage = () => {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+        {!activeSession && !showStartForm && (
+          <div className={sessions.length ? "px-5 py-4 text-center border-t border-border" : "px-5 pb-12 text-center"}>
+            <button className={btnPrimary} onClick={() => setShowStartForm(true)}>+ Start Session</button>
           </div>
         )}
       </div>

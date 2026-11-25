@@ -598,17 +598,25 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
 
   return createPortal(
     <div ref={workspaceRef} data-replay-workspace="true" className="fixed inset-0 z-[9999] bg-bg-page text-text-primary flex flex-col overflow-hidden" style={{height:'100dvh'}}>
-      <header className="shrink-0 flex items-center gap-3 border-b border-border bg-bg-surface px-3 py-2">
-        <button type="button" disabled={savingExit} onClick={()=>void saveExit()} className="shrink-0 rounded-lg border border-border bg-bg-input px-3 py-1.5 text-sm font-semibold disabled:opacity-40">← {savingExit?'Saving…':'Save & exit'}</button>
-        <select aria-label="Switch replay session" title="Switch replay session" disabled={savingExit||conflictRef.current} value={session.id} onChange={e=>void saveExit(e.target.value)} className="shrink-0 max-w-[220px] bg-bg-input border border-border rounded-lg px-2 py-1.5 text-sm font-semibold disabled:opacity-40">
-          <option value={session.id}>{session.name}</option>{sessions.filter(s=>s.id!==session.id).map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-        <div className="flex-1 min-w-0 overflow-x-auto">
-          <div className="flex w-max mx-auto items-center gap-5 whitespace-nowrap text-xs">{[['Starting',session.startingBalance],['Balance',balance],['Equity',balance+unrealizedPnl],['Realized P/L',realized],['Unrealized P/L',unrealizedPnl]].map(([label,value])=><div key={label}><span className="text-text-secondary mr-2">{label}</span><strong className={label.includes('P/L')?(value<0?'text-negative':'text-positive'):'text-text-primary'}>{formatMoney(value)}</strong></div>)}</div>
+      <header className="shrink-0 grid grid-cols-[minmax(0,1fr)_minmax(0,6fr)_minmax(0,1fr)] items-center gap-3 border-b border-border bg-bg-surface px-3 py-2">
+        <div className="min-w-0">
+          <button type="button" disabled={savingExit} onClick={()=>void saveExit()} className="max-w-full whitespace-nowrap overflow-hidden text-ellipsis rounded-lg border border-border bg-bg-input px-3 py-1.5 text-sm font-semibold disabled:opacity-40" title="Save & exit">← {savingExit?'Saving…':'Save & exit'}</button>
         </div>
-        {saveStatus!=='Saved'&&<span role="status" className={'max-w-[180px] text-xs truncate '+(/^(Saving|Restoring|Restarting|Not saved)/.test(saveStatus)?'text-text-secondary':'text-negative')} title={saveStatus}>{saveStatus}</span>}
-        <button type="button" onClick={toggleFullscreen} className="shrink-0 bg-bg-input border border-border rounded-lg px-2 py-1.5 text-sm" aria-label={fullscreen?'Exit fullscreen':'Fullscreen'} title={fullscreen?'Exit fullscreen':'Fullscreen'}>{fullscreen?'↙':'⛶'}</button>
+        <div className="min-w-0 overflow-x-auto">
+          <div data-replay-account-group="true" className="flex w-max mx-auto items-center gap-4 whitespace-nowrap text-xs bg-bg-input border border-border rounded-lg px-3 py-1.5">
+            <select aria-label="Switch replay session" title="Switch replay session" disabled={savingExit||conflictRef.current} value={session.id} onChange={e=>void saveExit(e.target.value)} className="shrink-0 max-w-[220px] bg-bg-input rounded px-2 py-1 text-sm font-semibold disabled:opacity-40">
+              <option value={session.id}>{session.name}</option>{sessions.filter(s=>s.id!==session.id).map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <div aria-hidden="true" className="self-stretch w-px bg-border"/>
+            {[['Starting',session.startingBalance],['Balance',balance],['Equity',balance+unrealizedPnl],['Realized P/L',realized],['Unrealized P/L',unrealizedPnl]].map(([label,value])=><div key={label}><span className="text-text-secondary mr-2">{label}</span><strong className={label.includes('P/L')?(value<0?'text-negative':'text-positive'):'text-text-primary'}>{formatMoney(value)}</strong></div>)}
+          </div>
+        </div>
+        <div className="flex min-w-0 justify-end items-center gap-2">
+          <span role="status" className={'min-w-0 text-xs truncate '+(/^(Saving|Restoring|Restarting|Not saved)/.test(saveStatus)?'text-text-secondary':'text-negative')} title={saveStatus==='Saved'?undefined:saveStatus}>{saveStatus==='Saved'?'':saveStatus}</span>
+          <button type="button" onClick={toggleFullscreen} className="shrink-0 bg-bg-input border border-border rounded-lg px-2 py-1.5 text-sm" aria-label={fullscreen?'Exit fullscreen':'Fullscreen'} title={fullscreen?'Exit fullscreen':'Fullscreen'}>{fullscreen?'↙':'⛶'}</button>
+        </div>
       </header>
+      {saveStatus!=='Saved'&&!/^(Saving|Restoring|Restarting|Not saved)/.test(saveStatus)&&<div className="shrink-0 px-3 py-2 text-xs text-negative" role="alert">{saveStatus}</div>}
       {importError&&<div className="shrink-0 px-3 py-2 text-xs text-negative" role="alert">{importError}</div>}
       {conflictRef.current&&<div className="shrink-0 px-3 py-2 text-xs text-negative">Session changed on another device. Saving is blocked. <button onClick={()=>{if(window.confirm('Discard unsaved changes on this device and return to the session list?'))onExit();}} className="underline">Return to session list</button></div>}
       <div className="flex-1 min-h-0 grid grid-cols-[minmax(0,1fr)_300px] gap-1 overflow-hidden" inert={savingExit||conflictRef.current?true:undefined}>

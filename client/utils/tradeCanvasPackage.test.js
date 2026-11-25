@@ -133,3 +133,11 @@ test('installed chart supports the native volume visibility and host style overr
   assert.equal(typeof ChartWidget.prototype.getSettings,'function');
   assert.equal(typeof ChartWidget.prototype.setSettings,'function');
 });
+
+
+test('replay host disables native chart fullscreen in initial and future grid cells', () => {
+  const fs=require('node:fs');
+  const source=fs.readFileSync(require('node:path').join(__dirname,'../components/pages/ReplayTradeCanvasGrid.jsx'),'utf8');
+  assert.equal(source.split("fullscreen: false, 'toolbar.fullscreen': false").length-1,2);
+  assert.ok(source.includes('[data-replay-workspace] .tcw-toolbar [data-role="fullscreen"]'));
+});
