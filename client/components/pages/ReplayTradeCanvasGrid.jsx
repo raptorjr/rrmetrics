@@ -81,9 +81,9 @@ const ReplayTradeCanvasGrid = ({
       theme: 'dark',
       ui: 'modern',
       trading: false,
-      // Keep the native replay toolbar slot available for the grid layout picker.
-      // RR Metrics' playback transport remains the separate controller below the chart.
-      features: { 'dock.watchlist': false, depthLadder: false },
+      // RR Metrics owns replay. Do not expose TradeCanvas's native replay
+      // transport; retain the shared grid picker in the chart toolbar.
+      features: { replay: false, 'dock.watchlist': false, depthLadder: false },
       resampleTimeframes: true,
     }];
     const grid = new ChartWidgetGrid(hostRef.current, {
