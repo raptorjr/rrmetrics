@@ -91,6 +91,11 @@ test('persistent replay accounts resume across clients, isolate trades and rejec
     assert.equal((db.prepare('SELECT COUNT(*) AS n FROM replay_session_trades WHERE session_id=?').get(session.id) as any).n,0);
     const untouched=(await (await desktop.request(url+'/'+secondSession.id)).json() as any).session;
     assert.deepEqual(untouched.trades,[closed]);assert.equal(untouched.name,'Second');
+    assert.equal((await write(laptop,url+'/'+secondSession.id,'PATCH',{revision:1,name:'Renamed second'})).status,200);
+    const renamedWithTrades=(await (await desktop.request(url+'/'+secondSession.id)).json() as any).session;
+    assert.equal(renamedWithTrades.name,'Renamed second');
+    assert.deepEqual(renamedWithTrades.trades,[closed]);assert.deepEqual(renamedWithTrades.checkpoint,checkpoint);
+    assert.equal(renamedWithTrades.balance,untouched.balance);
     assert.equal((db.prepare('SELECT COUNT(*) AS n FROM trades').get() as any).n,0);
     assert.equal((db.prepare('SELECT COUNT(*) AS n FROM backtesting_trades').get() as any).n,0);
   } finally {db.close();}

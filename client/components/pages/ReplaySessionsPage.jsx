@@ -30,7 +30,7 @@ function SessionActions({session,disabled,onAction}){
     if(!open)return;
     const close=e=>{if(!trigger.current?.contains(e.target)&&!menu.current?.contains(e.target))setOpen(false);};
     const key=e=>{if(e.key==='Escape'){setOpen(false);trigger.current?.focus();}};
-    const move=e=>{if(!menu.current?.contains(e.target))setOpen(false);};
+    const move=e=>{if(!(e.target instanceof Node)||!menu.current?.contains(e.target))setOpen(false);};
     document.addEventListener('pointerdown',close);document.addEventListener('keydown',key);
     window.addEventListener('scroll',move,true);window.addEventListener('resize',move);
     return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',key);window.removeEventListener('scroll',move,true);window.removeEventListener('resize',move);};
