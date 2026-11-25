@@ -165,14 +165,27 @@ function updateReplayLevels(position, changes, marketPrice, spec) {
   // A later move to BE or into profit must not redefine initial R.
   const firstRisk = stopPrice != null && (position.direction === 'long' ? stopPrice < position.entryPrice : stopPrice > position.entryPrice)
     ? Math.abs(position.entryPrice - stopPrice) : null;
-  return { position: { ...position, stopPrice, targetPrice, initialRiskPoints: position.initialRiskPoints ?? firstRisk } };
+  const updated = { ...position, stopPrice, targetPrice, initialRiskPoints: position.initialRiskPoints ?? firstRisk };
+  if (position.fills && position.riskBudgetPoints == null && !position.riskIncomplete && firstRisk != null) {
+    updated.riskBudgetPoints = firstRisk * position.quantity;
+  }
+  return { position: updated };
 }
 
-function canMoveToBreakeven(position, marketPrice) {
+// A weighted entry can be between ticks. Round toward protection rather than a loss.
+function replayBreakevenPrice(position, spec) {
+  if (!spec) return position.entryPrice;
+  const ticks = position.entryPrice / spec.tickSize;
+  const tick = position.direction === 'long' ? Math.ceil(ticks - 1e-8) : Math.floor(ticks + 1e-8);
+  return Number((tick * spec.tickSize).toFixed(spec.decimals));
+}
+
+function canMoveToBreakeven(position, marketPrice, spec) {
   if (!position || !Number.isFinite(marketPrice)) return false;
   const long = position.direction === 'long';
-  return (long ? marketPrice > position.entryPrice : marketPrice < position.entryPrice)
-    && (position.stopPrice == null || (long ? position.stopPrice < position.entryPrice : position.stopPrice > position.entryPrice));
+  const price = replayBreakevenPrice(position, spec);
+  return (long ? marketPrice > price : marketPrice < price)
+    && (position.stopPrice == null || (long ? position.stopPrice < price : position.stopPrice > price));
 }
 
 function replayOrderMenu(price, marketPrice, presets, quantity, format, submit) {
@@ -188,6 +201,75 @@ function replayOrderMenu(price, marketPrice, presets, quantity, format, submit) 
   }));
 }
 
+// One net position; one working entry/adjustment order. No implicit reversal.
+function validateReplayQuantity(position, direction, quantity) {
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) return 'Quantity must be a whole number between 1 and 100.';
+  if (!position) return '';
+  if (direction === position.direction && position.quantity + quantity > 100) return 'Maximum open position is 100 contracts.';
+  if (direction !== position.direction && quantity > position.quantity) return 'Reduction exceeds the open position. Select a smaller quantity; reversing is not supported.';
+  return '';
+}
+
+function createReplayPosition(order, price, time) {
+  const initialRiskPoints = order.stopPrice == null ? null : Math.abs(price - order.stopPrice);
+  return { ...order, entryPrice: price, entryTime: time, initialRiskPoints,
+    riskBudgetPoints: initialRiskPoints == null ? null : initialRiskPoints * order.quantity,
+    riskIncomplete: false, realizedPnl: 0,
+    fills: [{ direction: order.direction, quantity: order.quantity, price, time, kind: 'entry' }] };
+}
+
+function applyReplayFill(position, order, price, time, spec, reason) {
+  const error = validateReplayQuantity(position, order.direction, order.quantity);
+  if (error) return { error };
+  if (!Number.isFinite(price) || price <= 0) return { error: 'Invalid fill price.' };
+  if (!position) return { position: createReplayPosition(order, price, time) };
+  const sameSide = order.direction === position.direction;
+  const fill = { direction: order.direction, quantity: order.quantity, price, time, kind: sameSide ? 'entry' : 'exit', reason };
+  const fills = [...position.fills, fill];
+  if (sameSide) {
+    const quantity = position.quantity + order.quantity;
+    const entryPrice = (position.entryPrice * position.quantity + price * order.quantity) / quantity;
+    const additionalRisk = position.stopPrice == null ? null : Math.max(0, (price - position.stopPrice) * (position.direction === 'long' ? 1 : -1)) * order.quantity;
+    const riskIncomplete = position.riskIncomplete || (position.riskBudgetPoints != null && additionalRisk == null);
+    return { position: { ...position, quantity, entryPrice, fills, riskIncomplete,
+      riskBudgetPoints: position.riskBudgetPoints == null ? null : position.riskBudgetPoints + (additionalRisk ?? 0) } };
+  }
+  const pnl = calculateTradePnl({ ...position, quantity: order.quantity }, price, spec.pointValue);
+  const realizedPnl = (position.realizedPnl ?? 0) + pnl;
+  const quantity = position.quantity - order.quantity;
+  if (quantity > 0) return { position: { ...position, quantity, fills, realizedPnl,
+    riskIncomplete: position.riskIncomplete || position.riskBudgetPoints == null } };
+  const entries = fills.filter(f => f.kind === 'entry'), exits = fills.filter(f => f.kind === 'exit');
+  const totalQuantity = entries.reduce((sum, f) => sum + f.quantity, 0);
+  const weighted = fs => fs.reduce((sum, f) => sum + f.price * f.quantity, 0) / totalQuantity;
+  const risk = position.riskIncomplete || position.riskBudgetPoints == null ? null : position.riskBudgetPoints * spec.pointValue;
+  const totalPnl = Math.round(realizedPnl * 100) / 100;
+  return { position: null, trade: { id: position.id, direction: position.direction, quantity: totalQuantity,
+    entryPrice: weighted(entries), exitPrice: weighted(exits), entryTime: position.entryTime, exitTime: time,
+    stopPrice: position.stopPrice, targetPrice: position.targetPrice, pnl: totalPnl,
+    rMultiple: risk > 0 ? totalPnl / risk : null, reason, fills } };
+}
+
+// Existing protective orders win over a working size adjustment when bar order is unknown.
+function advanceReplayOrders(position, pendingOrder, candle, spec) {
+  if (position) {
+    const exit = evaluateCandleExit(position, candle);
+    if (exit) return { ...applyReplayFill(position, {
+      direction: position.direction === 'long' ? 'short' : 'long', quantity: position.quantity,
+    }, exit.price, candle.time, spec, exit.reason), pendingOrder: null, reason: exit.reason, price: exit.price };
+  }
+  if (!pendingOrder) return null;
+  const fill = evaluateEntryOrder(pendingOrder, candle);
+  if (!fill) return null;
+  if (pendingOrder.positionId && pendingOrder.positionId !== position?.id) return { position, pendingOrder: null, error: 'Position changed; working order cancelled.' };
+  const result = applyReplayFill(position, pendingOrder, fill.price, candle.time, spec, fill.reason);
+  return { ...result, position: result.error ? position : result.position, pendingOrder: null, reason: fill.reason, price: fill.price };
+}
+
+function seedReplayOrderPrice(type, marketPrice, spec) {
+  return type === 'market' || !Number.isFinite(marketPrice) || marketPrice <= 0 ? '' : snapReplayPrice(marketPrice, spec).toFixed(spec.decimals);
+}
+
 // Chart overlays use the same contract specification as the replay engine.
 function toReplayChartPosition(position, spec) {
   return {
@@ -201,7 +283,8 @@ function toReplayChartPosition(position, spec) {
 function calculateTradePnl(position, exitPrice, pointValue) {
   if (!position || !Number.isFinite(exitPrice)) return 0;
   const direction = position.direction === 'short' ? -1 : 1;
-  return (exitPrice - position.entryPrice) * direction * position.quantity * pointValue;
+  const pnl = (exitPrice - position.entryPrice) * direction * position.quantity * pointValue;
+  return Math.round(pnl * 1e8) / 1e8 || 0;
 }
 
 function calculateTradeStats(trades) {
@@ -235,5 +318,6 @@ module.exports = {
   calculateTradePnl,
   calculateTradeStats,
   toReplayChartPosition,
+  replayBreakevenPrice, validateReplayQuantity, createReplayPosition, applyReplayFill, advanceReplayOrders, seedReplayOrderPrice,
   snapReplayPrice, validateReplayLevels, validateReplayEntry, updateReplayLevels, canMoveToBreakeven, replayOrderMenu,
 };

@@ -2,6 +2,8 @@
 
 ### Interactive chart replay trading
 
+- Compact order panel: type and seeded limit/stop price first, quantity controls then always-available buy/sell while no order is working, chart-only SL/TP, smaller Close position and BE to its right. Gear-only Settings toolbar button. Weighted-average adds, partial exits and complete round-trip accounting with one working adjustment, no implicit reversal, and protection-first ambiguous candle handling.
+
 - Keep the Trading settings button visible in the active native toolbar by excluding it from TradeCanvas automatic overflow folding. Retains the existing shared layout selector and settings persistence.
 
 - Added a dedicated Trading settings dialog on the active chart toolbar. Currency, points, ticks and percentage can be combined; preferences are shared across charts and devices, saved in the SQLite database with explicit save confirmation. Pending orders show market distance, not P/L. No simulation or statistics changes.

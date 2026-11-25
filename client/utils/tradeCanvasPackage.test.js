@@ -73,18 +73,22 @@ test('replay Trading settings uses a native toolbar button exempt from responsiv
   const attrs = new Map([['data-tcw-folded', '']]);
   const element = { classList: { remove: value => classes.delete(value) },
     removeAttribute: key => attrs.delete(key), setAttribute: (key, value) => attrs.set(key, value) };
+  const doc = { createElementNS: (ns, name) => ({ name, attributes: {}, children: [], setAttribute(key, value) { this.attributes[key] = value; }, append(...children) { this.children.push(...children); } }) };
   let spec, opened = 0;
   const handle = { element };
   const widget = { addToolbarButton: value => { spec = value; return handle; } };
-  assert.equal(addReplayTradingSettingsButton(widget, () => opened++), handle);
+  assert.equal(addReplayTradingSettingsButton(widget, () => opened++, doc), handle);
   assert.equal(spec.id, 'rr-trading-settings');
   assert.equal(spec.side, 'right');
-  assert.equal(spec.text, 'Trading');
+  assert.equal(spec.text, '');
+  assert.equal(spec.icon.name, 'svg');
+  assert.deepEqual(spec.icon.children.map(child => child.name), ['path', 'circle']);
+  assert.equal(spec.label, 'Settings');
   assert.equal(classes.has('tcw-toolbar-overflow'), false);
   assert.equal(attrs.has('data-tcw-folded'), false);
-  assert.equal(attrs.get('aria-label'), 'Trading settings');
+  assert.equal(attrs.get('aria-label'), 'Settings');
   assert.ok(classes.has('tcw-host-btn'));
   spec.onClick();
   assert.equal(opened, 1);
-  assert.equal(addReplayTradingSettingsButton({ addToolbarButton: () => null }, () => {}), null);
+  assert.equal(addReplayTradingSettingsButton({ addToolbarButton: () => null }, () => {}, doc), null);
 });
