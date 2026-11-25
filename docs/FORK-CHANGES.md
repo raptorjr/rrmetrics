@@ -1,3 +1,12 @@
+## 2026-11-25
+
+### Interactive chart replay trading
+
+- Added native TradeCanvas position and pending-order lines, draggable entry, SL and TP levels, chart cancel/close actions and synchronized order state on every replay chart.
+- Added right-click market, limit and stop-market order entry with quantity submenus, contextual position management and a BE button in the existing panel.
+- Validate changed prices against the last revealed execution candle and snap them to instrument ticks. Preserve original risk for R-multiple after BE or profitable stop changes.
+- Keep the host replay engine authoritative, the layout picker and viewport behavior unchanged, and TradeCanvas dependencies pinned to exact fork commits. No live trading or database changes.
+
 ## 2026-11-24
 
 

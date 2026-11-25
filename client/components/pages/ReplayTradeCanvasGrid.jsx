@@ -33,7 +33,10 @@ const ReplayTradeCanvasGrid = ({
   position,
   pendingOrder,
   onActiveChartChange,
+  spec, currentPrice, chartMenuItems, onOrderModify, onOrderCancel, onPositionModify, onPositionClose,
 }) => {
+  const interactionRef = useRef(null);
+  interactionRef.current = { chartMenuItems, onOrderModify, onOrderCancel, onPositionModify, onPositionClose };
   const hostRef = useRef(null);
   const gridRef = useRef(null);
   const barsRef = useRef([]);
@@ -59,12 +62,14 @@ const ReplayTradeCanvasGrid = ({
 
   useEffect(() => {
     if (!hostRef.current) return undefined;
+    // The widget's native ticket/account are disabled. Only its chart-level trading visuals emit intents to RR Metrics.
+    const tradingOptions = { trading: false, chartOptions: { features: { trading: true, tradingContextMenu: false } }, chartMenuItems: context => interactionRef.current.chartMenuItems(context) };
     const cells = [{
       symbol: ticker,
       timeframe,
       theme: 'dark',
       ui: 'modern',
-      trading: false,
+      ...tradingOptions,
       // RR Metrics owns replay. Do not expose TradeCanvas's native replay
       // transport; retain the shared grid picker in the chart toolbar.
       features: { replay: false, 'toolbar.replay': false, 'dock.watchlist': false, depthLadder: false },
@@ -76,7 +81,7 @@ const ReplayTradeCanvasGrid = ({
       cells,
       // Apply replay restrictions to every future chart, not just cells[0].
       widget: {
-        theme: 'dark', ui: 'modern', trading: false, resampleTimeframes: true,
+        theme: 'dark', ui: 'modern', ...tradingOptions, resampleTimeframes: true,
         features: { replay: false, 'toolbar.replay': false, 'dock.watchlist': false, depthLadder: false },
       },
       // Replace the native Replay button with the layout picker in the active
@@ -92,7 +97,13 @@ const ReplayTradeCanvasGrid = ({
         if (onActiveChartChange) onActiveChartChange(index);
       },
       onChartAdd: widget => {
-        widget.getChart().setHostReplayViewport(true);
+        const chart = widget.getChart();
+        chart.setHostReplayViewport(true);
+        chart.setTradingConfig({ lineButtons: { reverse: false, trailStop: false, addStops: true, cancel: true, close: true, removeStops: true } });
+        chart.on('orderModify', event => interactionRef.current.onOrderModify(event.payload));
+        chart.on('orderCancel', event => interactionRef.current.onOrderCancel(event.payload));
+        chart.on('positionModify', event => interactionRef.current.onPositionModify(event.payload));
+        chart.on('positionClose', event => interactionRef.current.onPositionClose(event.payload));
         if (barsRef.current.length) loadReplayData(widget, barsRef.current, baseTimeframeRef.current, false);
         setGridRevision(value => value + 1);
       },
@@ -147,31 +158,26 @@ const ReplayTradeCanvasGrid = ({
   useEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
-    grid.getWidgets().forEach((widget, index) => {
+    grid.getWidgets().forEach(widget => {
       const chart = widget.getChart();
-      const oldIds = widget.__rrReplayDrawingIds || [];
-      if (oldIds.length) chart.removeDrawings(oldIds);
-      const ids = [];
-      const anchorTime = visibleBars.length ? visibleBars[visibleBars.length - 1].time : Date.now();
-      const addLevel = (price, label, color, time = anchorTime) => {
-        if (price == null || !Number.isFinite(Number(price))) return;
-        ids.push(chart.addDrawing({
-          type: 'horizontalLine',
-          anchors: [{ time, price: Number(price) }],
-          style: { color, lineWidth: 1, lineStyle: 'dashed', text: label, textColor: color },
-          locked: true,
-          name: 'Replay · ' + label,
-        }));
-      };
-      if (pendingOrder) addLevel(pendingOrder.triggerPrice, 'PENDING ENTRY', '#f59e0b');
-      if (position) {
-        addLevel(position.entryPrice, position.direction.toUpperCase() + ' ENTRY', '#60a5fa', (position.entryTime || 0) * 1000);
-        addLevel(position.stopPrice, 'STOP', '#ef4444');
-        addLevel(position.targetPrice, 'TARGET', '#22c55e');
-      }
-      widget.__rrReplayDrawingIds = ids;
+      // The replay state is authoritative, regardless of each chart's interval.
+      chart.setTradingConfig({ pricePrecision: spec.decimals,
+        positionLabel: ctx => {
+          const pnl = (currentPrice - ctx.entryPrice) * (ctx.side === 'buy' ? 1 : -1) * ctx.openQuantity * spec.pointValue;
+          return (ctx.side === 'buy' ? 'Long' : 'Short') + ' ' + (pnl < 0 ? '-$' : '+$') + Math.abs(pnl).toFixed(2);
+        } });
+      chart.setOrders(pendingOrder ? [{
+        id: pendingOrder.id, side: pendingOrder.direction === 'long' ? 'buy' : 'sell',
+        type: pendingOrder.type === 'stop_market' ? 'stop' : 'limit', price: pendingOrder.triggerPrice,
+        quantity: pendingOrder.quantity, draggable: true,
+      }] : []);
+      chart.setPositions(position ? [{
+        id: position.id, side: position.direction === 'long' ? 'buy' : 'sell',
+        quantity: position.quantity, entryPrice: position.entryPrice,
+        stopLoss: position.stopPrice ?? undefined, takeProfit: position.targetPrice ?? undefined,
+      }] : []);
     });
-  }, [position, pendingOrder, visibleBars, gridRevision]);
+  }, [position, pendingOrder, gridRevision, currentPrice, spec]);
   return (
     <div className="w-full h-[430px] min-w-0" ref={hostRef} data-active-chart={activeChart} />
   );
