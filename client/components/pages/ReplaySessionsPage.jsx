@@ -46,7 +46,7 @@ function ReplaySessionsPage() {
     setBusy(true);setError('');
     try {
       const {session} = await request('/api/backtesting/replay-sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,description,startingBalance:Number(balance),startTime:startTime.toISOString(),endTime:endTime.toISOString()})});
-      setCreating(false);setActive(session);
+      setCreating(false);setSessions(previous=>[session,...previous.filter(s=>s.id!==session.id)]);setActive(session);
     } catch(e) {setError(e.message);} finally {setBusy(false);}
   };
   const resume = async id => {
@@ -54,7 +54,11 @@ function ReplaySessionsPage() {
     try { const {session}=await request('/api/backtesting/replay-sessions/'+encodeURIComponent(id));setActive(session); }
     catch(e){setError(e.message);}finally{setBusy(false);}
   };
-  if(active) return <Workspace key={active.id} session={active} onExit={()=>{setActive(null);void load();}}/>;
+  const switchSession=async id=>{
+    const {session}=await request('/api/backtesting/replay-sessions/'+encodeURIComponent(id));
+    setActive(session);
+  };
+  if(active) return <Workspace key={active.id} session={active} sessions={sessions} onSwitchSession={switchSession} onExit={()=>{setActive(null);void load();}}/>;
   const filtered=sessions.filter(s=>filter==='all'||s.status===filter);
   return <div className="space-y-4">
     <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-semibold text-text-primary">Replay sessions</h2><p className="text-sm text-text-muted">Independent simulated accounts. Resume on any device.</p></div><button className={primary} disabled={busy||!ranges.length} onClick={openCreate}>+ Create session</button></div>

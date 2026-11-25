@@ -1,6 +1,8 @@
 ## Replay workspace refinements
 
-- Brighter labels, centered playback controls, simulated-time speed, explicit loading state, bottom-aligned statistics, and revision-checked Restart retaining drawings and layout. Same-symbol drawings synchronize, new charts keep the correct instrument, chart viewports are captured/restored independently and native dialogs follow the workspace fullscreen. Existing broker trades untouched.
+- Replay polish: session selector with save-before-switch, centered account values, quieter save status, one replay progress readout, visible BE styling, restart clears drawings, chart display starts at a compatible favourite, source intervals in menu, and candle-matched default volume colours.
+
+- Brighter labels, centered playback controls, simulated-time speed, explicit loading state, bottom-aligned statistics, and revision-checked Restart retaining layout and indicators. Same-symbol drawings synchronize, new charts keep the correct instrument, chart viewports are captured/restored independently and native dialogs follow the workspace fullscreen. Existing broker trades untouched.
 
 ## 2026-11-25 — Persistent replay sessions (first version)
 

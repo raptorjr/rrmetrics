@@ -92,3 +92,18 @@ test('time-based playback progresses equally on different execution intervals', 
   }
   assert.equal(replayStepBudget(60000,0,60,1).count,15);
 });
+
+
+test('chart starts at shortest compatible favourite independently of execution and includes source intervals', () => {
+  const {replayChartIntervals}=require('./historicalReplay');
+  const result=replayChartIntervals('10s',['10s','30s','1m'],['15m','1m']);
+  assert.equal(result.initial,'1m');assert.ok(result.menu.includes('10s'));assert.ok(result.menu.includes('30s'));
+  assert.equal(replayChartIntervals('1m',['1m'],['10s','5m']).initial,'5m');
+  assert.ok(!replayChartIntervals('10s',['15s']).menu.includes('15s'));
+});
+test('restart clears only drawings and host viewport while retaining chart layout and indicators', () => {
+  const {resetReplayChartLayout}=require('./historicalReplay');
+  const original={layout:'1x2',cells:[{timeframe:'5m',chart:{drawings:[{id:'future'}],hostReplayView:{from:100},indicators:[{id:'ema'}]}},{chart:null}]};
+  const reset=resetReplayChartLayout(original);
+  assert.deepEqual(reset.cells[0].chart,{drawings:[],indicators:[{id:'ema'}]});assert.equal(reset.cells[0].timeframe,'5m');assert.equal(original.cells[0].chart.drawings.length,1);
+});

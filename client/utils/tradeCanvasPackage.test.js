@@ -124,3 +124,12 @@ test('installed chart captures and restores independent host replay viewport and
   const {ChartWidget}=require('@tradecanvas/chart/widget');
   assert.match(String(ChartWidget), /overlayContainer/);
 });
+
+
+test('installed chart supports the native volume visibility and host style override API', () => {
+  const {Chart}=require('@tradecanvas/chart');
+  const {ChartWidget}=require('@tradecanvas/chart/widget');
+  for(const method of ['getStyleValue','getOverrides','applyOverrides','setVolumeVisible','isVolumeVisible'])assert.equal(typeof Chart.prototype[method],'function',method);
+  assert.equal(typeof ChartWidget.prototype.getSettings,'function');
+  assert.equal(typeof ChartWidget.prototype.setSettings,'function');
+});

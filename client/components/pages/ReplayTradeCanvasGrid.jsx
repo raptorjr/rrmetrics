@@ -1,7 +1,7 @@
 const React = require('react');
 const { useEffect, useMemo, useRef, useState } = React;
 const { ChartWidgetGrid } = require('@tradecanvas/chart/widget');
-const { timeframeSeconds } = require('../../utils/historicalReplay');
+const { timeframeSeconds, replayChartIntervals } = require('../../utils/historicalReplay');
 const { toReplayChartPosition, snapReplayPrice, replayPositionColors } = require('../../utils/backtestingReplay');
 const { loadTradingDisplay, saveTradingDisplay, formatTradingAmounts, formatPendingDistance } = require('../../utils/replayTradingDisplay');
 const ReplayTradingSettings = require('./ReplayTradingSettings');
@@ -44,6 +44,7 @@ const ReplayTradeCanvasGrid = ({
   ticker,
   fullHeight, captureRef, restoreLayout, onReady, onRestoreError,
   timeframe,
+  availableTimeframes,
   baseCandles,
   replayTime,
   baseTimeframe,
@@ -111,7 +112,8 @@ const ReplayTradeCanvasGrid = ({
   const baseTimeframeRef = useRef(baseTimeframe);
   const dataIdentityRef = useRef('');
   const [gridRevision, setGridRevision] = useState(0);
-  const lastExternalTimeframeRef = useRef(timeframe);
+  // Read the widget's existing pinned intervals; no new browser preference is written.
+  const readIntervals = key => {try{const value=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(value)?value.filter(v=>typeof v==='string'):[];}catch{return [];}};
   const [activeChart, setActiveChart] = useState(0);
 
   const visibleBars = useMemo(() => {
@@ -131,10 +133,13 @@ const ReplayTradeCanvasGrid = ({
   useEffect(() => {
     if (!hostRef.current) return undefined;
     // The widget's native ticket/account are disabled. Only its chart-level trading visuals emit intents to RR Metrics.
-    const tradingOptions = { overlayContainer: hostRef.current.closest('[data-replay-workspace]') || undefined, trading: false, chartOptions: { features: { trading: true, tradingContextMenu: false } }, chartMenuItems: context => interactionRef.current.chartMenuItems(context) };
+    const savedIntervals=restoreLayout?.cells?.map(cell=>cell.timeframe)||[];
+    const intervals=replayChartIntervals(baseTimeframe||timeframe,availableTimeframes,readIntervals('tcw:tf-favorites'),[...readIntervals('tcw:tf-custom'),...savedIntervals]);
+    const tradingOptions = { overlayContainer: hostRef.current.closest('[data-replay-workspace]') || undefined, trading: false, chartOptions: { features: { trading: true, tradingContextMenu: false, defaultTimeframeFavorites: intervals.defaults, timeframes: intervals.menu } }, chartMenuItems: context => interactionRef.current.chartMenuItems(context) };
+    const intervalOptions={timeframes:intervals.menu, timeframe:intervals.initial};
     const cells = [{
       symbol: ticker,
-      timeframe,
+      ...intervalOptions,
       theme: 'dark',
       ui: 'modern',
       ...tradingOptions,
@@ -149,7 +154,7 @@ const ReplayTradeCanvasGrid = ({
       cells,
       // Apply replay restrictions to every future chart, not just cells[0].
       widget: {
-        symbol: ticker, timeframe, theme: 'dark', ui: 'modern', ...tradingOptions, resampleTimeframes: true,
+        symbol: ticker, ...intervalOptions, theme: 'dark', ui: 'modern', ...tradingOptions, resampleTimeframes: true,
         features: { replay: false, 'toolbar.replay': false, 'dock.watchlist': false, depthLadder: false, symbolSearch: false, symbolTyping: false, 'hotkeys.symbolSearch': false },
       },
       // Replace the native Replay button with the layout picker in the active
@@ -167,6 +172,13 @@ const ReplayTradeCanvasGrid = ({
       onChartAdd: widget => {
         const chart = widget.getChart();
         chart.setHostReplayViewport(true);
+        // Follow the actual candle body colours by default; explicit user volume colours win.
+        const matchVolumeColors=()=>{
+          const up=chart.getStyleValue('series.candlestick.upColor'),down=chart.getStyleValue('series.candlestick.downColor');
+          const existing=chart.getOverrides();
+          if(typeof up==='string'&&typeof down==='string'&&(existing['volume.upColor']!==up||existing['volume.downColor']!==down))chart.applyOverrides({'volume.upColor':up,'volume.downColor':down});
+        };
+        matchVolumeColors();chart.on('styleChange',matchVolumeColors);chart.on('themeChange',matchVolumeColors);
         addReplayTradingSettingsButton(widget, () => openSettingsRef.current());
         chart.setTradingConfig({ lineButtons: { reverse: false, trailStop: false, addStops: true, cancel: true, close: true, removeStops: true } });
         chart.on('orderModify', event => interactionRef.current.onOrderModify(event.payload));
@@ -218,13 +230,6 @@ const ReplayTradeCanvasGrid = ({
       if (widget.getSymbol() !== ticker) void widget.setSymbol(ticker);
     });
   }, [ticker]);
-
-  useEffect(() => {
-    const grid = gridRef.current;
-    if (!grid || lastExternalTimeframeRef.current === timeframe) return;
-    lastExternalTimeframeRef.current = timeframe;
-    void grid.getActiveWidget().setTimeframe(timeframe);
-  }, [timeframe]);
 
   useEffect(() => {
     const grid=gridRef.current;

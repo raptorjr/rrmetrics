@@ -135,4 +135,28 @@ function replayStepBudget(elapsedMs, carry, speed, intervalSeconds) {
   const count = Math.min(100,Math.floor((budget+1e-9)/intervalSeconds));
   return {count,carry:Math.max(0,budget-count*intervalSeconds)};
 }
-module.exports = { REPLAY_SPEEDS, restoreReplaySpeed, replayStepBudget, getSessionMarkets, TIMEFRAME_SECONDS, timeframeSeconds, compareTimeframes, getAvailableMarkets, isRangeWithinCoverage, aggregateCandles };
+// Chart intervals are independent of the execution resolution. Never create finer bars from coarser data.
+const DEFAULT_REPLAY_CHART_FAVORITES = ['1m','5m','15m','1h','4h','1d'];
+const DEFAULT_REPLAY_CHART_MENU = ['1m','3m','5m','15m','30m','1h','2h','4h','1d','1w','1M'];
+function chartIntervalSeconds(tf) {
+  if (tf === '1M') return 30 * 86400;
+  if (tf === '1w') return 7 * 86400;
+  return timeframeSeconds(tf);
+}
+function replayChartIntervals(base, available = [], favorites = [], custom = []) {
+  const seconds = chartIntervalSeconds(base);
+  const supported = tf => typeof tf === 'string' && /^[1-9]\d*[smhdwM]$/.test(tf) && chartIntervalSeconds(tf) > 0 && (!seconds || (chartIntervalSeconds(tf) >= seconds && chartIntervalSeconds(tf) % seconds === 0));
+  const sort = (a,b) => chartIntervalSeconds(a)-chartIntervalSeconds(b);
+  const menu = [...new Set([...DEFAULT_REPLAY_CHART_MENU,...available,...favorites,...custom,base])].filter(supported).sort(sort);
+  const pins = (favorites.length ? favorites : DEFAULT_REPLAY_CHART_FAVORITES).filter(tf=>menu.includes(tf)).sort(sort);
+  const fallback = DEFAULT_REPLAY_CHART_FAVORITES.filter(tf=>menu.includes(tf));
+  return { menu, initial: pins[0] || fallback[0] || menu[0] || '1m', defaults: DEFAULT_REPLAY_CHART_FAVORITES.filter(tf=>menu.includes(tf)) };
+}
+function resetReplayChartLayout(layout) {
+  return {...layout,cells:layout.cells.map(cell=>{
+    if (!cell.chart) return cell;
+    const {hostReplayView,...chart}=cell.chart;
+    return {...cell,chart:{...chart,drawings:[]}};
+  })};
+}
+module.exports = { replayChartIntervals, resetReplayChartLayout, REPLAY_SPEEDS, restoreReplaySpeed, replayStepBudget, getSessionMarkets, TIMEFRAME_SECONDS, timeframeSeconds, compareTimeframes, getAvailableMarkets, isRangeWithinCoverage, aggregateCandles };
