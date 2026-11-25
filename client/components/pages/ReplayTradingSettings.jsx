@@ -8,7 +8,8 @@ function ReplayTradingSettings({ dialogRef, units, onChange, spec }) {
   }, spec, units);
   return (
     <dialog ref={dialogRef} aria-labelledby="rr-trading-settings-title"
-      className="w-[min(440px,calc(100%-2rem))] max-w-[calc(100%-2rem)] m-auto rounded-xl border border-border bg-bg-surface text-text-primary shadow-2xl p-0 backdrop:bg-black/60"
+      style={{ width: 440, maxWidth: "calc(100% - 2rem)", maxHeight: "calc(100% - 2rem)" }}
+      className="overflow-y-auto m-auto rounded-xl border border-border bg-bg-surface text-text-primary shadow-2xl p-0 backdrop:bg-black/60"
       onClick={event => { if (event.target === event.currentTarget) event.currentTarget.close(); }}>
       <div className="p-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
@@ -23,10 +24,13 @@ function ReplayTradingSettings({ dialogRef, units, onChange, spec }) {
               <label key={unit.id} className="flex items-center gap-3 text-sm cursor-pointer">
                 <input type="checkbox" checked={units.includes(unit.id)}
                   disabled={units.length === 1 && units.includes(unit.id)}
-                  onChange={event => onChange(previous => {
-                    if (!event.target.checked && previous.length === 1) return previous;
-                    return event.target.checked ? [...previous, unit.id] : previous.filter(id => id !== unit.id);
-                  })} />
+                  onChange={event => {
+                    const checked = event.currentTarget.checked;
+                    onChange(previous => {
+                      if (!checked && previous.length === 1) return previous;
+                      return checked ? [...new Set([...previous, unit.id])] : previous.filter(id => id !== unit.id);
+                    });
+                  }} />
                 {unit.label}
               </label>
             ))}

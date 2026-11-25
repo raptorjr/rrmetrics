@@ -41,3 +41,28 @@ test('installed TradeCanvas renders the replay contract multiplier on SL and TP'
   assert.ok(labels.includes('-$400.00'));
   assert.ok(labels.includes('+$480.00'));
 });
+
+test('installed chart package applies unit preferences to position, protective and pending tags', () => {
+  const { PositionRenderer, OrderRenderer } = require('@tradecanvas/core');
+  const { ChartWidget } = require('@tradecanvas/chart/widget');
+  const { formatTradingAmounts, formatPendingDistance } = require('./replayTradingDisplay');
+  const { getInstrumentSpec, toReplayChartPosition } = require('./backtestingReplay');
+  assert.equal(typeof ChartWidget.prototype.addToolbarButton, 'function');
+  const spec = getInstrumentSpec('NQ');
+  const viewport = { visibleRange: { from: 0, to: 100 }, priceRange: { min: 24900, max: 25100 },
+    barWidth: 10, barSpacing: 0, offset: 0, chartRect: { x: 0, y: 0, width: 1000, height: 300 } };
+  const position = toReplayChartPosition({ id: 'p1', direction: 'long', entryPrice: 25000, quantity: 2, stopPrice: 24980, targetPrice: 25024 }, spec);
+  const labels = tags => tags.flatMap(tag => tag.cells.map(cell => cell.kind === 'text' ? cell.text : ''));
+  const renderer = new PositionRenderer();
+  const units = ['currency', 'ticks'];
+  const format = ctx => formatTradingAmounts(ctx, spec, units);
+  const config = { enabled: true, positionLabel: format, protectiveAmountLabel: format,
+    orderDetailLabel: (order, price) => formatPendingDistance(order, price, 25000, spec, units) };
+  const drag = { orderId: 'p1', sourceType: 'takeProfit', startPrice: 25024, currentPrice: 25025 };
+  const texts = labels(renderer.tags([position], 25006, viewport, config, drag));
+  assert.ok(texts.includes('+$240.00 · +24 ticks'));
+  assert.ok(texts.includes('-$800.00 · -80 ticks'));
+  assert.ok(texts.includes('+$1,000.00 · +100 ticks'));
+  const pending = { id: 'o1', side: 'buy', type: 'limit', price: 24990, quantity: 2 };
+  assert.ok(labels(new OrderRenderer().tags([pending], viewport, config, null)).includes('$400.00 · 40 ticks away'));
+});
