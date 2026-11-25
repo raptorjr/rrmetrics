@@ -43,7 +43,7 @@
     "hyparquet-compressors": "1.1.3",
     "hyparquet-writer": "0.18.0",
     "klinecharts": "10.1.1",
-    "@tradecanvas/chart": "https://pkg.pr.new/@tradecanvas/chart@5b0c1bf"
+    "@tradecanvas/chart": "https://pkg.pr.new/raptorjr/tradecanvas/@tradecanvas/chart@5442c6f"
   },
   "devDependencies": {
     "@babel/core": "^7.28.5",
