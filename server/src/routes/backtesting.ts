@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AuthContext } from '../bindings';
 import * as backtestingDb from '../db/backtesting';
+import { readReplayChartSettings, saveReplayChartSettings, validateReplayChartSettings } from '../db/replay-chart-settings';
 import { requiresLogin } from '../middleware/auth';
 
 type HonoEnv = {
@@ -9,6 +10,29 @@ type HonoEnv = {
 };
 
 const backtesting = new Hono<HonoEnv>();
+
+// The implicit local profile, not a client-supplied ID, owns these preferences.
+backtesting.get('/api/backtesting/chart-settings', requiresLogin, (c) => {
+  try {
+    return c.json({ settings: readReplayChartSettings(c.get('db'), c.get('user').id) });
+  } catch (err) {
+    console.error('Replay chart settings load failed:', err);
+    return c.json({ error: 'Could not load trading settings.' }, 500);
+  }
+});
+backtesting.put('/api/backtesting/chart-settings', requiresLogin, async (c) => {
+  let body: unknown;
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid trading settings.' }, 400); }
+  const settings = validateReplayChartSettings(body);
+  if (!settings) return c.json({ error: 'Invalid trading settings.' }, 400);
+  try {
+    saveReplayChartSettings(c.get('db'), c.get('user').id, settings);
+    return c.json({ settings });
+  } catch (err) {
+    console.error('Replay chart settings save failed:', err);
+    return c.json({ error: 'Could not save trading settings.' }, 500);
+  }
+});
 
 // GET /api/backtesting/sessions — list all sessions with stats
 backtesting.get('/api/backtesting/sessions', requiresLogin, async (c) => {

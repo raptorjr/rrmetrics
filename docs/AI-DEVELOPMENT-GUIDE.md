@@ -44,6 +44,11 @@ The project has a test command in `package.json`; do not repeat older documentat
 
 ## 4. Durable product and architecture direction
 
+### User experience across devices
+
+- User-level preferences should be server-backed (SQLite scoped to the existing local profile), not tied to a browser. Browser-local storage is appropriate only for genuinely device-specific state or an explicitly labelled cache.
+- Replay trading label settings use the server as the source of truth. Load before editing, preview locally, confirm saves, and show failures without silently overwriting the server with defaults. Chart layout persistence and replay-session persistence are separate future tasks where not already implemented.
+
 ### Dashboard and reusable components
 
 ### Dashboard persistence and remote access

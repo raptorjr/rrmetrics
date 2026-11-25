@@ -413,6 +413,13 @@ CREATE INDEX IF NOT EXISTS idx_projectx_trade_legs_connection_time
   ON projectx_trade_legs(broker_connection_id, creation_timestamp);
 
 
+-- ─── replay chart preferences ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS replay_chart_settings (
+  user_id TEXT PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
+  settings_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 -- ─── dashboard collections ──────────────────────────────────────────────────
 -- One authoritative dashboard collection per local RR Metrics user/install.
 CREATE TABLE IF NOT EXISTS dashboard_settings (

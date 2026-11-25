@@ -3,8 +3,9 @@ const { useEffect, useMemo, useRef, useState } = React;
 const { ChartWidgetGrid } = require('@tradecanvas/chart/widget');
 const { timeframeSeconds } = require('../../utils/historicalReplay');
 const { toReplayChartPosition, snapReplayPrice } = require('../../utils/backtestingReplay');
-const { readTradingDisplay, writeTradingDisplay, formatTradingAmounts, formatPendingDistance } = require('../../utils/replayTradingDisplay');
+const { loadTradingDisplay, saveTradingDisplay, formatTradingAmounts, formatPendingDistance } = require('../../utils/replayTradingDisplay');
 const ReplayTradingSettings = require('./ReplayTradingSettings');
+const { authFetch } = require('../../helper');
 
 const toBars = candles => candles.map(bar => ({
   time: bar.time * 1000,
@@ -42,8 +43,53 @@ const ReplayTradeCanvasGrid = ({
   interactionRef.current = { chartMenuItems, onOrderModify, onOrderCancel, onPositionModify, onPositionClose };
   const hostRef = useRef(null);
   const settingsRef = useRef(null);
-  const [labelUnits, setLabelUnits] = useState(() => readTradingDisplay());
-  useEffect(() => { writeTradingDisplay(labelUnits); }, [labelUnits]);
+  const [labelUnits, setLabelUnits] = useState(['currency']);
+  const savedUnitsRef = useRef(['currency']);
+  const [settingsStatus, setSettingsStatus] = useState('loading');
+  const [settingsError, setSettingsError] = useState('');
+  const loadGeneration = useRef(0);
+  const mountedRef = useRef(false);
+  const refreshSettings = async () => {
+    const generation = ++loadGeneration.current;
+    setSettingsStatus('loading'); setSettingsError('');
+    try {
+      const units = await loadTradingDisplay(authFetch);
+      if (!mountedRef.current || generation !== loadGeneration.current) return;
+      savedUnitsRef.current = units; setLabelUnits(units); setSettingsStatus('ready');
+    } catch {
+      if (!mountedRef.current || generation !== loadGeneration.current) return;
+      setSettingsStatus('load-error'); setSettingsError('Could not load saved settings. Retry to edit.');
+    }
+  };
+  useEffect(() => {
+    mountedRef.current = true;
+    void refreshSettings();
+    return () => { mountedRef.current = false; ++loadGeneration.current; };
+  }, []);
+  const openSettingsRef = useRef(null);
+  openSettingsRef.current = () => {
+    const dialog = settingsRef.current;
+    if (!dialog || dialog.open) return;
+    dialog.showModal();
+    void refreshSettings();
+  };
+  const cancelSettings = () => {
+    setLabelUnits(savedUnitsRef.current);
+    setSettingsError('');
+  };
+  const saveSettings = async () => {
+    if (settingsStatus !== 'ready') return;
+    setSettingsStatus('saving'); setSettingsError('');
+    try {
+      const units = await saveTradingDisplay(labelUnits, authFetch);
+      if (!mountedRef.current) return;
+      savedUnitsRef.current = units; setLabelUnits(units); setSettingsStatus('ready');
+      settingsRef.current?.close();
+    } catch {
+      if (!mountedRef.current) return;
+      setSettingsStatus('ready'); setSettingsError('Could not save settings to RR Metrics. Retry before closing.');
+    }
+  };
   const gridRef = useRef(null);
   const barsRef = useRef([]);
   const baseTimeframeRef = useRef(baseTimeframe);
@@ -105,10 +151,7 @@ const ReplayTradeCanvasGrid = ({
       onChartAdd: widget => {
         const chart = widget.getChart();
         chart.setHostReplayViewport(true);
-        widget.addToolbarButton({ id: 'rr-trading-settings', label: 'Trading settings', icon: 'settings', text: 'Trading', side: 'right', onClick: () => {
-          const dialog = settingsRef.current;
-          if (dialog && !dialog.open) dialog.showModal();
-        } });
+        widget.addToolbarButton({ id: 'rr-trading-settings', label: 'Trading settings', icon: 'settings', text: 'Trading', side: 'right', onClick: () => openSettingsRef.current() });
         chart.setTradingConfig({ lineButtons: { reverse: false, trailStop: false, addStops: true, cancel: true, close: true, removeStops: true } });
         chart.on('orderModify', event => interactionRef.current.onOrderModify(event.payload));
         chart.on('orderCancel', event => interactionRef.current.onOrderCancel(event.payload));
@@ -190,7 +233,8 @@ const ReplayTradeCanvasGrid = ({
   return (
     <>
       <div className="w-full h-[430px] min-w-0" ref={hostRef} data-active-chart={activeChart} />
-      <ReplayTradingSettings dialogRef={settingsRef} units={labelUnits} onChange={setLabelUnits} spec={spec} />
+      <ReplayTradingSettings dialogRef={settingsRef} units={labelUnits} onChange={setLabelUnits} spec={spec}
+        status={settingsStatus} error={settingsError} onRetry={refreshSettings} onSave={saveSettings} onDiscard={cancelSettings} />
     </>
   );
 };

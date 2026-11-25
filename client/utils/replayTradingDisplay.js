@@ -4,24 +4,27 @@ const LABEL_UNITS = [
   { id: 'ticks', label: 'Ticks' },
   { id: 'percent', label: 'Percentage' },
 ];
-const STORAGE_KEY = 'rrmetrics.replay.tradingDisplay.v1';
 const DEFAULT_UNITS = ['currency'];
 
 function normalizeTradingDisplay(value) {
   const chosen = LABEL_UNITS.map(unit => unit.id).filter(id => Array.isArray(value) && value.includes(id));
   return chosen.length ? chosen : DEFAULT_UNITS.slice();
 }
-function readTradingDisplay(storage) {
-  try {
-    const source = storage ?? globalThis.localStorage;
-    return normalizeTradingDisplay(JSON.parse(source.getItem(STORAGE_KEY)));
-  } catch { return DEFAULT_UNITS.slice(); }
+const SETTINGS_URL = '/api/backtesting/chart-settings';
+async function loadTradingDisplay(request) {
+  const response = await request(SETTINGS_URL);
+  if (!response.ok) throw new Error('Could not load trading settings.');
+  const data = await response.json();
+  return normalizeTradingDisplay(data.settings?.labelUnits);
 }
-function writeTradingDisplay(value, storage) {
-  try {
-    const source = storage ?? globalThis.localStorage;
-    source.setItem(STORAGE_KEY, JSON.stringify(normalizeTradingDisplay(value)));
-  } catch { /* Storage may be unavailable; preferences still work for the session. */ }
+async function saveTradingDisplay(units, request) {
+  const response = await request(SETTINGS_URL, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ version: 1, labelUnits: normalizeTradingDisplay(units) }),
+  });
+  if (!response.ok) throw new Error('Could not save trading settings.');
+  const data = await response.json();
+  return normalizeTradingDisplay(data.settings.labelUnits);
 }
 function signed(value, digits, suffix = '', prefix = '', unsigned = false) {
   const absolute = Math.abs(value);
@@ -44,4 +47,4 @@ function formatPendingDistance(order, price, market, spec, units) {
   const label = formatTradingAmounts({ side: 'buy', entryPrice: market, currentPrice: price, openQuantity: order.quantity }, spec, units, true);
   return label ? label + ' away' : '';
 }
-module.exports = { LABEL_UNITS, STORAGE_KEY, normalizeTradingDisplay, readTradingDisplay, writeTradingDisplay, formatTradingAmounts, formatPendingDistance };
+module.exports = { LABEL_UNITS, normalizeTradingDisplay, loadTradingDisplay, saveTradingDisplay, formatTradingAmounts, formatPendingDistance };

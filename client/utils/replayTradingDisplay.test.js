@@ -1,15 +1,20 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { getInstrumentSpec } = require('./backtestingReplay');
-const { normalizeTradingDisplay, readTradingDisplay, writeTradingDisplay, formatTradingAmounts, formatPendingDistance } = require('./replayTradingDisplay');
-test('trading display defaults, canonical order and persistence', () => {
-  const map = new Map();
-  const storage = { getItem: key => map.get(key) ?? null, setItem: (key, value) => map.set(key, value) };
-  assert.deepEqual(readTradingDisplay(storage), ['currency']);
-  writeTradingDisplay(['ticks', 'invalid', 'points', 'ticks'], storage);
-  assert.deepEqual(readTradingDisplay(storage), ['points', 'ticks']);
+const { normalizeTradingDisplay, loadTradingDisplay, saveTradingDisplay, formatTradingAmounts, formatPendingDistance } = require('./replayTradingDisplay');
+test('trading display loads and saves through the authoritative server, never silently on failure', async () => {
+  let stored = null;
+  const request = async (url, options) => {
+    assert.equal(url, '/api/backtesting/chart-settings');
+    if (options?.method === 'PUT') stored = JSON.parse(options.body);
+    return { ok: true, json: async () => ({ settings: stored }) };
+  };
+  assert.deepEqual(await loadTradingDisplay(request), ['currency']);
+  assert.deepEqual(await saveTradingDisplay(['ticks', 'invalid', 'points', 'ticks'], request), ['points', 'ticks']);
+  assert.deepEqual(await loadTradingDisplay(request), ['points', 'ticks']);
   assert.deepEqual(normalizeTradingDisplay([]), ['currency']);
-  assert.deepEqual(readTradingDisplay({ getItem: () => '{' }), ['currency']);
+  await assert.rejects(loadTradingDisplay(async () => ({ ok: false })));
+  await assert.rejects(saveTradingDisplay(['points'], async () => ({ ok: false })));
 });
 test('all units use correct direction, quantity and instrument tick size', () => {
   const spec = getInstrumentSpec('NQ'), units = ['currency', 'points', 'ticks', 'percent'];
