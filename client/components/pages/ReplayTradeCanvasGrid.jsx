@@ -133,8 +133,9 @@ const ReplayTradeCanvasGrid = ({
   useEffect(() => {
     if (!hostRef.current) return undefined;
     // The widget's native ticket/account are disabled. Only its chart-level trading visuals emit intents to RR Metrics.
-    const tradingOptions = { overlayContainer: hostRef.current.closest('[data-replay-workspace]') || undefined, trading: false, chartOptions: { features: { trading: true, tradingContextMenu: false } }, chartMenuItems: context => interactionRef.current.chartMenuItems(context) };
-    const intervals=replayChartIntervals(baseTimeframe||timeframe,availableTimeframes,readIntervals('tcw:tf-favorites'),readIntervals('tcw:tf-custom'));
+    const savedIntervals=restoreLayout?.cells?.map(cell=>cell.timeframe)||[];
+    const intervals=replayChartIntervals(baseTimeframe||timeframe,availableTimeframes,readIntervals('tcw:tf-favorites'),[...readIntervals('tcw:tf-custom'),...savedIntervals]);
+    const tradingOptions = { overlayContainer: hostRef.current.closest('[data-replay-workspace]') || undefined, trading: false, chartOptions: { features: { trading: true, tradingContextMenu: false, defaultTimeframeFavorites: intervals.defaults, timeframes: intervals.menu } }, chartMenuItems: context => interactionRef.current.chartMenuItems(context) };
     const intervalOptions={timeframes:intervals.menu, timeframe:intervals.initial};
     const cells = [{
       symbol: ticker,
@@ -144,7 +145,7 @@ const ReplayTradeCanvasGrid = ({
       ...tradingOptions,
       // RR Metrics owns replay. Do not expose TradeCanvas's native replay
       // transport; retain the shared grid picker in the chart toolbar.
-      features: { defaultTimeframeFavorites: intervals.defaults, replay: false, 'toolbar.replay': false, 'dock.watchlist': false, depthLadder: false, symbolSearch: false, symbolTyping: false, 'hotkeys.symbolSearch': false },
+      features: { replay: false, 'toolbar.replay': false, 'dock.watchlist': false, depthLadder: false, symbolSearch: false, symbolTyping: false, 'hotkeys.symbolSearch': false },
       resampleTimeframes: true,
     }];
     const grid = new ChartWidgetGrid(hostRef.current, {
@@ -154,7 +155,7 @@ const ReplayTradeCanvasGrid = ({
       // Apply replay restrictions to every future chart, not just cells[0].
       widget: {
         symbol: ticker, ...intervalOptions, theme: 'dark', ui: 'modern', ...tradingOptions, resampleTimeframes: true,
-        features: { defaultTimeframeFavorites: intervals.defaults, replay: false, 'toolbar.replay': false, 'dock.watchlist': false, depthLadder: false, symbolSearch: false, symbolTyping: false, 'hotkeys.symbolSearch': false },
+        features: { replay: false, 'toolbar.replay': false, 'dock.watchlist': false, depthLadder: false, symbolSearch: false, symbolTyping: false, 'hotkeys.symbolSearch': false },
       },
       // Replace the native Replay button with the layout picker in the active
       // chart toolbar. TradeCanvas moves it with the active chart; no extra bar.
