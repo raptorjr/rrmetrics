@@ -3,14 +3,14 @@ const { authFetch } = helper;
 const React = require('react');
 const { useState, useEffect } = React;
 const Icons = require('../shared/Icons');
-const BacktestingReplayWorkspace = require('./BacktestingReplayWorkspace').default;
+const ReplaySessionsPage = require('./ReplaySessionsPage');
 
 const BacktestingPage = () => {
   const [sessions, setSessions] = useState([]);
   const [activeTrades, setActiveTrades] = useState([]);
   const [allTrades, setAllTrades] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState('journal');
+  const [activeView, setActiveView] = useState('replay');
   const [statsFilter, setStatsFilter] = useState('all'); // 'all' | session id
   const [showStartForm, setShowStartForm] = useState(false);
   const [showEndForm, setShowEndForm] = useState(false);
@@ -245,7 +245,7 @@ const BacktestingPage = () => {
         onClick={() => setActiveView('journal')}
         className={"px-4 py-2 rounded-lg text-sm font-medium transition-colors " + (activeView === 'journal' ? 'bg-bg-surface border border-border text-accent' : 'text-text-muted hover:text-text-primary')}
       >
-        Session Journal
+        Manual journal
       </button>
       <button
         type="button"
@@ -254,7 +254,7 @@ const BacktestingPage = () => {
         onClick={() => setActiveView('replay')}
         className={"px-4 py-2 rounded-lg text-sm font-medium transition-colors " + (activeView === 'replay' ? 'bg-bg-surface border border-border text-accent' : 'text-text-muted hover:text-text-primary')}
       >
-        Chart Replay
+        Replay sessions
       </button>
     </div>
   );
@@ -267,7 +267,7 @@ const BacktestingPage = () => {
           <p className="text-text-muted text-sm mt-1">Replay historical price action and practise simulated trades.</p>
         </div>
         {renderModeTabs()}
-        <BacktestingReplayWorkspace />
+        <ReplaySessionsPage />
       </div>
     );
   }

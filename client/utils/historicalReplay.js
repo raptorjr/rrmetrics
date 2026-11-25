@@ -117,4 +117,8 @@ function aggregateCandles(candles, targetTimeframe) {
   return [...buckets.values()].sort((a, b) => a.time - b.time);
 }
 
-module.exports = { TIMEFRAME_SECONDS, timeframeSeconds, compareTimeframes, getAvailableMarkets, isRangeWithinCoverage, aggregateCandles };
+function getSessionMarkets(datasets, start, end) {
+  return getAvailableMarkets(datasets).filter(m => m.datasets.some(d => d.timeframe === m.baseTimeframe &&
+    isRangeWithinCoverage(start, end, { start: Date.parse(d.start_time), end: Date.parse(d.end_time) })));
+}
+module.exports = { getSessionMarkets, TIMEFRAME_SECONDS, timeframeSeconds, compareTimeframes, getAvailableMarkets, isRangeWithinCoverage, aggregateCandles };

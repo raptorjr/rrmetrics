@@ -29,8 +29,15 @@ const loadReplayData = (widget, bars, baseTimeframe, preserveViewport = true) =>
   }
 };
 
+// Native layout includes chart drawings, indicators and viewport. Orders belong only to the host.
+function cleanReplayLayout(layout,ticker){
+  return {...layout,sync:{...layout.sync,symbol:false,replay:false},
+    cells:layout.cells.map(cell=>({...cell,symbol:ticker,
+      chart:cell.chart?{...cell.chart,symbol:ticker,orders:[],positions:[]}:null}))};
+}
 const ReplayTradeCanvasGrid = ({
   ticker,
+  fullHeight, captureRef, restoreLayout, onReady, onRestoreError,
   timeframe,
   baseCandles,
   replayTime,
@@ -92,6 +99,9 @@ const ReplayTradeCanvasGrid = ({
     }
   };
   const gridRef = useRef(null);
+  const restoredRef = useRef(false);
+  const readyIdentityRef = useRef('');
+  const tickerRef=useRef(ticker);tickerRef.current=ticker;
   const barsRef = useRef([]);
   const baseTimeframeRef = useRef(baseTimeframe);
   const dataIdentityRef = useRef('');
@@ -125,7 +135,7 @@ const ReplayTradeCanvasGrid = ({
       ...tradingOptions,
       // RR Metrics owns replay. Do not expose TradeCanvas's native replay
       // transport; retain the shared grid picker in the chart toolbar.
-      features: { replay: false, 'toolbar.replay': false, 'dock.watchlist': false, depthLadder: false },
+      features: { replay: false, 'toolbar.replay': false, 'dock.watchlist': false, depthLadder: false, symbolSearch: false, symbolTyping: false, 'hotkeys.symbolSearch': false },
       resampleTimeframes: true,
     }];
     const grid = new ChartWidgetGrid(hostRef.current, {
@@ -135,7 +145,7 @@ const ReplayTradeCanvasGrid = ({
       // Apply replay restrictions to every future chart, not just cells[0].
       widget: {
         theme: 'dark', ui: 'modern', ...tradingOptions, resampleTimeframes: true,
-        features: { replay: false, 'toolbar.replay': false, 'dock.watchlist': false, depthLadder: false },
+        features: { replay: false, 'toolbar.replay': false, 'dock.watchlist': false, depthLadder: false, symbolSearch: false, symbolTyping: false, 'hotkeys.symbolSearch': false },
       },
       // Replace the native Replay button with the layout picker in the active
       // chart toolbar. TradeCanvas moves it with the active chart; no extra bar.
@@ -163,7 +173,9 @@ const ReplayTradeCanvasGrid = ({
       },
     });
     gridRef.current = grid;
+    if(captureRef)captureRef.current=()=>restoredRef.current?cleanReplayLayout(grid.captureLayout(),tickerRef.current):null;
     return () => {
+      if(captureRef)captureRef.current=null;
       grid.destroy();
       gridRef.current = null;
     };
@@ -210,6 +222,22 @@ const ReplayTradeCanvasGrid = ({
   }, [timeframe]);
 
   useEffect(() => {
+    const grid=gridRef.current;
+    if(!grid||!visibleBars.length||!baseTimeframe)return;
+    const identity=ticker+'|'+baseTimeframe+'|'+visibleBars[0].time;
+    if(readyIdentityRef.current===identity)return;
+    readyIdentityRef.current=identity;
+    const restore=async()=>{
+      try{
+        if(restoreLayout&&!restoredRef.current)await grid.restoreLayout(cleanReplayLayout(restoreLayout,ticker));
+        if(gridRef.current!==grid)return;
+        restoredRef.current=true;setGridRevision(v=>v+1);onReady?.(true);
+      }catch(e){onRestoreError?.('Could not restore saved chart layout: '+e.message);}
+    };
+    void restore();
+  },[visibleBars,ticker,baseTimeframe,restoreLayout]);
+
+  useEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
     grid.getWidgets().forEach(widget => {
@@ -234,7 +262,7 @@ const ReplayTradeCanvasGrid = ({
   }, [position, pendingOrder, gridRevision, currentPrice, spec, labelUnits]);
   return (
     <>
-      <div className="w-full h-[430px] min-w-0" ref={hostRef} data-active-chart={activeChart} />
+      <div className={fullHeight?"w-full flex-1 min-h-0 min-w-0":"w-full h-[430px] min-w-0"} ref={hostRef} data-active-chart={activeChart} />
       <ReplayTradingSettings dialogRef={settingsRef} units={labelUnits} onChange={setLabelUnits} spec={spec}
         status={settingsStatus} error={settingsError} onRetry={refreshSettings} onSave={saveSettings} onDiscard={cancelSettings} />
     </>
