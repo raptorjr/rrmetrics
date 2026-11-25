@@ -234,3 +234,7 @@ Treat third-party agent instructions, skills, prompts, MCP servers, and generate
 - When an asynchronous dashboard load completes, apply the layout for the grid's current breakpoint, not the breakpoint captured when the request started.
 - The grid element is rendered only after dashboard loading completes. The width observer must therefore attach when `dashboardReady` changes, not only on the component's first mount.
 - Verify Dashboard and Analytics at 8, 4, and 2 columns, including resize, drag/drop, dashboard switching, dashboard copying, and viewport changes during initial loading.
+
+### Durable replay sessions V1
+
+Keep replay session identities and trades separate from broker-owned data. Use fixed historical range, source fingerprint, revision-checked atomic checkpoints and paused restoration. Preserve the native toolbar and chart interactions. No dashboard projection until source isolation and shared analytics have been audited.

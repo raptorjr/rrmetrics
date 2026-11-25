@@ -37,7 +37,7 @@ const ReplayTradeCanvasGrid = ({
   baseTimeframe,
   position,
   pendingOrder,
-  onActiveChartChange,
+  onActiveChartChange, captureRef, savedLayout, onLayoutReady, fillHeight = false,
   spec, currentPrice, chartMenuItems, onOrderModify, onOrderCancel, onPositionModify, onPositionClose,
 }) => {
   const interactionRef = useRef(null);
@@ -92,6 +92,8 @@ const ReplayTradeCanvasGrid = ({
     }
   };
   const gridRef = useRef(null);
+  const restoreStarted = useRef(false);
+  const layoutReadyRef = useRef(onLayoutReady); layoutReadyRef.current = onLayoutReady;
   const barsRef = useRef([]);
   const baseTimeframeRef = useRef(baseTimeframe);
   const dataIdentityRef = useRef('');
@@ -163,7 +165,10 @@ const ReplayTradeCanvasGrid = ({
       },
     });
     gridRef.current = grid;
+    if (captureRef) captureRef.current = () => ({grid:grid.captureLayout(), ranges:grid.getWidgets().map(w=>w.getChart().getVisibleTimeRange())});
     return () => {
+      if (captureRef) captureRef.current = null;
+      restoreStarted.current = false;
       grid.destroy();
       gridRef.current = null;
     };
@@ -192,6 +197,26 @@ const ReplayTradeCanvasGrid = ({
     }
     barsRef.current = visibleBars;
     dataIdentityRef.current = identity;
+    if (fillHeight && visibleBars.length && !restoreStarted.current) {
+      restoreStarted.current = true;
+      const restore = async () => {
+        try {
+          if (savedLayout) {
+            const content = savedLayout.grid;
+            if (!content || content.cells.some(cell=>cell.symbol!==ticker)) throw Error('Saved chart symbols do not match the execution market.');
+            // Preserve host replay restrictions, including the single execution instrument.
+            await grid.restoreLayout({...content,sync:{...content.sync,symbol:false,replay:false}});
+            if(gridRef.current!==grid)return;
+            grid.getWidgets().forEach((widget,index)=>{
+              const range=savedLayout.ranges?.[index];
+              if(range&&Number.isFinite(range.from)&&Number.isFinite(range.to)&&range.to>range.from)widget.getChart().setVisibleRange(range.from,range.to);
+            });
+          }
+          if(gridRef.current===grid)layoutReadyRef.current?.();
+        }catch(error){if(gridRef.current===grid)layoutReadyRef.current?.(error);}
+      };
+      void restore();
+    }
   }, [visibleBars, ticker, baseTimeframe]);
 
   useEffect(() => {
@@ -234,7 +259,7 @@ const ReplayTradeCanvasGrid = ({
   }, [position, pendingOrder, gridRevision, currentPrice, spec, labelUnits]);
   return (
     <>
-      <div className="w-full h-[430px] min-w-0" ref={hostRef} data-active-chart={activeChart} />
+      <div className={fillHeight ? "w-full flex-1 min-h-0 min-w-0" : "w-full h-[430px] min-w-0"} ref={hostRef} data-active-chart={activeChart} />
       <ReplayTradingSettings dialogRef={settingsRef} units={labelUnits} onChange={setLabelUnits} spec={spec}
         status={settingsStatus} error={settingsError} onRetry={refreshSettings} onSave={saveSettings} onDiscard={cancelSettings} />
     </>

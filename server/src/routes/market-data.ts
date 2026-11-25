@@ -451,6 +451,9 @@ marketData.get('/api/market-data/query', requiresLogin, async (c) => {
     startTime: startIso,
     endTime: endIso,
     totalBars: bars.length,
+    fingerprint: crypto.createHash('sha256').update(JSON.stringify({
+      sources: datasets.map(d => d.id).sort(), bars
+    })).digest('hex'),
     sources: datasets.map(dataset => ({
       datasetId: dataset.id,
       fileId: dataset.file_id,

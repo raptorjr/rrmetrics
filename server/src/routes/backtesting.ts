@@ -3,6 +3,7 @@ import type { Env, AuthContext } from '../bindings';
 import * as backtestingDb from '../db/backtesting';
 import { readReplayChartSettings, saveReplayChartSettings, validateReplayChartSettings } from '../db/replay-chart-settings';
 import { requiresLogin } from '../middleware/auth';
+import { listReplaySessions, getReplaySession, createReplaySession, saveReplaySession, ReplaySessionError } from '../db/replay-sessions';
 
 type HonoEnv = {
   Bindings: Env;
@@ -32,6 +33,26 @@ backtesting.put('/api/backtesting/chart-settings', requiresLogin, async (c) => {
     console.error('Replay chart settings save failed:', err);
     return c.json({ error: 'Could not save trading settings.' }, 500);
   }
+});
+
+// Durable chart sessions are independent of the legacy manual journal.
+const replayFailure = (err: unknown) => err instanceof ReplaySessionError
+  ? { error: err.message, status: err.status }
+  : { error: 'Unable to access replay session.', status: 500 as const };
+backtesting.get('/api/backtesting/replay-sessions', requiresLogin, c => {
+  return c.json({ sessions: listReplaySessions(c.get('db'), c.get('user').id) });
+});
+backtesting.get('/api/backtesting/replay-sessions/:id', requiresLogin, c => {
+  try { return c.json({ session: getReplaySession(c.get('db'), c.get('user').id, c.req.param('id')) }); }
+  catch (err) { const f = replayFailure(err); return c.json({ error: f.error }, f.status); }
+});
+backtesting.post('/api/backtesting/replay-sessions', requiresLogin, async c => {
+  try { return c.json({ session: createReplaySession(c.get('db'), c.get('user').id, await c.req.json()) }, 201); }
+  catch (err) { const f = replayFailure(err); return c.json({ error: f.error }, f.status); }
+});
+backtesting.put('/api/backtesting/replay-sessions/:id', requiresLogin, async c => {
+  try { return c.json({ session: saveReplaySession(c.get('db'), c.get('user').id, c.req.param('id'), await c.req.json()) }); }
+  catch (err) { const f = replayFailure(err); return c.json({ error: f.error }, f.status); }
 });
 
 // GET /api/backtesting/sessions — list all sessions with stats
