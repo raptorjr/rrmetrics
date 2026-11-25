@@ -12,6 +12,23 @@ const toBars = candles => candles.map(bar => ({
   volume: Number(bar.volume || 0),
 }));
 
+const setDataKeepingReplayViewport = (widget, data, baseTimeframe, previousBars) => {
+  const chart = widget.getChart();
+  const visible = chart.getVisibleTimeRange?.();
+  const previousLast = previousBars?.length ? previousBars[previousBars.length - 1].time : null;
+  widget.setData(data, baseTimeframe);
+  const nextLast = data.length ? data[data.length - 1].time : null;
+  if (!visible || previousLast == null || nextLast == null
+    || typeof chart.setVisibleRange !== 'function' || visible.to < visible.from) return;
+  // Keep the viewport's distance from the replay edge and its zoom level.
+  // This prevents backward/forward seeking from resetting the chart to its
+  // default right-aligned range.
+  const span = visible.to - visible.from;
+  const distanceFromReplayEdge = previousLast - visible.to;
+  const nextTo = nextLast - distanceFromReplayEdge;
+  chart.setVisibleRange(nextTo - span, nextTo);
+};
+
 const ReplayTradeCanvasGrid = ({
   ticker,
   timeframe,
@@ -113,7 +130,13 @@ const ReplayTradeCanvasGrid = ({
       && visibleBars.length >= previous.length
       && previous.every((bar, index) => visibleBars[index]?.time === bar.time);
     if (!previous.length || identityChanged || !isAppend) {
-      grid.getWidgets().forEach(widget => widget.setData(visibleBars, baseTimeframe));
+      grid.getWidgets().forEach(widget => {
+        if (previous.length && !identityChanged) {
+          setDataKeepingReplayViewport(widget, visibleBars, baseTimeframe, previous);
+        } else {
+          widget.setData(visibleBars, baseTimeframe);
+        }
+      });
     } else if (visibleBars.length > previous.length) {
       const additions = visibleBars.slice(previous.length);
       grid.getWidgets().forEach(widget => {
