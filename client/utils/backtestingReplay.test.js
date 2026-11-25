@@ -212,3 +212,19 @@ test('fractional average entry uses protective tick rounding at BE and seeds pri
   assert.equal(seedReplayOrderPrice('market', 100.25, spec), '');
   assert.equal(seedReplayOrderPrice('limit', 0, spec), '');
 });
+
+test('adding after a reduction preserves realized P/L and records actual fills', () => {
+  const spec = { pointValue: 20, tickSize: .25, decimals: 2 };
+  const initial = { id: 'p2', direction: 'long', quantity: 2, stopPrice: null, targetPrice: null };
+  let p = createReplayPosition(initial, 100, 1);
+  p = applyReplayFill(p, { direction: 'short', quantity: 1 }, 105, 2, spec, 'Scale out').position;
+  p = applyReplayFill(p, { direction: 'long', quantity: 2 }, 110, 3, spec, 'Scale in').position;
+  assert.equal(p.quantity, 3);
+  assert.equal(p.realizedPnl, 100);
+  assert.equal(p.riskIncomplete, true);
+  const closed = applyReplayFill(p, { direction: 'short', quantity: 3 }, 115, 4, spec, 'Manual close').trade;
+  assert.equal(closed.pnl, 600);
+  assert.equal(closed.entryPrice, 105);
+  assert.equal(closed.exitPrice, 112.5);
+  assert.equal(closed.rMultiple, null);
+});

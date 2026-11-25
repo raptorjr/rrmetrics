@@ -283,7 +283,8 @@ function toReplayChartPosition(position, spec) {
 function calculateTradePnl(position, exitPrice, pointValue) {
   if (!position || !Number.isFinite(exitPrice)) return 0;
   const direction = position.direction === 'short' ? -1 : 1;
-  return (exitPrice - position.entryPrice) * direction * position.quantity * pointValue;
+  const pnl = (exitPrice - position.entryPrice) * direction * position.quantity * pointValue;
+  return Math.round(pnl * 1e8) / 1e8 || 0;
 }
 
 function calculateTradeStats(trades) {

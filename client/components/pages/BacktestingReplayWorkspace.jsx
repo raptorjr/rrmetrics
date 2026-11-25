@@ -291,6 +291,7 @@ const BacktestingReplayWorkspace = () => {
         setMarketBaseCandles(baseCandles);
         const normalized = historicalTimeframe === baseTimeframe ? baseCandles : aggregateCandles(baseCandles, historicalTimeframe);
         if (normalized.length < 2) throw new Error('There are not enough historical bars in this period to start replay.');
+        candlesRef.current = normalized;
         setCandles(normalized);
         setCurrentIndex(0);
         currentIndexRef.current = 0;
@@ -373,6 +374,7 @@ const BacktestingReplayWorkspace = () => {
     setIsPlaying(false); setPosition(null); positionRef.current = null;
     setPendingOrder(null); pendingOrderRef.current = null; setClosedTrades([]);
      setMessage(''); setError('');
+    candlesRef.current = [];
     setCandles([]); setMarketBaseCandles([]); setCurrentIndex(0); currentIndexRef.current = 0;
   };
 
@@ -672,6 +674,7 @@ const BacktestingReplayWorkspace = () => {
               <div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Order type</label><select aria-label="Order type" value={orderType} disabled={!!pendingOrder} onChange={event => changeOrderType(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-2 py-2 text-sm text-text-primary"><option value="market">Market</option><option value="limit">Limit</option><option value="stop_market">Stop Market</option></select></div>
               {orderType !== 'market' && <div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Order price</label><input aria-label="Order price" type="number" step={spec.tickSize} value={orderPrice} disabled={!!pendingOrder} onChange={event => setOrderPrice(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-2 py-2 text-sm text-text-primary" placeholder="Price" /></div>}
             </div>
+            <div className="flex items-center justify-between text-xs"><span className="text-text-muted">Contracts</span><strong className="text-text-primary tabular-nums">{quantity}</strong></div>
             <div className="flex items-center gap-1">
               <button type="button" onClick={() => adjustQuantity(-1)} disabled={!!pendingOrder || quantity <= 1} className="w-7 h-8 shrink-0 rounded-full border border-border text-text-primary disabled:opacity-40" aria-label="Decrease contracts">−</button>
               <div className="flex flex-1 justify-center gap-1 min-w-0">{quantityPresets.map((preset, index) => <button key={index} type="button" onClick={() => setQuantity(preset)} disabled={!!pendingOrder} className={"min-w-0 flex-1 h-8 px-1 rounded-full text-xs font-semibold disabled:opacity-40 " + (quantity === preset ? 'bg-accent text-accent-text' : 'bg-bg-input text-text-secondary hover:text-text-primary')}>{preset}</button>)}</div>
