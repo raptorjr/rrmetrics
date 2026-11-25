@@ -2,6 +2,8 @@
 
 ### Interactive chart replay trading
 
+- New SL/TP drags start directly at the position entry rather than jumping to a preset distance. Clicking without dragging does not create a protective order.
+
 - Added native TradeCanvas position and pending-order lines, draggable entry, SL and TP levels, chart cancel/close actions and synchronized order state on every replay chart.
 - Added right-click market, limit and stop-market order entry with quantity submenus, contextual position management and a BE button in the existing panel.
 - Validate changed prices against the last revealed execution candle and snap them to instrument ticks. Preserve original risk for R-multiple after BE or profitable stop changes.
