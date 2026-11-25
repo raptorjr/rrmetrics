@@ -81,19 +81,21 @@ const ReplayTradeCanvasGrid = ({
       theme: 'dark',
       ui: 'modern',
       trading: false,
-      features: { replay: false, 'dock.watchlist': false, depthLadder: false },
+      // Keep the native replay toolbar slot available for the grid layout picker.
+      // RR Metrics' playback transport remains the separate controller below the chart.
+      features: { 'dock.watchlist': false, depthLadder: false },
       resampleTimeframes: true,
     }];
     const grid = new ChartWidgetGrid(hostRef.current, {
       layout: '1x1',
       layoutChoices,
       cells,
-      // Keep the grid arrangement picker in its own persistent grid bar.
-      // It must not depend on which chart's native toolbar is currently active.
-      bar: true,
+      // Replace the native Replay button with the layout picker in the active
+      // chart toolbar. TradeCanvas moves it with the active chart; no extra bar.
+      bar: false,
       layouts: false,
-      sharedToolbar: false,
-      layoutPickerInToolbar: false,
+      sharedToolbar: true,
+      layoutPickerInToolbar: true,
       sharedDrawingTools: true,
       sync: { symbol: false, interval: false, crosshair: true, time: false, drawings: false, replay: false },
       onActiveChange: index => {
