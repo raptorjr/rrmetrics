@@ -21,7 +21,7 @@ const getCssColor = (name, fallback) => {
 const formatMoney = value => (value < 0 ? '-$' : '$') + Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatPrice = (value, decimals = 2) => Number(value).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 const { formatDateEST, formatTimeEST, getDisplayTimeZone, getDateFormat, getTimeFormat } = require('../../utils/dateUtils');
-const { getSessionMarkets, isRangeWithinCoverage, aggregateCandles, timeframeSeconds, REPLAY_SPEEDS, restoreReplaySpeed, replayStepBudget } = require('../../utils/historicalReplay');
+const { getSessionMarkets, isRangeWithinCoverage, aggregateCandles, timeframeSeconds, REPLAY_SPEEDS, restoreReplaySpeed, replayStepBudget, resetReplayChartLayout } = require('../../utils/historicalReplay');
 
 const formatBarTime = value => {
   const date = new Date(value * 1000);
@@ -197,7 +197,7 @@ const formatInterval = seconds => seconds < 60
     ? (seconds / 60) + ' minute' + (seconds === 60 ? '' : 's')
     : (seconds / 3600) + ' hour' + (seconds === 3600 ? '' : 's');
 
-const BacktestingReplayWorkspace = ({session, onExit}) => {
+const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, onExit}) => {
   const saved = session.checkpoint;
   const workspaceRef = useRef(null), chartCaptureRef = useRef(null), fingerprintRef = useRef('');
   const revisionRef = useRef(session.revision), saveInFlight = useRef(null), lastSavedRef = useRef('');
@@ -306,7 +306,7 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
         orderSequence.current=saved?.orderSequence ?? 0;
         setQuantity(saved?.quantity ?? 1);setQuantityPresets(saved?.quantityPresets ?? [1,2,3,5,10]);
         setOrderType(saved?.orderType ?? 'market');setOrderPrice(saved?.orderPrice ?? '');setSpeed(restoreReplaySpeed(saved,timeframeSeconds(historicalTimeframe)));
-        setMessage(saved ? 'Session restored paused.' : 'Select your execution market before trading.');
+        setMessage(saved ? '' : 'Select your execution market before trading.');
       } catch (loadError) {
         if (!cancelled) { setMarketBaseCandles([]); setCandles([]); setCurrentIndex(0); currentIndexRef.current = 0; setImportError(loadError.message || 'Unable to prepare historical market data.'); }
       } finally {
@@ -546,20 +546,26 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
     const warn=e=>{if(exitRef.current)return;let dirty=true;try{const snapshot=snapshotRef.current?.();dirty=!!snapshot&&JSON.stringify(snapshot)!==lastSavedRef.current;}catch{}if(dirty){e.preventDefault();e.returnValue='';}};
     window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);
   },[]);
-  const saveExit=async()=>{
-    if(savingExit)return;
+  const saveExit=async(nextSessionId=null)=>{
+    if(savingExit||exitRef.current)return;
+    const navigate=async()=>{
+      if(document.fullscreenElement===workspaceRef.current)try{await document.exitFullscreen();}catch{}
+      if(nextSessionId)await onSwitchSession(nextSessionId);else onExit();
+    };
     exitRef.current=true;setIsPlaying(false);setSavingExit(true);
     if(!chartReady&&!saveInFlight.current){
-      if(window.confirm('Return to the session list without changing the saved session?')){onExit();return;}
+      if(window.confirm('Leave this session without changing its saved state?')){
+        try{await navigate();return;}catch(e){setError(e.message||'Could not open session.');}
+      }
       exitRef.current=false;setSavingExit(false);return;
     }
     const ok=await save();
-    if(ok){if(document.fullscreenElement===workspaceRef.current)try{await document.exitFullscreen();}catch{}onExit();}
-    else{exitRef.current=false;setSavingExit(false);}
+    if(ok){try{await navigate();return;}catch(e){setError(e.message||'Could not open session.');}}
+    exitRef.current=false;setSavingExit(false);
   };
   const restartSession=async()=>{
     if(!chartReady||savingExit||exitRef.current||conflictRef.current)return;
-    if(!window.confirm('Restart this session from its first candle? This permanently clears its simulated trades, open position and working orders and restores the starting balance. Chart layout, indicators and drawings are kept.'))return;
+    if(!window.confirm('Restart this session from its first candle? This permanently clears its simulated trades, open position and working orders and restores the starting balance. Chart drawings are cleared; layout and indicators are kept.'))return;
     exitRef.current=true;setIsPlaying(false);setSavingExit(true);
     try{
       if(saveInFlight.current)await saveInFlight.current;
@@ -567,10 +573,7 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
       const payload=snapshotRef.current?.();
       if(!payload)throw Error('Session is not ready.');
       const checkpoint={...payload.checkpoint,index:0,time:candlesRef.current[0].time,position:null,pendingOrder:null,orderType:'market',orderPrice:''};
-      checkpoint.layout={...checkpoint.layout,cells:checkpoint.layout.cells.map(cell=>{
-        if(!cell.chart)return cell;
-        const {hostReplayView,...chart}=cell.chart;return {...cell,chart};
-      })};
+      checkpoint.layout=resetReplayChartLayout(checkpoint.layout);
       setSaveStatus('Restarting…');
       const response=await authFetch('/api/backtesting/replay-sessions/'+encodeURIComponent(session.id)+'/checkpoint',{
         method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:revisionRef.current,restart:true,checkpoint,trades:[]})});
@@ -580,7 +583,7 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
       positionRef.current=null;pendingOrderRef.current=null;closedTradesRef.current=[];
       setPosition(null);setPendingOrder(null);setClosedTrades([]);setOrderType('market');setOrderPrice('');
       currentIndexRef.current=0;setCurrentIndex(0);setLockedMarket(true);setSaveStatus('Saved');
-      setError('');setMessage('Session restarted. Layout and drawings retained.');
+      setError('');setMessage('');
       setRestartLayout(checkpoint.layout);setChartReady(false);setChartGeneration(v=>v+1);
     }catch(e){setSaveStatus(e.message||'Restart failed');setError(e.message||'Restart failed');}
     finally{exitRef.current=false;setSavingExit(false);}
@@ -596,12 +599,14 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
   return createPortal(
     <div ref={workspaceRef} data-replay-workspace="true" className="fixed inset-0 z-[9999] bg-bg-page text-text-primary flex flex-col overflow-hidden" style={{height:'100dvh'}}>
       <header className="shrink-0 flex items-center gap-3 border-b border-border bg-bg-surface px-3 py-2">
-        <button type="button" disabled={savingExit} onClick={saveExit} className="shrink-0 rounded-lg border border-border bg-bg-input px-3 py-1.5 text-sm font-semibold disabled:opacity-40">← {savingExit?'Saving…':'Save & exit'}</button>
-        <div className="flex-1 min-w-0 overflow-x-auto flex items-center gap-5 whitespace-nowrap text-xs">
-          <strong className="text-sm">{session.name}</strong>
+        <button type="button" disabled={savingExit} onClick={()=>void saveExit()} className="shrink-0 rounded-lg border border-border bg-bg-input px-3 py-1.5 text-sm font-semibold disabled:opacity-40">← {savingExit?'Saving…':'Save & exit'}</button>
+        <select aria-label="Switch replay session" title="Switch replay session" disabled={savingExit||conflictRef.current} value={session.id} onChange={e=>void saveExit(e.target.value)} className="shrink-0 max-w-[220px] bg-bg-input border border-border rounded-lg px-2 py-1.5 text-sm font-semibold disabled:opacity-40">
+          <option value={session.id}>{session.name}</option>{sessions.filter(s=>s.id!==session.id).map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+        <div className="flex-1 min-w-0 overflow-x-auto flex items-center gap-5 whitespace-nowrap text-xs justify-center">
           {[['Starting',session.startingBalance],['Balance',balance],['Equity',balance+unrealizedPnl],['Realized P/L',realized],['Unrealized P/L',unrealizedPnl]].map(([label,value])=><div key={label}><span className="text-text-secondary mr-2">{label}</span><strong className={label.includes('P/L')?(value<0?'text-negative':'text-positive'):'text-text-primary'}>{formatMoney(value)}</strong></div>)}
         </div>
-        <span role="status" className="max-w-[180px] text-xs text-text-secondary truncate" title={saveStatus}>{saveStatus}</span>
+        {saveStatus!=='Saved'&&<span role="status" className={'max-w-[180px] text-xs truncate '+(/^(Saving|Restoring|Restarting|Not saved)/.test(saveStatus)?'text-text-secondary':'text-negative')} title={saveStatus}>{saveStatus}</span>}
         <button type="button" onClick={toggleFullscreen} className="shrink-0 bg-bg-input border border-border rounded-lg px-2 py-1.5 text-sm" aria-label={fullscreen?'Exit fullscreen':'Fullscreen'} title={fullscreen?'Exit fullscreen':'Fullscreen'}>{fullscreen?'↙':'⛶'}</button>
       </header>
       {importError&&<div className="shrink-0 px-3 py-2 text-xs text-negative" role="alert">{importError}</div>}
@@ -612,7 +617,6 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
           <div className="shrink-0 flex items-center justify-between gap-3 px-3 py-1 border-b border-border">
             <div>
               <div className="flex items-center gap-2"><select aria-label="Execution market" value={selectedMarketKey} onChange={handleMarketChange} disabled={lockedMarket||historicalLoading||!availableMarkets.length} className="bg-bg-input rounded px-2 py-1 text-sm text-text-primary">{availableMarkets.map(m=><option key={m.key} value={m.key}>{m.label}</option>)}</select><span className="text-xs text-text-secondary">{intervalLabel} execution</span></div>
-              <div className="text-text-secondary text-xs">{currentCandle ? formatBarTime(currentCandle.time) : 'No data'} · {currentIndex + 1} / {candles.length} bars revealed</div>
             </div>
             <div className="text-right">
               <div className="font-mono text-text-primary text-lg">{formatPrice(currentPrice, spec.decimals)}</div>
@@ -625,6 +629,7 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
             ticker={ticker}
             fullHeight={true} captureRef={chartCaptureRef} restoreLayout={restartLayout || saved?.layout} onReady={setChartReady} onRestoreError={setImportError}
             timeframe={historicalTimeframe}
+            availableTimeframes={selectedMarket?.availableTimeframes}
             baseCandles={marketBaseCandles}
             replayTime={replayTime}
             baseTimeframe={baseTimeframe}
@@ -722,7 +727,7 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
             {!pendingOrder && orderType !== 'market' && <p className="text-xs text-text-secondary">{orderType === 'limit' ? 'Buy below · Sell above market' : 'Buy above · Sell below market'}{snapReplayPrice(orderPrice, spec) === currentPrice && currentPrice > 0 ? ' — adjust the order price' : ''}</p>}
             {pendingOrder && <div className="rounded-lg bg-bg-input p-3 text-xs space-y-2"><div className="flex justify-between"><span className="text-text-secondary">Pending {pendingOrder.type.replace('_', ' ')}</span><strong>{pendingOrder.direction.toUpperCase()} × {pendingOrder.quantity}</strong></div><div className="flex justify-between"><span className="text-text-secondary">Order price</span><span className="font-mono">{formatPrice(pendingOrder.triggerPrice, spec.decimals)}</span></div><button type="button" onClick={() => cancelPendingOrder(pendingOrder.id)} className="w-full py-2 rounded-lg bg-negative text-white text-sm font-semibold hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">Cancel pending order</button></div>}
             {position && <div className="space-y-2"><div className="rounded-lg bg-bg-input p-3 text-xs space-y-1"><div className="flex justify-between"><span className="text-text-secondary">Open position</span><strong className={position.direction === 'long' ? 'text-positive' : 'text-negative'}>{position.direction.toUpperCase()} × {position.quantity}</strong></div><div className="flex justify-between"><span className="text-text-secondary">Avg entry</span><span className="font-mono">{formatPrice(position.entryPrice, spec.decimals)}</span></div><div className="flex justify-between"><span className="text-text-secondary">Unrealized P/L</span><strong className={unrealizedPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(unrealizedPnl)}</strong></div>{position.fills?.some(fill => fill.kind === 'exit') && <div className="flex justify-between"><span className="text-text-secondary">Realized P/L</span><strong className={realizedOpenPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(realizedOpenPnl)}</strong></div>}</div>
-              <div className="flex gap-2"><button type="button" onClick={() => closeFromChart(position.id)} className="flex-1 py-2 rounded-lg bg-accent text-accent-text text-sm font-semibold">Close position</button><button type="button" title="Move stop to remaining average entry (rounded to a protective tick, before fees)" disabled={!canMoveToBreakeven(position, currentPrice, spec)} onClick={moveToBreakeven} className="px-5 py-2 rounded-lg border border-border text-sm font-semibold text-text-primary disabled:opacity-40">BE</button></div>
+              <div className="flex gap-2"><button type="button" onClick={() => closeFromChart(position.id)} className="flex-1 py-2 rounded-lg bg-accent text-accent-text text-sm font-semibold">Close position</button><button type="button" title="Move stop to remaining average entry (rounded to a protective tick, before fees)" disabled={!canMoveToBreakeven(position, currentPrice, spec)} onClick={moveToBreakeven} className="px-5 py-2 rounded-lg border border-border bg-bg-input text-sm font-semibold text-text-primary hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40 disabled:cursor-not-allowed">BE</button></div>
             </div>}
             {error && <p className="text-xs text-negative">{error}</p>}{message && <p className="text-xs text-text-secondary">{message}</p>}
           </div>
