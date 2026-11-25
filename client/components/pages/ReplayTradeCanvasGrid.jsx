@@ -118,7 +118,7 @@ const ReplayTradeCanvasGrid = ({
     const count=revealedCount(series.candles,series.baseTimeframe,liveRef.current.replayTime);
     const same=state.candles===series.candles&&state.symbol===symbol&&state.base===series.baseTimeframe;
     const previous=same?state.count||0:0;
-    if(force||jumped||!same||!previous||count<previous){
+    if(force||jumped||!same||count<previous||(!previous&&count>0)){
       loadReplayData(widget,toChartBars(series.candles,0,count),series.baseTimeframe,same&&!force&&previous>0);
       if(jumped&&count)widget.getChart().scrollToEnd();
     }else if(count>previous){
@@ -138,13 +138,14 @@ const ReplayTradeCanvasGrid = ({
     requestsRef.current.set(symbol,work);return work;
   };
   const rememberDrawings=(widget,symbol)=>{
-    if(symbol)drawingBankRef.current[symbol]=widget.getChart().getDrawings();
+    if(symbol)drawingBankRef.current[symbol]=JSON.parse(JSON.stringify(widget.getChart().getDrawings()));
   };
   const applySymbol=(widget,symbol)=>{
     const chart=widget.getChart(),market=marketFor(symbol),old=widgetStateRef.current.get(widget)||{};
+    if(old.symbol===symbol&&!old.loading)return;
     if(old.symbol&&old.symbol!==symbol&&restoredRef.current&&!old.loading)rememberDrawings(widget,old.symbol);
     const other=gridRef.current?.getWidgets().find(w=>w!==widget&&w.getSymbol()===symbol&&!widgetStateRef.current.get(w)?.loading);
-    chart.setDrawings(other?other.getChart().getDrawings():drawingBankRef.current[symbol]||[]);
+    chart.setDrawings(JSON.parse(JSON.stringify(other?other.getChart().getDrawings():drawingBankRef.current[symbol]||[])));
     chart.setOrders([]);chart.setPositions([]);
     chart.setFeatures({trading:symbol===liveRef.current.executionSymbol});
     const source=seriesFor(symbol);
@@ -155,7 +156,11 @@ const ReplayTradeCanvasGrid = ({
     void widget.setHostTimeframes(intervals.menu,intervals.initial);
     const token={symbol,loading:!source,previous:old.loading?old.previous:old.symbol};
     widgetStateRef.current.set(widget,token);
-    if(source){syncData(widget,true);setGridRevision(v=>v+1);return;}
+    if(source){
+      syncData(widget,true);setGridRevision(v=>v+1);
+      if(!gridRef.current?.getWidgets().some(w=>widgetStateRef.current.get(w)?.loading))setContextStatus('');
+      return;
+    }
     setContextStatus('Loading '+(market?.label||symbol)+' historical data…');setContextError('');
     void loadMarket(symbol).then(()=>{
       if(!gridRef.current?.getWidgets().includes(widget)||widgetStateRef.current.get(widget)!==token)return;
@@ -181,7 +186,9 @@ const ReplayTradeCanvasGrid = ({
       if(!series)throw Error('Missing historical context source: '+symbol);
       sources[symbol]={marketKey:series.market.key,baseTimeframe:series.baseTimeframe,fingerprint:series.fingerprint};
     }
-    return cleanReplayLayout(raw,liveRef.current.executionSymbol,liveRef.current.markets,drawingBankRef.current,grid.getWidgets().length,sources);
+    const layout=cleanReplayLayout(raw,liveRef.current.executionSymbol,liveRef.current.markets,drawingBankRef.current,grid.getWidgets().length,sources);
+    drawingBankRef.current=Object.assign(Object.create(null),layout.rrDrawings);
+    return layout;
   };
   const layoutChoices = [
     '1x1',
@@ -227,6 +234,12 @@ const ReplayTradeCanvasGrid = ({
       sharedDrawingTools: true,
       sync: { symbol: false, interval: false, crosshair: true, time: false, drawings: true, replay: false },
       onChartSymbolChange: (widget,symbol)=>applySymbol(widget,symbol),
+      onChartUnpark: widget=>{
+        const symbol=widget.getSymbol();
+        const peers=gridRef.current?.getWidgets().filter(w=>w!==widget&&w.getSymbol()===symbol)||[];
+        if(!peers.length&&Object.hasOwn(drawingBankRef.current,symbol))widget.getChart().setDrawings(JSON.parse(JSON.stringify(drawingBankRef.current[symbol])));
+        setGridRevision(v=>v+1);
+      },
       onChartMenuItems: (widget,context)=>isExecution(widget)?guardMenuItems(interactionRef.current.chartMenuItems(context),()=>isExecution(widget)):[],
       onActiveChange: index => {
         setActiveChart(index);
@@ -262,6 +275,10 @@ const ReplayTradeCanvasGrid = ({
         chart.on('orderCancel', event => {if(isExecution(widget))interactionRef.current.onOrderCancel(event.payload);});
         chart.on('positionModify', event => {if(isExecution(widget))interactionRef.current.onPositionModify(event.payload);});
         chart.on('positionClose', event => {if(isExecution(widget))interactionRef.current.onPositionClose(event.payload);});
+        if(Object.hasOwn(drawingBankRef.current,widget.getSymbol()))chart.setDrawings(JSON.parse(JSON.stringify(drawingBankRef.current[widget.getSymbol()])));
+        for(const event of ['drawingCreate','drawingUpdate','drawingRemove'])chart.on(event,()=>{
+          if(restoredRef.current&&!widgetStateRef.current.get(widget)?.loading)rememberDrawings(widget,widget.getSymbol());
+        });
         syncData(widget,true);
         setGridRevision(value => value + 1);
       },
@@ -294,7 +311,9 @@ const ReplayTradeCanvasGrid = ({
           const symbols=layoutSymbols(restoreLayout,executionSymbol);
           await Promise.all(symbols.filter(s=>s!==executionSymbol).map(async symbol=>{
             const series=await loadMarket(symbol);
-            verifyContextSource(series,restoreLayout.rrContextSources?.[symbol]);
+            const savedSource=restoreLayout.rrContextSources?.[symbol];
+            if(!savedSource)throw Error('Saved context source provenance is missing: '+symbol);
+            verifyContextSource(series,savedSource);
           }));
           if(gridRef.current!==grid)return;
           const layout=cleanReplayLayout(restoreLayout,executionSymbol,markets,restoreLayout.rrDrawings||{},restoreLayout.cells.length,restoreLayout.rrContextSources||{});

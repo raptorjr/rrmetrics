@@ -147,4 +147,5 @@ test('installed chart package supports independent static replay markets',()=>{
   assert.equal(typeof ChartWidget.prototype.setHostTimeframes,'function');
   assert.match(String(ChartWidgetGrid),/onChartSymbolChange/);
   assert.match(String(ChartWidgetGrid),/onChartMenuItems/);
+  assert.match(String(ChartWidgetGrid),/onChartUnpark/);
 });

@@ -26,7 +26,7 @@ function canTradeReplayChart(widget,executionSymbol,liveWidgets) {
   return Boolean(widget&&widget.getSymbol()===executionSymbol&&liveWidgets.includes(widget));
 }
 function guardMenuItems(items,allowed) {
-  return items.map(item=>({...item,onSelect:()=>{if(allowed())item.onSelect();},
+  return items.map(item=>({...item,onSelect:()=>{if(allowed())item.onSelect?.();},
     ...(item.submenu?{submenu:guardMenuItems(item.submenu,allowed)}:{})}));
 }
 function layoutSymbols(layout,executionSymbol) {
@@ -42,7 +42,7 @@ function cleanReplayLayout(layout,executionSymbol,markets,bank={},visibleCount=l
     if(!allowed.has(symbol))throw Error('Saved chart market is unavailable: '+symbol);
     return {...cell,symbol,chart:cell.chart?{...cell.chart,symbol,orders:[],positions:[]}:null};
   });
-  const drawings={...bank};
+  const drawings=Object.assign(Object.create(null),bank);
   for(const symbol of new Set(cells.map(cell=>cell.symbol))){
     const same=cells.filter(cell=>cell.symbol===symbol&&cell.chart);
     const live=cells.slice(0,visibleCount).filter(cell=>cell.symbol===symbol&&cell.chart);

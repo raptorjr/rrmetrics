@@ -42,3 +42,11 @@ test('context requests use exact contract and validate saved provenance',async()
   assert.doesNotThrow(()=>verifyContextSource(series,{marketKey:markets[1].key,baseTimeframe:'1m',fingerprint:'a'.repeat(64)}));
   assert.throws(()=>verifyContextSource(series,{marketKey:markets[1].key,baseTimeframe:'1m',fingerprint:'b'.repeat(64)}),/changed/);
 });
+
+
+test('drawings from a parked symbol survive separately from an active symbol',()=>{
+  const raw={rrMultiSymbol:true,active:0,sync:{drawings:true},cells:[{symbol:gold,chart:{drawings:[]}},{symbol:nasdaq,chart:{drawings:[{id:'older'}]}}]};
+  const saved=cleanReplayLayout(raw,gold,markets,{[nasdaq]:[{id:'latest'}]},1);
+  assert.deepEqual(saved.cells[0].chart.drawings,[]);
+  assert.deepEqual(saved.cells[1].chart.drawings,[{id:'latest'}]);
+});

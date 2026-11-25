@@ -107,3 +107,13 @@ test('restart clears only drawings and host viewport while retaining chart layou
   const reset=resetReplayChartLayout(original);
   assert.deepEqual(reset.cells[0].chart,{drawings:[],indicators:[{id:'ema'}]});assert.equal(reset.cells[0].timeframe,'5m');assert.equal(original.cells[0].chart.drawings.length,1);
 });
+
+
+test('restart clears the independent per-symbol drawing bank',()=>{
+  const {resetReplayChartLayout}=require('./historicalReplay');
+  const layout={rrMultiSymbol:true,rrDrawings:{MGC:[{id:'a'}],MNQ:[{id:'b'}]},rrContextSources:{MNQ:{fingerprint:'source'}},cells:[{chart:{drawings:[{id:'a'}]}}]};
+  const restarted=resetReplayChartLayout(layout);
+  assert.deepEqual(restarted.rrDrawings,{});
+  assert.deepEqual(restarted.rrContextSources,layout.rrContextSources);
+  assert.deepEqual(restarted.cells[0].chart.drawings,[]);
+});

@@ -90,3 +90,5 @@ The interval selector is restricted to resolutions that can be reconstructed fro
 ## Independent chart markets
 
 Use the symbol selector in each chart to choose a historical market covering the session range. The execution instrument is selected separately above the grid and remains locked once the session starts. Each panel uses its own source contract/base resolution and compatible interval menu; all reveal only fully elapsed source bars at the common execution-clock timestamp. Context panels cannot submit, drag, modify or close execution orders. Same-contract drawings sync; other contracts keep independent drawings. Context data loads on demand and its provenance is saved alongside the grid. Restoring a missing or changed context source reports an error without replacing saved trades. Browser validation remains required.
+
+The drawing bank also retains drawings for markets temporarily absent from the visible layout; re-expanding parked panels restores the latest same-symbol drawings. A session restart clears that bank and all chart drawings, without changing context source selections.
