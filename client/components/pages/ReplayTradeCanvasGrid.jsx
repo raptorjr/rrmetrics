@@ -78,7 +78,7 @@ const ReplayTradeCanvasGrid = ({
     const layout = contextTimeframes.length === 0 ? '1x1'
       : contextTimeframes.length === 1 ? '1x2' : '1x3';
     if (grid.getLayout() !== layout) grid.setLayout(layout);
-  }, [contextTimeframes.join('|')]);
+  }, [contextTimeframes.join('|'), gridRevision]);
 
   const visibleBars = useMemo(() => {
     if (!baseTimeframe || !replayTime) return [];
