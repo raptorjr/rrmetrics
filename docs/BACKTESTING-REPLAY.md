@@ -66,3 +66,7 @@ Historical source files and normalized datasets are managed by the central Histo
 Provider-specific parsing must normalize into a common market-data contract.
 
 Never commit user-purchased or provider-supplied historical datasets to this public repository. Keep test fixtures synthetic or otherwise explicitly redistributable.
+
+## Durable replay sessions V1
+
+Replay sessions are separate from the manual journal and broker data. Create a session with a covered historical period and starting balance. The first supported market is selected automatically; the source resolution drives the execution clock. The entire workspace opens edge-to-edge, with a compact account header and fullscreen. Save & exit waits for a revision-checked SQLite checkpoint; autosave polls meaningful state every 2.5 seconds. Completed round trips are stored separately and transactionally with checkpoints. Resume pauses at the saved candle and restores the captured grid and horizontal visible ranges; source fingerprint changes prevent resume. Independent symbols, market selection inside the chart, Dashboard account switching, manual vertical viewport verification and full browser round-trip tests remain outstanding. Do not reset or rewrite a durable trade history.
