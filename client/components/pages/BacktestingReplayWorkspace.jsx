@@ -1,6 +1,7 @@
 const React = require('react');
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
 const { createPortal } = require('react-dom');
+const { replayDatePopupPosition } = require('../../utils/replayDatePopup');
 const { authFetch } = require('../../helper.js');
 const ReplayTradeCanvasGrid = require('./ReplayTradeCanvasGrid').default;
 const {
@@ -69,14 +70,27 @@ const formatDisplayDateTimeInput = value => {
 
 const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeFormat }) => {
   const [open, setOpen] = useState(false);
-  const pickerRef = useRef(null);
+  const pickerRef = useRef(null), popupRef=useRef(null), triggerRef=useRef(null);
+  const [popupStyle,setPopupStyle]=useState({visibility:'hidden'});
+  React.useLayoutEffect(()=>{
+    if(!open)return;
+    const place=()=>{
+      const trigger=triggerRef.current,popup=popupRef.current;
+      if(!trigger||!popup)return;
+      setPopupStyle(replayDatePopupPosition(trigger.getBoundingClientRect(),popup.scrollHeight,window.innerWidth,window.innerHeight));
+    };
+    place();window.addEventListener('resize',place);window.addEventListener('scroll',place,true);
+    const observer=typeof ResizeObserver!=='undefined'?new ResizeObserver(place):null;
+    if(observer&&popupRef.current)observer.observe(popupRef.current);
+    return()=>{window.removeEventListener('resize',place);window.removeEventListener('scroll',place,true);observer?.disconnect();};
+  },[open]);
   useEffect(() => {
     if (!open) return undefined;
     const handlePointerDown = event => {
-      if (!pickerRef.current?.contains(event.target)) setOpen(false);
+      if (!pickerRef.current?.contains(event.target)&&!popupRef.current?.contains(event.target)) setOpen(false);
     };
     const handleKeyDown = event => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') {setOpen(false);triggerRef.current?.focus();}
     };
     document.addEventListener('pointerdown', handlePointerDown);
     document.addEventListener('keydown', handleKeyDown);
@@ -99,7 +113,6 @@ const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeForma
   const day = parts ? Number(parts[3]) : 1;
   const hour = parts ? Number(parts[4]) : 0;
   const minute = parts ? Number(parts[5]) : 0;
-  const second = parts ? Number(parts[6] || 0) : 0;
   const selectedDate = String(year).padStart(4, '0') + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
   const minDate = min ? min.slice(0, 10) : '';
   const maxDate = max ? max.slice(0, 10) : '';
@@ -112,7 +125,7 @@ const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeForma
   const calendarCells = [...Array(firstWeekday).fill(null), ...Array.from({ length: daysInMonth }, (_, index) => index + 1)];
   while (calendarCells.length % 7) calendarCells.push(null);
   const pad = number => String(number).padStart(2, '0');
-  const candidate = (nextDate, nextHour = hour, nextMinute = minute, nextSecond = second) => nextDate + 'T' + pad(nextHour) + ':' + pad(nextMinute) + ':' + pad(nextSecond);
+  const candidate = (nextDate, nextHour = hour, nextMinute = minute) => nextDate + 'T' + pad(nextHour) + ':' + pad(nextMinute) + ':00';
   const isAllowed = nextValue => (!min || nextValue >= min) && (!max || nextValue <= max);
   const update = nextValue => { if (isAllowed(nextValue)) onChange(nextValue); };
   const changeDate = nextDay => {
@@ -122,7 +135,7 @@ const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeForma
     if (max && nextValue > max) nextValue = max;
     update(nextValue);
   };
-  const setTime = (nextHour, nextMinute = minute, nextSecond = second) => update(candidate(selectedDate, nextHour, nextMinute, nextSecond));
+  const setTime = (nextHour, nextMinute = minute) => update(candidate(selectedDate, nextHour, nextMinute));
   const displayDate = (() => {
     if (!parts) return 'Select date and time';
     const date = new Date(Date.UTC(year, month - 1, day));
@@ -141,10 +154,10 @@ const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeForma
   const monthStepAllowed = direction => monthIndex + direction >= minMonth && monthIndex + direction <= maxMonth;
   return (
     <div ref={pickerRef} className="relative">
-      <button type="button" onClick={() => setOpen(current => !current)} className="w-full text-left bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary" aria-expanded={open}>
+      <button ref={triggerRef} type="button" onClick={() => {if(!open)setPopupStyle({visibility:'hidden'});setOpen(current => !current);}} className="w-full text-left bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary" aria-expanded={open}>
         {parts ? (displayDate + ' ' + (timeFormat === '24h' ? pad(hour) + ':' + pad(minute) : pad(displayHour) + ':' + pad(minute) + ' ' + (hour >= 12 ? 'PM' : 'AM'))) : 'Select date and time'}
       </button>
-      {open && <div className="absolute z-50 top-full left-0 mt-2 w-[min(100%,22rem)] min-w-[20rem] rounded-xl border border-border bg-bg-surface shadow-2xl p-3" role="dialog" aria-label="Choose date and time">
+      {open && createPortal(<div ref={popupRef} style={popupStyle} className="fixed z-[1100] rounded-xl border border-border bg-bg-surface shadow-2xl p-3 overflow-y-auto text-text-primary" role="dialog" aria-label="Choose date and time">
         <div className="flex items-center justify-between mb-3">
           <button type="button" disabled={!monthStepAllowed(-1)} onClick={() => setVisibleMonth(new Date(Date.UTC(visibleMonth.getUTCFullYear(), visibleMonth.getUTCMonth() - 1, 1)))} className="px-2 py-1 rounded hover:bg-bg-input disabled:opacity-30" aria-label="Previous month">‹</button>
           <div className="text-sm font-semibold text-text-primary">{monthLabel}</div>
@@ -162,7 +175,7 @@ const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeForma
         </div>
         <div className="border-t border-border mt-3 pt-3">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-text-secondary mb-2">Time · {timeFormat === '24h' ? '24-hour' : '12-hour'}</div>
-          <div className="grid gap-2 items-center" style={{ gridTemplateColumns: timeFormat === '24h' ? '1fr auto 1fr auto 1fr' : '1fr auto 1fr auto 1fr auto' }}>
+          <div className="grid gap-2 items-center" style={{ gridTemplateColumns: timeFormat === '24h' ? '1fr auto 1fr' : '1fr auto 1fr 1fr' }}>
             <select aria-label="Hour" value={displayHour} onChange={event => setHourDisplay(Number(event.target.value))} className="min-w-0 bg-bg-input border border-border rounded-md px-2 py-2 text-sm text-text-primary">
               {(timeFormat === '24h' ? Array.from({length:24},(_,i)=>i) : Array.from({length:12},(_,i)=>i+1)).map(value => <option key={value} value={value}>{pad(value)}</option>)}
             </select>
@@ -170,15 +183,11 @@ const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeForma
             <select aria-label="Minute" value={minute} onChange={event => setTime(hour,Number(event.target.value))} className="min-w-0 bg-bg-input border border-border rounded-md px-2 py-2 text-sm text-text-primary">
               {Array.from({length:60},(_,i)=>i).map(value => <option key={value} value={value}>{pad(value)}</option>)}
             </select>
-            <span className="text-text-secondary">:</span>
-            <select aria-label="Second" value={second} onChange={event => setTime(hour,minute,Number(event.target.value))} className="min-w-0 bg-bg-input border border-border rounded-md px-2 py-2 text-sm text-text-primary">
-              {Array.from({length:60},(_,i)=>i).map(value => <option key={value} value={value}>{pad(value)}</option>)}
-            </select>
             {timeFormat !== '24h' && <select aria-label="AM or PM" value={hour >= 12 ? 'PM' : 'AM'} onChange={event => setPeriod(event.target.value)} className="min-w-0 bg-bg-input border border-border rounded-md px-2 py-2 text-sm text-text-primary"><option>AM</option><option>PM</option></select>}
           </div>
         </div>
-        <div className="flex justify-end mt-3"><button type="button" onClick={() => setOpen(false)} className="px-3 py-1.5 rounded-md text-xs font-medium bg-bg-input text-text-primary hover:bg-bg-page">Done</button></div>
-      </div>}
+        <div className="flex justify-end mt-3"><button type="button" onClick={() => {setOpen(false);triggerRef.current?.focus();}} className="px-3 py-1.5 rounded-md text-xs font-medium bg-bg-input text-text-primary hover:bg-bg-page">Done</button></div>
+      </div>,document.body)}
     </div>
   );
 };

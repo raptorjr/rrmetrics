@@ -117,3 +117,20 @@ test('restart clears the independent per-symbol drawing bank',()=>{
   assert.deepEqual(restarted.rrContextSources,layout.rrContextSources);
   assert.deepEqual(restarted.cells[0].chart.drawings,[]);
 });
+
+test('clickable replay ranges group identical market coverage and round inward to minute precision',()=>{
+  const {replaySessionRangeChoices,getSessionMarkets}=require('./historicalReplay');
+  const row=(instrument,timeframe,start_time,end_time)=>({instrument,timeframe,start_time,end_time,data_kind:'ohlcv'});
+  const datasets=[
+    row('MGC','10s','2026-11-02T00:00:10Z','2026-11-23T05:32:50Z'),
+    row('NQ','1m','2026-11-09T00:00:00Z','2026-11-09T23:59:00Z'),
+    row('ES','1m','2026-11-09T00:00:00Z','2026-11-09T23:59:00Z'),
+  ];
+  const ranges=replaySessionRangeChoices(datasets);
+  assert.equal(ranges.length,2);
+  assert.equal(ranges[0].start,Date.parse('2026-11-02T00:01:00Z'));
+  assert.equal(ranges[0].end,Date.parse('2026-11-23T05:32:00Z'));
+  assert.deepEqual(ranges[1].sourceLabels,['ES','NQ']);
+  assert.deepEqual(ranges[1].eligibleLabels,['ES','MGC','NQ']);
+  assert.deepEqual(getSessionMarkets(datasets,Date.parse('2026-11-08T23:00:00Z'),ranges[1].end).map(m=>m.instrument),['MGC']);
+});
