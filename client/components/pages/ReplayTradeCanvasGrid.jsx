@@ -12,6 +12,22 @@ const toBars = candles => candles.map(bar => ({
   volume: Number(bar.volume || 0),
 }));
 
+const appendDataKeepingReplayViewport = (widget, additions, visibleBars, baseTimeframe) => {
+  const chart = widget.getChart();
+  const visible = chart.getVisibleTimeRange?.();
+  if (typeof widget.appendDataBar === 'function') {
+    additions.forEach(bar => widget.appendDataBar(bar));
+  } else {
+    // Keep compatibility with package builds without incremental replay updates.
+    widget.setData(visibleBars, baseTimeframe);
+  }
+  // Appending bars can auto-scroll the chart to the newest candle. Restore the
+  // exact viewport so playback advances without moving the user's chosen view.
+  if (visible && typeof chart.setVisibleRange === 'function' && visible.to >= visible.from) {
+    chart.setVisibleRange(visible.from, visible.to);
+  }
+};
+
 const setDataKeepingReplayViewport = (widget, data, baseTimeframe, previousBars) => {
   const chart = widget.getChart();
   const visible = chart.getVisibleTimeRange?.();
@@ -140,13 +156,7 @@ const ReplayTradeCanvasGrid = ({
     } else if (visibleBars.length > previous.length) {
       const additions = visibleBars.slice(previous.length);
       grid.getWidgets().forEach(widget => {
-        if (typeof widget.appendDataBar === 'function') {
-          additions.forEach(bar => widget.appendDataBar(bar));
-        } else {
-          // Compatibility with chart package builds that expose setData but
-          // do not yet expose the incremental replay method.
-          widget.setData(visibleBars, baseTimeframe);
-        }
+        appendDataKeepingReplayViewport(widget, additions, visibleBars, baseTimeframe);
       });
     }
     barsRef.current = visibleBars;
