@@ -18,3 +18,10 @@ test('installed TradeCanvas supports the host-owned replay viewport', () => {
   const { Chart } = require('@tradecanvas/chart');
   assert.equal(typeof Chart.prototype.setHostReplayViewport, 'function');
 });
+
+test('installed TradeCanvas exposes the native trading overlay and intent API', () => {
+  const { Chart } = require('@tradecanvas/chart');
+  for (const method of ['setOrders', 'setPositions', 'setTradingConfig', 'modifyPositionIntent', 'cancelOrderIntent', 'closePositionIntent']) {
+    assert.equal(typeof Chart.prototype[method], 'function', method);
+  }
+});

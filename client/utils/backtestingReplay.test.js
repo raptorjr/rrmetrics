@@ -113,3 +113,25 @@ test('pending entries and right click choices respect the replay market price', 
   assert.ok(validateReplayEntry('long', 'stop_market', 105, 106));
   assert.equal(snapReplayPrice(100.13, { tickSize: .25, decimals: 2 }), 100.25);
 });
+
+test('BE can create a stop but never loosens an already profitable stop', () => {
+  const spec = { tickSize: .25, decimals: 2 };
+  const position = { direction: 'long', entryPrice: 100, stopPrice: null, targetPrice: 120, initialRiskPoints: null };
+  assert.equal(canMoveToBreakeven(position, 100), false);
+  assert.equal(canMoveToBreakeven(position, 99), false);
+  assert.equal(canMoveToBreakeven(position, 100.25), true);
+  const result = updateReplayLevels(position, { stopPrice: 100 }, 100.25, spec).position;
+  assert.equal(result.stopPrice, 100);
+  assert.equal(result.targetPrice, 120);
+  assert.equal(result.initialRiskPoints, null);
+  assert.equal(canMoveToBreakeven({ ...position, stopPrice: 102 }, 110), false);
+});
+test('first protective stop fixes R and below-market choices are correct', () => {
+  const spec = { tickSize: .25, decimals: 2 };
+  const position = { direction: 'short', entryPrice: 100, stopPrice: null, targetPrice: null };
+  const first = updateReplayLevels(position, { stopPrice: 105 }, 98, spec).position;
+  assert.equal(first.initialRiskPoints, 5);
+  const next = updateReplayLevels(first, { stopPrice: 99 }, 97, spec).position;
+  assert.equal(next.initialRiskPoints, 5);
+  assert.deepEqual(replayOrderMenu(95, 100, [1, 2], 1, String, () => {}).map(x => x.label), ['Market Buy', 'Market Sell', 'Limit Buy @ 95', 'Stop Sell @ 95']);
+});

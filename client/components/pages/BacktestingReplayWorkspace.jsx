@@ -508,9 +508,33 @@ const BacktestingReplayWorkspace = () => {
 
   const chartMenuItems = (context) => {
     const candle = latestCandle();
-    if (historicalLoading || !candle || positionRef.current || pendingOrderRef.current || context.price == null) return [];
-    return replayOrderMenu(snapReplayPrice(context.price, spec), candle.close, quantityPresets, quantity,
-      price => formatPrice(price, spec.decimals), order => openPosition(order.direction, order));
+    if (historicalLoading || !candle || context.price == null) return [];
+    const price = snapReplayPrice(context.price, spec);
+    if (!Number.isFinite(price) || price <= 0) return [];
+    const active = positionRef.current, pending = pendingOrderRef.current;
+    if (active) {
+      const items = [];
+      if (price !== candle.close) {
+        const stopSide = active.direction === 'long' ? price < candle.close : price > candle.close;
+        const field = stopSide ? 'stopPrice' : 'targetPrice';
+        const label = stopSide ? 'Stop loss' : 'Take profit';
+        items.push({ label: (active[field] == null ? 'Set ' : 'Move ') + label + ' @ ' + formatPrice(price, spec.decimals),
+          onSelect: () => applyPositionLevels(active.id, { [field]: price }) });
+      }
+      if (canMoveToBreakeven(active, candle.close)) items.push({ label: 'Move stop to BE', onSelect: () => {
+        const current = positionRef.current;
+        if (current?.id === active.id) moveToBreakeven();
+      } });
+      items.push({ label: 'Close position at market', onSelect: () => closeFromChart(active.id) });
+      return items;
+    }
+    if (pending) return [{ label: 'Cancel pending order', onSelect: () => cancelPendingOrder(pending.id) }];
+    // A menu opened on a previous market/session must not submit after data changes.
+    const sessionBars = candlesRef.current;
+    return replayOrderMenu(price, candle.close, quantityPresets, quantity,
+      value => formatPrice(value, spec.decimals), order => {
+        if (candlesRef.current === sessionBars) openPosition(order.direction, order);
+      });
   };
 
   const resetReplay = () => {
