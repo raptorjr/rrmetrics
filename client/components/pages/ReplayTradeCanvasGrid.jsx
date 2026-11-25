@@ -71,6 +71,15 @@ const ReplayTradeCanvasGrid = ({
     contextTimeframesRef.current = contextTimeframes;
   }, [contextTimeframes.join('|')]);
 
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    // The timeframe chips determine the number of visible replay charts.
+    const layout = contextTimeframes.length === 0 ? '1x1'
+      : contextTimeframes.length === 1 ? '1x2' : '1x3';
+    if (grid.getLayout() !== layout) grid.setLayout(layout);
+  }, [contextTimeframes.join('|')]);
+
   const visibleBars = useMemo(() => {
     if (!baseTimeframe || !replayTime) return [];
     const interval = timeframeSeconds(baseTimeframe);
