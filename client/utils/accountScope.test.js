@@ -19,3 +19,11 @@ test('account mode never mixes real and replay records, even for All and matchin
   assert.equal(calculateAnalytics(filterAccountDomain(all,'backtesting',[])).totalPL,20);
   assert.deepEqual(filterReplayAccounts([{key:'replay::a'},{key:'replay::empty'}],['replay::empty']),[{key:'replay::empty'}]);
 });
+
+
+test('an explicit empty or missing replay selection never becomes All',()=>{
+ const accounts=[{key:'replay::current',name:'Current'}];
+ assert.deepEqual(filterReplayAccounts(accounts,['replay::removed']),[]);
+ assert.deepEqual(filterReplayAccounts(accounts,[NO_ACCOUNTS]),[]);
+ assert.deepEqual(filterReplayAccounts(accounts,[]),accounts);
+});

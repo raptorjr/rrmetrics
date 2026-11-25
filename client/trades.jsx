@@ -1,7 +1,7 @@
 const helper = require('./helper.js');
 const { authFetch } = helper;
 const React = require('react');
-const { NO_ACCOUNTS, getTradeAccountKey, getTradeAccountEntries } = require('./utils/accountIdentity');
+const { NO_ACCOUNTS, getTradeAccountEntries } = require('./utils/accountIdentity');
 const { useState, useEffect } = React;
 const useAccountScope=require('./utils/useAccountScope');
 const {filterAccountDomain,filterReplayAccounts,analyticsPage,tradingPage}=require('./utils/accountScope');
@@ -95,15 +95,20 @@ const App = () => {
     setCurrentPage(page);
   };
   const changeMode=next=>{
+    if(next==='backtesting'){setIsFormOpen(false);setEditingTrade(null);setPrefillDate(null);}
     scope.setMode(next);
     if(next==='backtesting'&&!analyticsPage(currentPage))setCurrentPage('dashboard');
   };
-  const showStatistics=id=>{scope.selectReplay(id);setCurrentPage('dashboard');};
+  const showStatistics=id=>{setIsFormOpen(false);setEditingTrade(null);setPrefillDate(null);scope.selectReplay(id);setCurrentPage('dashboard');};
   useEffect(()=>{
     if(!scope.ready||!trades?.length||!selectedAccounts.length||selectedAccounts.includes(NO_ACCOUNTS))return;
     const entries=getTradeAccountEntries(trades,accountBrokers);
     const keys=new Set(entries.map(a=>a.key));
-    const cleaned=[...new Set(selectedAccounts.flatMap(value=>keys.has(value)?[value]:entries.filter(a=>a.name===value).map(a=>a.key)))];
+    const cleaned=[...new Set(selectedAccounts.flatMap(value=>{
+      if(keys.has(value)||value.includes('::'))return [value];
+      const matches=entries.filter(a=>a.name===value).map(a=>a.key);
+      return matches.length?matches:[value];
+    }))];
     if(cleaned.length!==selectedAccounts.length||cleaned.some((v,i)=>v!==selectedAccounts[i]))setSelectedAccounts(cleaned.length?cleaned:[NO_ACCOUNTS]);
   },[scope.ready,trades,accountBrokers,selectedAccounts]);
 

@@ -5,7 +5,7 @@ const {NO_ACCOUNTS}=require('./accountIdentity');
 const {emptyReplay}=require('./accountScope');
 const url='/api/backtesting/account-view';
 const defaults=()=>{
-  let trading=[];try{const saved=JSON.parse(localStorage.getItem('rrmetrics_selectedAccounts'));if(Array.isArray(saved))trading=saved.filter(x=>typeof x==='string'&&!x.startsWith('replay::'));}catch{}
+  let trading=[];try{const saved=JSON.parse(localStorage.getItem('rrmetrics_selectedAccounts'));if(Array.isArray(saved))trading=saved.filter(x=>typeof x==='string'&&x.length>0&&x.length<=512&&!x.startsWith('replay::')).slice(0,10000);}catch{}
   if(trading.includes(NO_ACCOUNTS))trading=[NO_ACCOUNTS];
   return {version:1,mode:'trading',trading,backtesting:[]};
 };
@@ -21,9 +21,11 @@ function useAccountScope(page){
   const queue=useRef(Promise.resolve()),generation=useRef(0);
   useEffect(()=>{
     let active=true;setReady(false);setLoadError('');
-    request(url).then(data=>{
+    request(url).then(async data=>{
       if(!active)return;
-      const next=data.settings||defaults();settingsRef.current=next;setSettings(next);setReady(true);
+      const next=data.settings||(await request(url+'?initialize=1',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(defaults())})).settings;
+      if(!active)return;
+      settingsRef.current=next;setSettings(next);setReady(true);
     }).catch(e=>{if(active)setLoadError(e.message);});
     return()=>{active=false;};
   },[reload]);
@@ -41,11 +43,11 @@ function useAccountScope(page){
     settingsRef.current=next;setSettings(next);persist(next);
   };
   const setSelection=(mode,value)=>update(old=>({...old,[mode]:typeof value==='function'?value(old[mode]):value}));
-  const setMode=mode=>update(old=>({...old,mode}));
+  const setMode=mode=>{if(mode!==settingsRef.current.mode||mode==='backtesting')setRefresh(n=>n+1);update(old=>({...old,mode}));};
   const selectReplay=id=>{update(old=>({...old,mode:'backtesting',backtesting:['replay::'+id]}));setRefresh(n=>n+1);};
   // Tag responses with the requested page/mode, so no previous-mode result is
   // displayed while a fresh request is pending. Errors never fall back to trading.
-  const key=page+'|'+settings.mode+'|'+refresh;
+  const key=page+'|'+settings.mode+'|'+refresh+'|'+reload;
   const [replay,setReplay]=useState({key:'',data:emptyReplay(),error:''});
   useEffect(()=>{
     if(!ready||settings.mode!=='backtesting')return;

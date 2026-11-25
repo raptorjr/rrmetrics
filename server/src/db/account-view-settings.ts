@@ -18,3 +18,10 @@ export function readAccountView(db:Db,owner:string):AccountViewSettings|null{
 export function saveAccountView(db:Db,owner:string,value:AccountViewSettings){
   db.prepare('INSERT INTO account_view_settings(user_id,settings_json,updated_at) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET settings_json=excluded.settings_json,updated_at=excluded.updated_at').run(owner,JSON.stringify(value),new Date().toISOString());
 }
+
+export function initializeAccountView(db:Db,owner:string,value:AccountViewSettings){
+  return db.transaction(()=>{
+    db.prepare('INSERT OR IGNORE INTO account_view_settings(user_id,settings_json,updated_at) VALUES(?,?,?)').run(owner,JSON.stringify(value),new Date().toISOString());
+    return readAccountView(db,owner)!;
+  })();
+}

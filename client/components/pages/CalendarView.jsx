@@ -333,7 +333,7 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, strategyRules, onOpenAddTrade, onEditTrade, sidebarCollapsed,readOnly=false }) => {
   const [viewMode, setViewMode] = useState('daily'); // 'daily' | 'heatmap' | 'monthly' | 'yearly'
-  const [currentDate, setCurrentDate] = useState(()=>readOnly&&trades.length?new Date(Math.max(...trades.map(t=>new Date(t.exitTime).getTime()))):new Date());
+  const [currentDate, setCurrentDate] = useState(()=>readOnly&&trades.length?new Date(trades.reduce((latest,t)=>Math.max(latest,new Date(t.exitTime).getTime()),-Infinity)):new Date());
   const [selectedDay, setSelectedDay] = useState(null);
   const [selectedNoteDate, setSelectedNoteDate] = useState(null);
   const dailyData = groupTradesByDate(trades);
@@ -451,8 +451,8 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
           dailyData={dailyData}
           onSelectDay={setSelectedDay}
           onOpenNote={readOnly?undefined:setSelectedNoteDate}
-          dailyNotes={dailyNotes}
-          onOpenAddTrade={onOpenAddTrade}
+          dailyNotes={readOnly?[]:dailyNotes}
+          onOpenAddTrade={readOnly?undefined:onOpenAddTrade}
         />
       )}
 
@@ -488,12 +488,12 @@ const CalendarView = ({ trades, dailyNotes, onSaveNote, onDeleteNote, tags, stra
           dateKey={selectedDay}
           dayData={dailyData[selectedDay] || { totalPL: 0, tradeCount: 0, trades: [] }}
           onClose={() => setSelectedDay(null)}
-          dailyNotes={dailyNotes}
-          onSaveNote={onSaveNote}
-          onDeleteNote={onDeleteNote}
-          tags={tags}
-          strategyRules={strategyRules}
-          onEditTrade={onEditTrade}
+          dailyNotes={readOnly?[]:dailyNotes}
+          onSaveNote={readOnly?undefined:onSaveNote}
+          onDeleteNote={readOnly?undefined:onDeleteNote}
+          tags={readOnly?[]:tags}
+          strategyRules={readOnly?[]:strategyRules}
+          onEditTrade={readOnly?undefined:onEditTrade}
           sidebarCollapsed={sidebarCollapsed}
         />
       )}

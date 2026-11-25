@@ -35,9 +35,14 @@ test('persistent replay accounts resume across clients, isolate trades and rejec
     assert.equal(emptyAnalytics.accounts.length,2);assert.equal(emptyAnalytics.trades.length,0);
     assert.deepEqual(await (await other.request(analyticsUrl)).json(),{accounts:[],trades:[]});
     const settings={version:1,mode:'backtesting',trading:['manual::Practice'],backtesting:['replay::'+session.id]};
-    assert.equal((await write(desktop,viewUrl,'PUT',settings)).status,200);
+    assert.equal((await write(desktop,viewUrl+'?initialize=1','PUT',settings)).status,200);
+    const attemptedInit=await write(laptop,viewUrl+'?initialize=1','PUT',{...settings,mode:'trading',backtesting:[]});
+    assert.deepEqual(await attemptedInit.json(),{settings});
     assert.deepEqual(await (await laptop.request(viewUrl)).json(),{settings});
     assert.deepEqual(await (await other.request(viewUrl)).json(),{settings:null});
+    assert.equal((await write(laptop,viewUrl,'PUT',{...settings,mode:'trading'})).status,200);
+    assert.deepEqual(await (await desktop.request(viewUrl)).json(),{settings:{...settings,mode:'trading'}});
+    assert.equal((await write(desktop,viewUrl,'PUT',settings)).status,200);
     assert.equal((await write(desktop,viewUrl,'PUT',{...settings,backtesting:['manual::Practice']})).status,400);
     assert.equal((await write(desktop,viewUrl,'PUT',{...settings,trading:['replay::'+session.id]})).status,400);
     const time=Date.parse(start)/1000;

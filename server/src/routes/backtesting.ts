@@ -3,7 +3,7 @@ import type { Env, AuthContext } from '../bindings';
 import * as backtestingDb from '../db/backtesting';
 import { readReplayChartSettings, saveReplayChartSettings, validateReplayChartSettings } from '../db/replay-chart-settings';
 import { readGoToSettings, saveGoToSettings, validateGoToSettings } from '../db/replay-go-to-settings';
-import { readAccountView, saveAccountView, validateAccountView } from '../db/account-view-settings';
+import { readAccountView, saveAccountView, validateAccountView, initializeAccountView } from '../db/account-view-settings';
 import * as replaySessions from '../db/replay-sessions';
 import { requiresLogin } from '../middleware/auth';
 
@@ -209,6 +209,7 @@ backtesting.put('/api/backtesting/account-view', requiresLogin, async (c) => {
   let body:unknown;try{body=await c.req.json();}catch{return c.json({error:'Invalid account selection.'},400);}
   const settings=validateAccountView(body);
   if(!settings)return c.json({error:'Invalid account selection.'},400);
+  if(c.req.query('initialize')==='1')return c.json({settings:initializeAccountView(c.get('db'),c.get('user').id,settings)});
   saveAccountView(c.get('db'),c.get('user').id,settings);
   return c.json({settings});
 });

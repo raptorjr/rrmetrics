@@ -56,7 +56,7 @@ const AccountSwitcher = ({ trades, selectedAccounts, setSelectedAccounts, collap
 
   const toggleAccount = (account) => {
     setSelectedAccounts(prev => {
-      const next = new Set(prev.length === 0 ? accounts.map(item => item.key) : prev.filter(a => a !== NO_ACCOUNTS));
+      const next = new Set(prev.length === 0 ? accounts.map(item => item.key) : prev.filter(a => a !== NO_ACCOUNTS && accounts.some(account=>account.key===a)));
       if (next.has(account.key)) next.delete(account.key); else next.add(account.key);
       return next.size ? [...next] : [NO_ACCOUNTS];
     });
@@ -64,7 +64,7 @@ const AccountSwitcher = ({ trades, selectedAccounts, setSelectedAccounts, collap
 
   const toggleProvider = (providerAccounts) => {
     setSelectedAccounts(prev => {
-      const next = new Set(prev.length === 0 ? accounts.map(item => item.key) : prev.filter(a => a !== NO_ACCOUNTS));
+      const next = new Set(prev.length === 0 ? accounts.map(item => item.key) : prev.filter(a => a !== NO_ACCOUNTS && accounts.some(account=>account.key===a)));
       const allInGroupSelected = providerAccounts.every(account => next.has(account.key));
       if (allInGroupSelected) providerAccounts.forEach(account => next.delete(account.key));
       else providerAccounts.forEach(account => next.add(account.key));
@@ -73,7 +73,8 @@ const AccountSwitcher = ({ trades, selectedAccounts, setSelectedAccounts, collap
   };
 
   const filteredGroups = groups.map(([key, list]) => [key, list.filter(account => !search || account.name.toLowerCase().includes(search.toLowerCase()))]).filter(([, list]) => list.length);
-  const label = isAllSelected ? 'All Accounts' : isNoneSelected ? 'No Accounts' : selectedAccounts.length === 1 ? (accounts.find(account => account.key === selectedAccounts[0])?.name || '1 account') : `${selectedAccounts.length} of ${accounts.length} accounts`;
+  const present=accounts.filter(account=>selectedSet.has(account.key));
+  const label = loading?'Loading…':isAllSelected ? 'All Accounts' : isNoneSelected||!present.length ? 'No Accounts' : present.length === 1 ? present[0].name : `${present.length} of ${accounts.length} accounts`;
 
   const modeLabel=accountMode==='backtesting'?'Backtesting':'Trading';
 
