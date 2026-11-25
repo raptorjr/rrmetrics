@@ -1,5 +1,7 @@
 ## Replay workspace refinements
 
+- Extracted the trade editor clock field into a shared time picker; Go to uses the same field and dropdown with minute precision, while trade editing keeps seconds.
+
 - Positioned Go to before candle type and aligned its display and time controls with user timezone and 12/24-hour preferences, preserving existing timezone-anchored schedules until edited.
 
 - Added configurable New York-time Go to destinations in the shared chart toolbar, SQLite-backed profile preferences, forward-only execution-safe jumps and immediate clearing of the restored status once ready.

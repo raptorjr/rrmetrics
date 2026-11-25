@@ -3,6 +3,8 @@ const { useState, useEffect, useRef } = React;
 const helper = require('../../helper.js');
 const { authFetch, postScreenshot } = helper;
 const Icons = require('../shared/Icons');
+const ClockTimeInput = require('../shared/ClockTimeInput');
+const { formatClockTime } = require('../../utils/clockTime');
 const TickerAutofill = require('../shared/TickerAutofill');
 const ScreenshotMarkupModal = require('../shared/ScreenshotMarkupModal');
 const RuleChecklist = require('../shared/RuleChecklist');
@@ -369,54 +371,6 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
     try { return localStorage.getItem('rrmetrics_time_format') === '24h'; }
     catch { return false; }
   })();
-  const formatClockValue = (hour, minute, second) => {
-    const pad = value => String(value).padStart(2, '0');
-    if (timeFormat24) return pad(hour) + ':' + pad(minute) + ':' + pad(second);
-    const period = hour >= 12 ? 'PM' : 'AM';
-    return pad(hour % 12 || 12) + ':' + pad(minute) + ':' + pad(second) + ' ' + period;
-  };
-  const getClockParts = (value) => {
-    const match = timeFormat24
-      ? (value || '').match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
-      : (value || '').match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i);
-    if (!match) return { hour: timeFormat24 ? '09' : '09', minute: '30', second: '00', period: 'AM' };
-    let hour = Number(match[1]);
-    const period = timeFormat24 ? '' : match[4].toUpperCase();
-    if (!timeFormat24) hour = (hour % 12) + (period === 'PM' ? 12 : 0);
-    return { hour: timeFormat24 ? String(hour).padStart(2, '0') : String(hour % 12 || 12).padStart(2, '0'), minute: match[2], second: match[3] || '00', period: period || (hour >= 12 ? 'PM' : 'AM') };
-  };
-  const updateClockFromPicker = (inputId, event) => {
-    const panel = event.target.closest('[data-time-picker]');
-    if (!panel) return;
-    const read = name => panel.querySelector('[data-part="' + name + '"]')?.value;
-    let hour = Number(read('hour'));
-    const minute = Number(read('minute')), second = Number(read('second'));
-    if (!timeFormat24) hour = (hour % 12) + (read('period') === 'PM' ? 12 : 0);
-    const input = document.getElementById(inputId);
-    if (input) input.value = formatClockValue(hour, minute, second);
-  };
-  const renderTimePicker = (inputId, value) => {
-    const parts = getClockParts(value);
-    const selectClass = "bg-bg-input border border-border rounded-md text-text-primary text-sm px-2 py-2 focus:outline-none focus:border-accent";
-    const hours = Array.from({ length: timeFormat24 ? 24 : 12 }, (_, i) => String(timeFormat24 ? i : i + 1).padStart(2, '0'));
-    const minutes = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
-    return (
-      <div data-time-picker className="absolute right-0 top-full mt-1 z-30 flex items-center gap-1.5 p-2 bg-bg-surface border border-border rounded-lg shadow-xl">
-        <select aria-label="Hour" data-part="hour" defaultValue={parts.hour} onChange={(e) => updateClockFromPicker(inputId, e)} className={selectClass}>
-          {hours.map(hour => <option key={hour} value={hour}>{hour}</option>)}
-        </select>
-        <span className="text-text-secondary">:</span>
-        <select aria-label="Minute" data-part="minute" defaultValue={parts.minute} onChange={(e) => updateClockFromPicker(inputId, e)} className={selectClass}>
-          {minutes.map(minute => <option key={minute} value={minute}>{minute}</option>)}
-        </select>
-        <span className="text-text-secondary">:</span>
-        <select aria-label="Second" data-part="second" defaultValue={parts.second} onChange={(e) => updateClockFromPicker(inputId, e)} className={selectClass}>
-          {minutes.map(second => <option key={second} value={second}>{second}</option>)}
-        </select>
-        {!timeFormat24 && <select aria-label="AM or PM" data-part="period" defaultValue={parts.period} onChange={(e) => updateClockFromPicker(inputId, e)} className={selectClass}><option value="AM">AM</option><option value="PM">PM</option></select>}
-      </div>
-    );
-  };
   const renderDatePicker = (inputId, isoDate, viewMonth, setViewMonth, closePicker) => {
     const selected = isoDate ? new Date(isoDate + 'T12:00:00') : new Date();
     const year = viewMonth.getFullYear(), month = viewMonth.getMonth();
@@ -501,9 +455,7 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
                   {enterDatePickerOpen && renderDatePicker('enterDate', enterDefaults.isoDate, enterCalendarMonth, setEnterCalendarMonth, () => setEnterDatePickerOpen(false))}
                 </div>
                 <div ref={enterTimePickerRef} className="relative">
-                  <input id="enterClock" type="text" name="enterClock" aria-label="Enter time" defaultValue={enterDefaults.time} placeholder={timeFormat24 ? 'HH:mm:ss' : 'hh:mm:ss AM/PM'} className={inputClass + " pr-12"} />
-                  <button type="button" onClick={() => { setEnterTimePickerOpen(value => !value); setEnterDatePickerOpen(false); }} className="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-text-primary hover:text-accent" aria-label="Open enter time selector"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg></button>
-                  {enterTimePickerOpen && renderTimePicker('enterClock', enterDefaults.time)}
+                  <ClockTimeInput id="enterClock" name="enterClock" label="Enter time" defaultValue={enterDefaults.time ? formatClockTime({hour:Number(enterDefaults.time.slice(0,2)),minute:Number(enterDefaults.time.slice(3,5)),second:Number(enterDefaults.time.slice(6,8))},timeFormat24?'24h':'12h') : ''} timeFormat={timeFormat24?'24h':'12h'} open={enterTimePickerOpen} onToggle={()=>{setEnterTimePickerOpen(v=>!v);setEnterDatePickerOpen(false);}}/>
                 </div>
               </div>
               <div className="space-y-2">
@@ -514,9 +466,7 @@ const TradeFormPopup = ({ isOpen, onClose, onBack, triggerReload, editingTrade, 
                   {exitDatePickerOpen && renderDatePicker('exitDate', exitDefaults.isoDate, exitCalendarMonth, setExitCalendarMonth, () => setExitDatePickerOpen(false))}
                 </div>
                 <div ref={exitTimePickerRef} className="relative">
-                  <input id="exitClock" type="text" name="exitClock" aria-label="Exit time" defaultValue={exitDefaults.time} placeholder={timeFormat24 ? 'HH:mm:ss' : 'hh:mm:ss AM/PM'} className={inputClass + " pr-12"} />
-                  <button type="button" onClick={() => { setExitTimePickerOpen(value => !value); setExitDatePickerOpen(false); }} className="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-text-primary hover:text-accent" aria-label="Open exit time selector"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg></button>
-                  {exitTimePickerOpen && renderTimePicker('exitClock', exitDefaults.time)}
+                  <ClockTimeInput id="exitClock" name="exitClock" label="Exit time" defaultValue={exitDefaults.time ? formatClockTime({hour:Number(exitDefaults.time.slice(0,2)),minute:Number(exitDefaults.time.slice(3,5)),second:Number(exitDefaults.time.slice(6,8))},timeFormat24?'24h':'12h') : ''} timeFormat={timeFormat24?'24h':'12h'} open={exitTimePickerOpen} onToggle={()=>{setExitTimePickerOpen(v=>!v);setExitDatePickerOpen(false);}}/>
                 </div>
               </div>
             </div>
