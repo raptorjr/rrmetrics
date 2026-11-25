@@ -120,10 +120,10 @@ The two perspectives must remain separate: profitable results do not prove good 
 The Backtesting page retains its original Session Journal and adds a separate Chart Replay view.
 
 Current first-stage replay implementation:
-- Uses TradingView Lightweight Charts for candlestick rendering.
-- Starts with clearly labelled synthetic demonstration data and accepts user-supplied OHLCV CSV files.
-- Supports candle-by-candle replay, simulated long/short trades, optional stop/target levels, manual close, and basic temporary statistics.
-- Uploaded data and replay trades are currently browser-session only. Do not describe them as saved or persistent.
+- Uses the forked TradeCanvas library for rendering, independent multi-chart viewports, drawings and native interactive order lines. RR Metrics owns the single replay clock, revealed market data and simulated execution.
+- Historical data comes from the central Historical Futures provider; replay trades and session statistics are temporary. Do not describe them as persisted.
+- Supports candle-by-candle replay, simulated market/limit/stop-market entries, right-click quantity menus, draggable pending orders and SL/TP controls, BE, manual close and temporary statistics. Maintain one canonical order state across charts and the panel; never enable TradeCanvas's native execution or replay engine for this workspace.
+- Pin TradeCanvas dependencies to exact fork commits (not mutable preview aliases); validate the installed API in RR Metrics CI. Preserve the tested shared layout selector and host viewport policy.
 - Do not commit provider-supplied or user-purchased historical market data to the public repository.
 - Bar-based stop/target sequencing is approximate. If both levels are touched within one candle, stop-first is assumed. Fees, slippage, bid/ask, partial fills, and tick-level sequencing are not yet implemented.
 

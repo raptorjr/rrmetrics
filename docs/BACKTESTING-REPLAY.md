@@ -24,15 +24,23 @@ Historical data is imported and managed centrally under Settings â†’ Providers â
 The first Chart Replay view is an interactive frontend prototype alongside the existing Backtesting session journal.
 
 It currently supports:
-- Candlestick charting using TradingView Lightweight Charts.
+- TradeCanvas candlestick charting with independently positioned and resampled multi-chart layouts. The host replay policy preserves horizontal anchors and follows new candles near 90% of the plot width.
 - Generated synthetic demonstration candles for development/empty states only. They must never be presented as selectable historical markets.
 - Play, pause, single-bar stepping, replay speed and pre-trade seeking.
 - Simulated long/short market entries, configurable quick contract-size presets, optional stop-loss and take-profit levels, manual close and automatic stop/target exits.
-- Simulated limit and stop-market entry orders with pending-order cancellation and chart price markers. Limit orders fill at the limit or a better opening price; stop-market orders fill at the stop or worse when the market gaps through it.
+- Simulated limit and stop-market entry orders with pending-order cancellation and interactive chart order lines. Limit orders fill at the limit or a better opening price; stop-market orders fill at the stop or worse when the market gaps through it.
 - Single play/pause toggle and configurable replay speed.
 - Basic closed-trade statistics and a trade history table.
 
 Historical source files and normalized datasets are managed by the central Historical Futures provider. Replay sessions and simulated trades remain temporary unless a later persistence feature is explicitly implemented.
+
+## Interactive chart orders
+
+- Right-click a price on any chart to place market, limit or stop-market entries using the order panel's configurable quantity presets. The available pending types depend on the last revealed execution candle's close, not the chart's own timeframe.
+- Drag a pending order to move its entry; drag the SL and TP buttons from an open position to create protective levels, or drag their existing lines to move them. The chart's close and cancel buttons route to RR Metrics. Changes synchronize across every chart and the order panel.
+- The BE button moves or creates the stop at the entry price, leaving the target untouched. It is only available when the revealed market price permits the stop and it would not loosen existing protection. BE refers to gross entry-price breakeven, not net of fees or slippage.
+- RR Metrics owns order state and simulation. TradeCanvas renders the interactive lines and emits intents; its order ticket, native replay and execution adapter are not used. All changed levels are rounded to the configured instrument's tick size and validated against the latest revealed execution price. The original risk for R-multiple is retained when a stop is subsequently moved or removed.
+- One pending entry or one open position is supported at a time. Partial exits, reversing, trailing stops, commissions and persistent sessions remain deferred.
 
 ## Execution assumptions and limitations
 
@@ -41,7 +49,7 @@ Historical source files and normalized datasets are managed by the central Histo
 - If a candle touches both stop and target, the stop is assumed to have executed first. This is a conservative bar-based assumption, not a reconstruction of actual intrabar sequence.
 - Stop and target fills are simulated at their configured prices. Limit entries may receive a better fill at the candle open; stop-market entries account for gaps through the stop price. Intrabar sequencing, queue position, bid/ask spread, slippage, fees, commissions, partial fills and market depth are not yet modelled.
 - P/L uses the selected instrument's point value. It is a gross estimate before trading costs.
-- The chart starts with synthetic demonstration data. It must be clearly labelled as synthetic and never presented as real historical market data.
+- The workspace uses the available Historical Futures catalogue; synthetic fixtures used in tests are not selectable historical markets.
 
 ## Data and replay roadmap
 
