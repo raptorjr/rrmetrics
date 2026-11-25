@@ -5,6 +5,7 @@ const { timeframeSeconds } = require('../../utils/historicalReplay');
 const { toReplayChartPosition, snapReplayPrice } = require('../../utils/backtestingReplay');
 const { loadTradingDisplay, saveTradingDisplay, formatTradingAmounts, formatPendingDistance } = require('../../utils/replayTradingDisplay');
 const ReplayTradingSettings = require('./ReplayTradingSettings');
+const { addReplayTradingSettingsButton } = require('../../utils/replayTradingToolbar');
 const { authFetch } = require('../../helper');
 
 const toBars = candles => candles.map(bar => ({
@@ -151,7 +152,7 @@ const ReplayTradeCanvasGrid = ({
       onChartAdd: widget => {
         const chart = widget.getChart();
         chart.setHostReplayViewport(true);
-        widget.addToolbarButton({ id: 'rr-trading-settings', label: 'Trading settings', icon: 'settings', text: 'Trading', side: 'right', onClick: () => openSettingsRef.current() });
+        addReplayTradingSettingsButton(widget, () => openSettingsRef.current());
         chart.setTradingConfig({ lineButtons: { reverse: false, trailStop: false, addStops: true, cancel: true, close: true, removeStops: true } });
         chart.on('orderModify', event => interactionRef.current.onOrderModify(event.payload));
         chart.on('orderCancel', event => interactionRef.current.onOrderCancel(event.payload));
