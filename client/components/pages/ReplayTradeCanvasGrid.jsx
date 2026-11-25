@@ -117,7 +117,13 @@ const ReplayTradeCanvasGrid = ({
     } else if (visibleBars.length > previous.length) {
       const additions = visibleBars.slice(previous.length);
       grid.getWidgets().forEach(widget => {
-        additions.forEach(bar => widget.appendDataBar(bar));
+        if (typeof widget.appendDataBar === 'function') {
+          additions.forEach(bar => widget.appendDataBar(bar));
+        } else {
+          // Compatibility with chart package builds that expose setData but
+          // do not yet expose the incremental replay method.
+          widget.setData(visibleBars, baseTimeframe);
+        }
       });
     }
     barsRef.current = visibleBars;
