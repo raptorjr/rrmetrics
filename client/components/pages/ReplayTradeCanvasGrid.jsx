@@ -12,32 +12,16 @@ const toBars = candles => candles.map(bar => ({
   volume: Number(bar.volume || 0),
 }));
 
-const appendDataKeepingReplayViewport = (widget, additions, visibleBars, baseTimeframe) => {
+// The widget mutates its own base series when appending. Never give it
+// the React replay snapshot or another chart's array.
+const loadReplayData = (widget, bars, baseTimeframe, preserveViewport = true) => {
   const chart = widget.getChart();
-  const visible = chart.getVisibleTimeRange?.();
-  if (typeof widget.appendDataBar === 'function') {
-    additions.forEach(bar => widget.appendDataBar(bar));
-  } else {
-    widget.setData(visibleBars, baseTimeframe);
+  chart.setHostReplayViewport(preserveViewport);
+  try {
+    widget.setData(bars.slice(), baseTimeframe);
+  } finally {
+    chart.setHostReplayViewport(true);
   }
-  // Incremental updates can auto-scroll to the newest bar. Restore the
-  // user's exact visible time range after the append.
-  if (visible && typeof chart.setVisibleRange === 'function' && visible.to >= visible.from) {
-    chart.setVisibleRange(visible.from, visible.to);
-  }
-};
-
-const setDataKeepingReplayViewport = (widget, data, baseTimeframe, previousBars) => {
-  const chart = widget.getChart();
-  const visible = chart.getVisibleTimeRange?.();
-  const previousLast = previousBars?.length ? previousBars[previousBars.length - 1].time : null;
-  widget.setData(data, baseTimeframe);
-  const nextLast = data.length ? data[data.length - 1].time : null;
-  if (!visible || previousLast == null || nextLast == null
-    || typeof chart.setVisibleRange !== 'function' || visible.to < visible.from) return;
-  // Keep the exact timestamps the user positioned on screen. Do not move
-  // the viewport with the replay edge: playback and seeking must not recenter it.
-  chart.setVisibleRange(visible.from, visible.to);
 };
 
 const ReplayTradeCanvasGrid = ({
@@ -108,14 +92,12 @@ const ReplayTradeCanvasGrid = ({
         if (onActiveChartChange) onActiveChartChange(index);
       },
       onChartAdd: widget => {
-        if (barsRef.current.length) widget.setData(barsRef.current, baseTimeframeRef.current);
+        widget.getChart().setHostReplayViewport(true);
+        if (barsRef.current.length) loadReplayData(widget, barsRef.current, baseTimeframeRef.current, false);
         setGridRevision(value => value + 1);
       },
     });
     gridRef.current = grid;
-    grid.getWidgets().forEach(widget => {
-      if (barsRef.current.length) widget.setData(barsRef.current, baseTimeframeRef.current);
-    });
     return () => {
       grid.destroy();
       gridRef.current = null;
@@ -135,16 +117,12 @@ const ReplayTradeCanvasGrid = ({
       && previous.every((bar, index) => visibleBars[index]?.time === bar.time);
     if (!previous.length || identityChanged || !isAppend) {
       grid.getWidgets().forEach(widget => {
-        if (previous.length && !identityChanged) {
-          setDataKeepingReplayViewport(widget, visibleBars, baseTimeframe, previous);
-        } else {
-          widget.setData(visibleBars, baseTimeframe);
-        }
+        loadReplayData(widget, visibleBars, baseTimeframe, previous.length > 0 && !identityChanged);
       });
     } else if (visibleBars.length > previous.length) {
       const additions = visibleBars.slice(previous.length);
       grid.getWidgets().forEach(widget => {
-        appendDataKeepingReplayViewport(widget, additions, visibleBars, baseTimeframe);
+        additions.forEach(bar => widget.appendDataBar(bar));
       });
     }
     barsRef.current = visibleBars;

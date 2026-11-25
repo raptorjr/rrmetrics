@@ -13,3 +13,8 @@ test('installed TradeCanvas grid supports the replay-disabled toolbar picker', (
   assert.match(String(sync), /data-role=.objects/);
   assert.match(String(sync), /insertBefore/);
 });
+
+test('installed TradeCanvas supports the host-owned replay viewport', () => {
+  const { Chart } = require('@tradecanvas/chart');
+  assert.equal(typeof Chart.prototype.setHostReplayViewport, 'function');
+});
