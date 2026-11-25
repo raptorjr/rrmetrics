@@ -131,6 +131,63 @@ function evaluateCandleExit(position, candle) {
   return null;
 }
 
+// Replay orders are evaluated by RR Metrics only. Never use unrevealed prices.
+function snapReplayPrice(price, spec) {
+  if (price == null || !Number.isFinite(Number(price))) return NaN;
+  return Number((Math.round(Number(price) / spec.tickSize) * spec.tickSize).toFixed(spec.decimals));
+}
+
+function validateReplayLevels(direction, referencePrice, stopPrice, targetPrice) {
+  if (!Number.isFinite(referencePrice) || referencePrice <= 0) return 'No valid replay price.';
+  if (stopPrice != null && (!Number.isFinite(stopPrice) || stopPrice <= 0 || (direction === 'long' ? stopPrice >= referencePrice : stopPrice <= referencePrice))) {
+    return 'Stop loss must be below the reference price for a long, and above it for a short.';
+  }
+  if (targetPrice != null && (!Number.isFinite(targetPrice) || targetPrice <= 0 || (direction === 'long' ? targetPrice <= referencePrice : targetPrice >= referencePrice))) {
+    return 'Take profit must be above the reference price for a long, and below it for a short.';
+  }
+  return '';
+}
+
+function validateReplayEntry(direction, type, price, marketPrice) {
+  if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(marketPrice) || marketPrice <= 0) return 'No valid order price.';
+  if (type === 'market') return '';
+  const above = direction === 'long' ? type === 'stop_market' : type === 'limit';
+  if (!['limit', 'stop_market'].includes(type) || (above ? price <= marketPrice : price >= marketPrice)) return 'Order price is no longer on the valid side of the market.';
+  return '';
+}
+
+function updateReplayLevels(position, changes, marketPrice, spec) {
+  const stopPrice = changes.stopPrice === undefined ? position.stopPrice : changes.stopPrice === null ? null : snapReplayPrice(changes.stopPrice, spec);
+  const targetPrice = changes.targetPrice === undefined ? position.targetPrice : changes.targetPrice === null ? null : snapReplayPrice(changes.targetPrice, spec);
+  const error = validateReplayLevels(position.direction, marketPrice,
+    changes.stopPrice === undefined ? null : stopPrice, changes.targetPrice === undefined ? null : targetPrice);
+  if (error) return { error };
+  // A later move to BE or into profit must not redefine initial R.
+  const firstRisk = stopPrice != null && (position.direction === 'long' ? stopPrice < position.entryPrice : stopPrice > position.entryPrice)
+    ? Math.abs(position.entryPrice - stopPrice) : null;
+  return { position: { ...position, stopPrice, targetPrice, initialRiskPoints: position.initialRiskPoints ?? firstRisk } };
+}
+
+function canMoveToBreakeven(position, marketPrice) {
+  if (!position || !Number.isFinite(marketPrice)) return false;
+  const long = position.direction === 'long';
+  return (long ? marketPrice > position.entryPrice : marketPrice < position.entryPrice)
+    && (position.stopPrice == null || (long ? position.stopPrice < position.entryPrice : position.stopPrice > position.entryPrice));
+}
+
+function replayOrderMenu(price, marketPrice, presets, quantity, format, submit) {
+  if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(marketPrice) || marketPrice <= 0) return [];
+  const quantities = [...new Set([...presets, quantity])].filter(q => Number.isInteger(q) && q >= 1 && q <= 100);
+  const choices = [['long', 'market', 'Market Buy'], ['short', 'market', 'Market Sell']];
+  if (price > marketPrice) choices.push(['long', 'stop_market', 'Stop Buy'], ['short', 'limit', 'Limit Sell']);
+  else if (price < marketPrice) choices.push(['long', 'limit', 'Limit Buy'], ['short', 'stop_market', 'Stop Sell']);
+  return choices.map(([direction, type, label]) => ({
+    label: type === 'market' ? label : label + ' @ ' + format(price),
+    onSelect: () => {},
+    submenu: quantities.map(q => ({ label: label + ' ' + q, onSelect: () => submit({ direction, type, quantity: q, price }) })),
+  }));
+}
+
 function calculateTradePnl(position, exitPrice, pointValue) {
   if (!position || !Number.isFinite(exitPrice)) return 0;
   const direction = position.direction === 'short' ? -1 : 1;
@@ -167,4 +224,5 @@ module.exports = {
   evaluateCandleExit,
   calculateTradePnl,
   calculateTradeStats,
+  snapReplayPrice, validateReplayLevels, validateReplayEntry, updateReplayLevels, canMoveToBreakeven, replayOrderMenu,
 };

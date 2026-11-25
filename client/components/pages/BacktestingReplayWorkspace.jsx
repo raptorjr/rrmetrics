@@ -9,6 +9,7 @@ const {
   evaluateCandleExit,
   calculateTradePnl,
   calculateTradeStats,
+  snapReplayPrice, validateReplayLevels, validateReplayEntry, updateReplayLevels, canMoveToBreakeven, replayOrderMenu,
 } = require('../../utils/backtestingReplay');
 
 const getCssColor = (name, fallback) => {
@@ -229,6 +230,7 @@ const BacktestingReplayWorkspace = () => {
   const positionRef = useRef(null);
   const pendingOrderRef = useRef(null);
   const advanceOneRef = useRef(null);
+  const orderSequence = useRef(0);
 
   const availableMarkets = useMemo(() => getAvailableMarkets(historicalDatasets), [historicalDatasets]);
   const selectedMarket = useMemo(() => availableMarkets.find(market => market.key === selectedMarketKey) || null, [availableMarkets, selectedMarketKey]);
@@ -326,9 +328,7 @@ const BacktestingReplayWorkspace = () => {
 
   const closePosition = useCallback((activePosition, exitPrice, exitTime, reason) => {
     const pnl = calculateTradePnl(activePosition, exitPrice, spec.pointValue);
-    const risk = activePosition.stopPrice == null
-      ? null
-      : Math.abs(activePosition.entryPrice - activePosition.stopPrice) * activePosition.quantity * spec.pointValue;
+    const risk = activePosition.initialRiskPoints == null ? null : activePosition.initialRiskPoints * activePosition.quantity * spec.pointValue;
     const trade = {
       id: String(Date.now()) + '-' + String(Math.random()).slice(2, 7),
       direction: activePosition.direction,
@@ -364,7 +364,7 @@ const BacktestingReplayWorkspace = () => {
     if (activeOrder && !positionRef.current) {
       const fill = evaluateEntryOrder(activeOrder, data[nextIndex]);
       if (fill) {
-        const filledPosition = { ...activeOrder, entryPrice: fill.price, entryTime: data[nextIndex].time };
+        const filledPosition = { ...activeOrder, entryPrice: fill.price, entryTime: data[nextIndex].time, initialRiskPoints: activeOrder.stopPrice == null ? null : Math.abs(fill.price - activeOrder.stopPrice) };
         pendingOrderRef.current = null;
         setPendingOrder(null);
         positionRef.current = filledPosition;
@@ -430,58 +430,87 @@ const BacktestingReplayWorkspace = () => {
     }
     resetForMarketChange();
   };
-  const validateLevels = (direction, entryPrice, stopPrice, targetPrice) => {
-    if (stopPrice != null && (direction === 'long' ? stopPrice >= entryPrice : stopPrice <= entryPrice)) {
-      return 'The stop-loss must be below entry for a long, and above entry for a short.';
-    }
-    if (targetPrice != null && (direction === 'long' ? targetPrice <= entryPrice : targetPrice >= entryPrice)) {
-      return 'The take-profit must be above entry for a long, and below entry for a short.';
-    }
-    return '';
-  };
-
-  const openPosition = (direction) => {
-    if (!candles.length) { setError('Select an available historical market and period before placing a trade.'); return; }
-    if (positionRef.current || pendingOrderRef.current || !currentCandle) return;
-    const parsedQuantity = Number(quantity);
+  const latestCandle = () => candlesRef.current[currentIndexRef.current];
+  const openPosition = (direction, options = {}) => {
+    const candle = latestCandle();
+    if (!candle || historicalLoading) { setError('Select an available historical market and period before placing a trade.'); return; }
+    if (positionRef.current || pendingOrderRef.current) return;
+    const parsedQuantity = Number(options.quantity ?? quantity);
+    const type = options.type ?? orderType;
     if (!Number.isInteger(parsedQuantity) || parsedQuantity < 1 || parsedQuantity > 100) { setError('Quantity must be a whole number between 1 and 100.'); return; }
-    const triggerPrice = orderType === 'market' ? currentPrice : Number(orderPrice);
-    if (orderType !== 'market' && (!Number.isFinite(triggerPrice) || triggerPrice <= 0)) { setError('Enter a valid order price.'); return; }
-    const stopPrice = stopInput.trim() === '' ? null : Number(stopInput);
-    const targetPrice = targetInput.trim() === '' ? null : Number(targetInput);
-    if ((stopPrice != null && !Number.isFinite(stopPrice)) || (targetPrice != null && !Number.isFinite(targetPrice))) { setError('Stop-loss and take-profit must be valid prices.'); return; }
-    const validationError = validateLevels(direction, triggerPrice, stopPrice, targetPrice);
+    const triggerPrice = type === 'market' ? candle.close : snapReplayPrice(options.price ?? orderPrice, spec);
+    const orderError = validateReplayEntry(direction, type, triggerPrice, candle.close);
+    if (orderError) { setError(orderError); return; }
+    const stopPrice = stopInput.trim() === '' ? null : snapReplayPrice(stopInput, spec);
+    const targetPrice = targetInput.trim() === '' ? null : snapReplayPrice(targetInput, spec);
+    const validationError = validateReplayLevels(direction, triggerPrice, stopPrice, targetPrice);
     if (validationError) { setError(validationError); return; }
-    const order = { direction, quantity: parsedQuantity, type: orderType, triggerPrice, stopPrice, targetPrice };
-    if (orderType === 'market') {
-      const nextPosition = { ...order, entryPrice: currentPrice, entryTime: currentCandle.time };
+    const order = { id: 'replay-' + (++orderSequence.current), direction, quantity: parsedQuantity, type, triggerPrice, stopPrice, targetPrice };
+    setQuantity(parsedQuantity); setOrderType(type); setOrderPrice(type === 'market' ? '' : String(triggerPrice));
+    setStopInput(stopPrice == null ? '' : String(stopPrice)); setTargetInput(targetPrice == null ? '' : String(targetPrice));
+    if (type === 'market') {
+      const nextPosition = { ...order, entryPrice: candle.close, entryTime: candle.time, initialRiskPoints: stopPrice == null ? null : Math.abs(candle.close - stopPrice) };
       positionRef.current = nextPosition; setPosition(nextPosition);
-      setMessage((direction === 'long' ? 'Buy' : 'Sell') + ' market order simulated at ' + formatPrice(currentPrice, spec.decimals) + '.');
+      setMessage((direction === 'long' ? 'Buy' : 'Sell') + ' market order simulated at ' + formatPrice(candle.close, spec.decimals) + '.');
     } else {
       pendingOrderRef.current = order; setPendingOrder(order);
-      setMessage((direction === 'long' ? 'Buy' : 'Sell') + ' ' + orderType.replace('_', ' ') + ' order placed at ' + formatPrice(triggerPrice, spec.decimals) + '.');
+      setMessage((direction === 'long' ? 'Buy' : 'Sell') + ' ' + type.replace('_', ' ') + ' order placed at ' + formatPrice(triggerPrice, spec.decimals) + '.');
     }
     setError('');
+  };
+
+  const applyPositionLevels = (id, changes) => {
+    const active = positionRef.current, candle = latestCandle();
+    if (!active || active.id !== id || !candle) return;
+    const result = updateReplayLevels(active, changes, candle.close, spec);
+    if (result.error) { setError(result.error); return; }
+    positionRef.current = result.position; setPosition(result.position);
+    setStopInput(result.position.stopPrice == null ? '' : String(result.position.stopPrice));
+    setTargetInput(result.position.targetPrice == null ? '' : String(result.position.targetPrice));
+    setError(''); setMessage('Position levels updated.');
   };
 
   const updatePositionLevels = () => {
-    if (!position) return;
-    const stopPrice = stopInput.trim() === '' ? null : Number(stopInput);
-    const targetPrice = targetInput.trim() === '' ? null : Number(targetInput);
-    if ((stopPrice != null && !Number.isFinite(stopPrice)) || (targetPrice != null && !Number.isFinite(targetPrice))) {
-      setError('Stop-loss and take-profit must be valid prices.');
-      return;
-    }
-    const validationError = validateLevels(position.direction, position.entryPrice, stopPrice, targetPrice);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-    const updated = { ...position, stopPrice, targetPrice };
-    positionRef.current = updated;
-    setPosition(updated);
-    setError('');
-    setMessage('Position levels updated.');
+    if (!positionRef.current) return;
+    applyPositionLevels(positionRef.current.id, {
+      stopPrice: stopInput.trim() === '' ? null : Number(stopInput),
+      targetPrice: targetInput.trim() === '' ? null : Number(targetInput),
+    });
+  };
+
+  const moveToBreakeven = () => {
+    const active = positionRef.current, candle = latestCandle();
+    if (!canMoveToBreakeven(active, candle?.close)) return;
+    applyPositionLevels(active.id, { stopPrice: active.entryPrice });
+  };
+
+  const modifyPendingOrder = ({ orderId, newPrice }) => {
+    const order = pendingOrderRef.current, candle = latestCandle();
+    if (!order || order.id !== orderId || !candle) return;
+    const price = snapReplayPrice(newPrice, spec);
+    const error = validateReplayEntry(order.direction, order.type, price, candle.close)
+      || validateReplayLevels(order.direction, price, order.stopPrice, order.targetPrice);
+    if (error) { setError(error); return; }
+    const updated = { ...order, triggerPrice: price };
+    pendingOrderRef.current = updated; setPendingOrder(updated);
+    setOrderPrice(String(price)); setError(''); setMessage('Pending order moved.');
+  };
+
+  const cancelPendingOrder = (id) => {
+    if (!pendingOrderRef.current || pendingOrderRef.current.id !== id) return;
+    pendingOrderRef.current = null; setPendingOrder(null); setError(''); setMessage('Pending order cancelled.');
+  };
+
+  const closeFromChart = (id) => {
+    const active = positionRef.current, candle = latestCandle();
+    if (active?.id === id && candle) closePosition(active, candle.close, candle.time, 'Manual close');
+  };
+
+  const chartMenuItems = (context) => {
+    const candle = latestCandle();
+    if (historicalLoading || !candle || positionRef.current || pendingOrderRef.current || context.price == null) return [];
+    return replayOrderMenu(snapReplayPrice(context.price, spec), candle.close, quantityPresets, quantity,
+      price => formatPrice(price, spec.decimals), order => openPosition(order.direction, order));
   };
 
   const resetReplay = () => {
@@ -576,6 +605,13 @@ const BacktestingReplayWorkspace = () => {
             baseTimeframe={baseTimeframe}
             position={position}
             pendingOrder={pendingOrder}
+            spec={spec}
+            currentPrice={currentPrice}
+            chartMenuItems={chartMenuItems}
+            onOrderModify={modifyPendingOrder}
+            onOrderCancel={({ orderId }) => cancelPendingOrder(orderId)}
+            onPositionModify={({ positionId, stopLoss, takeProfit }) => applyPositionLevels(positionId, { stopPrice: stopLoss, targetPrice: takeProfit })}
+            onPositionClose={({ positionId }) => closeFromChart(positionId)}
           />
           <div className="px-4 py-3 border-t border-border space-y-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -645,7 +681,7 @@ const BacktestingReplayWorkspace = () => {
             <div className="grid grid-cols-2 gap-2"><div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Order type</label><select value={orderType} disabled={!!position || !!pendingOrder} onChange={event => setOrderType(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-2 py-2 text-sm text-text-primary"><option value="market">Market</option><option value="limit">Limit</option><option value="stop_market">Stop Market</option></select></div>{orderType !== 'market' && <div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Entry price</label><input type="number" step={spec.tickSize} value={orderPrice} onChange={event => setOrderPrice(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-2 py-2 text-sm text-text-primary" placeholder="Price" /></div>}</div>
             <div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Stop-loss price (optional)</label><input type="number" step={spec.tickSize} value={stopInput} disabled={!!position || !!pendingOrder} onChange={event => setStopInput(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary disabled:opacity-50" placeholder="Price" /></div>
             <div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Take-profit price (optional)</label><input type="number" step={spec.tickSize} value={targetInput} disabled={!!position || !!pendingOrder} onChange={event => setTargetInput(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary disabled:opacity-50" placeholder="Price" /></div>
-            {!position && !pendingOrder ? <div className="grid grid-cols-2 gap-2"><button type="button" onClick={() => openPosition('long')} className="py-2.5 rounded-lg bg-positive text-white text-sm font-semibold disabled:opacity-40" disabled={!candles.length}>BUY {quantity} @ {orderType === 'stop_market' ? 'STOP' : orderType.toUpperCase()}</button><button type="button" onClick={() => openPosition('short')} className="py-2.5 rounded-lg bg-negative text-white text-sm font-semibold disabled:opacity-40" disabled={!candles.length}>SELL {quantity} @ {orderType === 'stop_market' ? 'STOP' : orderType.toUpperCase()}</button></div> : pendingOrder ? <div className="rounded-lg bg-bg-input p-3 text-xs space-y-2"><div className="flex justify-between"><span className="text-text-muted">Pending {pendingOrder.type.replace('_', ' ')}</span><strong>{pendingOrder.direction.toUpperCase()} × {pendingOrder.quantity}</strong></div><div className="flex justify-between"><span className="text-text-muted">Order price</span><span className="font-mono">{formatPrice(pendingOrder.triggerPrice, spec.decimals)}</span></div><button type="button" onClick={() => { setPendingOrder(null); pendingOrderRef.current = null; setMessage('Pending order cancelled.'); }} className="w-full py-2 rounded-lg border border-border text-sm text-text-secondary">Cancel pending order</button></div> : <div className="space-y-2"><div className="rounded-lg bg-bg-input p-3 text-xs space-y-1"><div className="flex justify-between"><span className="text-text-muted">Open position</span><strong className={position.direction === 'long' ? 'text-positive' : 'text-negative'}>{position.direction.toUpperCase()} × {position.quantity}</strong></div><div className="flex justify-between"><span className="text-text-muted">Entry</span><span className="font-mono">{formatPrice(position.entryPrice, spec.decimals)}</span></div><div className="flex justify-between"><span className="text-text-muted">Unrealized P/L</span><strong className={unrealizedPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(unrealizedPnl)}</strong></div></div><button type="button" onClick={updatePositionLevels} className="w-full py-2 rounded-lg border border-border text-sm text-text-secondary hover:text-text-primary">Update SL / TP levels</button><button type="button" onClick={() => closePosition(position, currentPrice, currentCandle.time, 'Manual close')} className="w-full py-2.5 rounded-lg bg-accent text-accent-text text-sm font-semibold">Close position</button></div>}
+            {!position && !pendingOrder ? <div className="grid grid-cols-2 gap-2"><button type="button" onClick={() => openPosition('long')} className="py-2.5 rounded-lg bg-positive text-white text-sm font-semibold disabled:opacity-40" disabled={!candles.length}>BUY {quantity} @ {orderType === 'stop_market' ? 'STOP' : orderType.toUpperCase()}</button><button type="button" onClick={() => openPosition('short')} className="py-2.5 rounded-lg bg-negative text-white text-sm font-semibold disabled:opacity-40" disabled={!candles.length}>SELL {quantity} @ {orderType === 'stop_market' ? 'STOP' : orderType.toUpperCase()}</button></div> : pendingOrder ? <div className="rounded-lg bg-bg-input p-3 text-xs space-y-2"><div className="flex justify-between"><span className="text-text-muted">Pending {pendingOrder.type.replace('_', ' ')}</span><strong>{pendingOrder.direction.toUpperCase()} × {pendingOrder.quantity}</strong></div><div className="flex justify-between"><span className="text-text-muted">Order price</span><span className="font-mono">{formatPrice(pendingOrder.triggerPrice, spec.decimals)}</span></div><button type="button" onClick={() => cancelPendingOrder(pendingOrder.id)} className="w-full py-2 rounded-lg border border-border text-sm text-text-secondary">Cancel pending order</button></div> : <div className="space-y-2"><div className="rounded-lg bg-bg-input p-3 text-xs space-y-1"><div className="flex justify-between"><span className="text-text-muted">Open position</span><strong className={position.direction === 'long' ? 'text-positive' : 'text-negative'}>{position.direction.toUpperCase()} × {position.quantity}</strong></div><div className="flex justify-between"><span className="text-text-muted">Entry</span><span className="font-mono">{formatPrice(position.entryPrice, spec.decimals)}</span></div><div className="flex justify-between"><span className="text-text-muted">Unrealized P/L</span><strong className={unrealizedPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(unrealizedPnl)}</strong></div></div><div className="flex gap-2"><button type="button" title="Move stop loss to entry (before fees)" disabled={!canMoveToBreakeven(position, currentPrice)} onClick={moveToBreakeven} className="px-4 py-2 rounded-lg border border-border text-sm font-semibold text-text-primary disabled:opacity-40">BE</button><button type="button" onClick={updatePositionLevels} className="w-full py-2 rounded-lg border border-border text-sm text-text-secondary hover:text-text-primary">Update SL / TP levels</button></div><button type="button" onClick={() => closeFromChart(position.id)} className="w-full py-2.5 rounded-lg bg-accent text-accent-text text-sm font-semibold">Close position</button></div>}
             {error && <p className="text-xs text-negative">{error}</p>}{message && <p className="text-xs text-text-muted">{message}</p>}
           </div>
 
