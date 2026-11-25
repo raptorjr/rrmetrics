@@ -49,6 +49,10 @@ The project has a test command in `package.json`; do not repeat older documentat
 - User-level preferences should be server-backed (SQLite scoped to the existing local profile), not tied to a browser. Browser-local storage is appropriate only for genuinely device-specific state or an explicitly labelled cache.
 - Replay trading label settings use the server as the source of truth. Load before editing, preview locally, confirm saves, and show failures without silently overwriting the server with defaults. Chart layout persistence and replay-session persistence are separate future tasks where not already implemented.
 
+### Replay sessions as virtual accounts (proposed)
+
+- The next milestone is specified in [REPLAY-SESSION-ACCOUNTS.md](REPLAY-SESSION-ACCOUNTS.md): durable session checkpoints, account balances, catalogue-driven symbols, and shared analytics with strict Trading/Backtesting isolation. This is a design, not a claim that sessions are implemented. Preserve the legacy manual journal.
+
 ### Dashboard and reusable components
 
 ### Dashboard persistence and remote access
