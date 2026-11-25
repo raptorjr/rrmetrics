@@ -255,3 +255,25 @@ test('live order draft validation tracks the latest market without changing the 
   assert.ok(check('short', 'limit', '27040', 27020, { direction: 'long', quantity: 1 }, 2).error);
   assert.ok(check('long', 'limit', '27000', 27020, { direction: 'long', quantity: 100 }, 1).error);
 });
+
+test('open position colour follows unrealized P/L for either side, not previously realized P/L', () => {
+  const { replayPositionColors, getInstrumentSpec } = require('./backtestingReplay');
+  const spec = getInstrumentSpec('NQ');
+  for (const direction of ['long', 'short']) {
+    const position = { direction, entryPrice: 100, quantity: 2, realizedPnl: 1000 };
+    const sign = direction === 'long' ? 1 : -1;
+    const profit = replayPositionColors(position, 100 + sign, spec);
+    const loss = replayPositionColors(position, 100 - sign, spec);
+    const neutral = replayPositionColors(position, 100, spec);
+    assert.equal(profit.entry, '#1fa874');
+    assert.equal(loss.entry, '#e8505b');
+    assert.equal(neutral.entry, '#4c8dff');
+    assert.equal(replayPositionColors(position, null, spec).entry, neutral.entry);
+    assert.equal(replayPositionColors(null, 100, spec).entry, neutral.entry);
+    assert.equal(profit.loss, loss.loss);
+    assert.equal(profit.profit, loss.profit);
+  }
+  const scaled = { direction: 'long', entryPrice: 100.125, quantity: 2, realizedPnl: -500 };
+  assert.equal(replayPositionColors(scaled, 100.25, spec).entry, '#1fa874');
+  assert.equal(replayPositionColors(scaled, 100, spec).entry, '#e8505b');
+});

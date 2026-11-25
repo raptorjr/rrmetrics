@@ -16,7 +16,7 @@ function createSettingsGear(doc) {
 function addReplayTradingSettingsButton(widget, onClick, doc = globalThis.document) {
   const handle = widget.addToolbarButton({
     id: 'rr-trading-settings', label: 'Settings', icon: createSettingsGear(doc),
-    text: '', side: 'right', onClick,
+    text: 'Settings', side: 'right', onClick,
   });
   if (!handle) return null;
   // The installed TradeCanvas toolbar refits only .tcw-toolbar-overflow items.
