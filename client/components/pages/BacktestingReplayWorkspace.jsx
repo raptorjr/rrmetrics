@@ -224,7 +224,6 @@ const BacktestingReplayWorkspace = () => {
   const [historicalStart, setHistoricalStart] = useState('');
   const [historicalEnd, setHistoricalEnd] = useState('');
   const [selectedCoverageIndex, setSelectedCoverageIndex] = useState(0);
-  const [replayLayout, setReplayLayout] = useState('single');
   const [contextTimeframes, setContextTimeframes] = useState(['5m', '15m']);
   const currentIndexRef = useRef(80);
   const candlesRef = useRef(candles);
@@ -593,9 +592,7 @@ const BacktestingReplayWorkspace = () => {
             baseTimeframe={baseTimeframe}
             position={position}
             pendingOrder={pendingOrder}
-            replayLayout={replayLayout}
             contextTimeframes={contextTimeframes}
-            onLayoutChange={setReplayLayout}
           />
           <div className="px-4 py-3 border-t border-border space-y-3">
             <div className="flex flex-wrap items-center gap-2">
