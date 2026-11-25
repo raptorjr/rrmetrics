@@ -4,6 +4,7 @@ const { ChartWidgetGrid } = require('@tradecanvas/chart/widget');
 const { timeframeSeconds, replayChartIntervals } = require('../../utils/historicalReplay');
 const { toReplayChartPosition, snapReplayPrice, replayPositionColors } = require('../../utils/backtestingReplay');
 const { loadTradingDisplay, saveTradingDisplay, formatTradingAmounts, formatPendingDistance } = require('../../utils/replayTradingDisplay');
+const ReplayGoTo = require('./ReplayGoTo');
 const ReplayTradingSettings = require('./ReplayTradingSettings');
 const { addReplayTradingSettingsButton } = require('../../utils/replayTradingToolbar');
 const { authFetch } = require('../../helper');
@@ -50,12 +51,13 @@ const ReplayTradeCanvasGrid = ({
   baseTimeframe,
   position,
   pendingOrder,
-  onActiveChartChange,
+  onActiveChartChange, onGoTo,
   spec, currentPrice, chartMenuItems, onOrderModify, onOrderCancel, onPositionModify, onPositionClose,
 }) => {
   const interactionRef = useRef(null);
   interactionRef.current = { chartMenuItems, onOrderModify, onOrderCancel, onPositionModify, onPositionClose };
   const hostRef = useRef(null);
+  const goToRef = useRef(null);
   const settingsRef = useRef(null);
   const [labelUnits, setLabelUnits] = useState(['currency']);
   const savedUnitsRef = useRef(['currency']);
@@ -180,6 +182,10 @@ const ReplayTradeCanvasGrid = ({
         };
         matchVolumeColors();chart.on('styleChange',matchVolumeColors);chart.on('themeChange',matchVolumeColors);
         addReplayTradingSettingsButton(widget, () => openSettingsRef.current());
+        widget.addToolbarButton({id:'rr-replay-go-to',label:'Go to',text:'Go to',side:'right',onClick:button=>{
+          const anchor=button.getClientRects().length?button:button.closest('.tcw-toolbar')?.querySelector('.tcw-toolbar-more');
+          goToRef.current?.(anchor||button);
+        }});
         chart.setTradingConfig({ lineButtons: { reverse: false, trailStop: false, addStops: true, cancel: true, close: true, removeStops: true } });
         chart.on('orderModify', event => interactionRef.current.onOrderModify(event.payload));
         chart.on('orderCancel', event => interactionRef.current.onOrderCancel(event.payload));
@@ -275,6 +281,7 @@ const ReplayTradeCanvasGrid = ({
       {/* The grid moves its active toolbar outside the widget's feature-scoped root. */}
       <style>{'[data-replay-workspace] .tcw-toolbar [data-role="fullscreen"] { display: none !important; }'}</style>
       <div className={fullHeight?"w-full flex-1 min-h-0 min-w-0":"w-full h-[430px] min-w-0"} ref={hostRef} data-active-chart={activeChart} />
+      <ReplayGoTo openRef={goToRef} onGoTo={onGoTo}/>
       <ReplayTradingSettings dialogRef={settingsRef} units={labelUnits} onChange={setLabelUnits} spec={spec}
         status={settingsStatus} error={settingsError} onRetry={refreshSettings} onSave={saveSettings} onDiscard={cancelSettings} />
     </>

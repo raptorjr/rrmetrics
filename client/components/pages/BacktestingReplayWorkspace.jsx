@@ -21,6 +21,7 @@ const getCssColor = (name, fallback) => {
 const formatMoney = value => (value < 0 ? '-$' : '$') + Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatPrice = (value, decimals = 2) => Number(value).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 const { formatDateEST, formatTimeEST, getDisplayTimeZone, getDateFormat, getTimeFormat } = require('../../utils/dateUtils');
+const { nextGoToIndex } = require('../../utils/replayGoTo');
 const { getSessionMarkets, isRangeWithinCoverage, aggregateCandles, timeframeSeconds, REPLAY_SPEEDS, restoreReplaySpeed, replayStepBudget, resetReplayChartLayout } = require('../../utils/historicalReplay');
 
 const formatBarTime = value => {
@@ -204,6 +205,9 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
   const exitRef = useRef(false), conflictRef = useRef(false), snapshotRef = useRef(null);
   const [restartLayout,setRestartLayout]=useState(null), [chartGeneration,setChartGeneration]=useState(0);
   const [chartReady,setChartReady] = useState(false), [saveStatus,setSaveStatus] = useState(saved?'Restoring…':'Not saved yet');
+  useEffect(()=>{
+    if(chartReady)setSaveStatus(previous=>previous==='Restoring…'?'Saved':previous);
+  },[chartReady]);
   const [savingExit,setSavingExit] = useState(false), [fullscreen,setFullscreen] = useState(false);
   const [lockedMarket,setLockedMarket] = useState(!!saved), [showDetails,setShowDetails] = useState(false);
   useEffect(()=>{
@@ -383,6 +387,21 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
     },50);
     return () => clearInterval(interval);
   }, [isPlaying, speed, historicalTimeframe]);
+
+  // Forward-only jump. Run the exact same execution path while a position or
+  // working order exists; when flat, no bar can create an execution by itself.
+  const jumpToTime = option => {
+    if(!chartReady||historicalLoading||exitRef.current||conflictRef.current)return;
+    const target=nextGoToIndex(candlesRef.current,currentIndexRef.current,option.time);
+    if(target<0){setError('No later '+option.label+' with historical data in this session.');return;}
+    setIsPlaying(false);setLockedMarket(true);setError('');
+    while(currentIndexRef.current<target&&(positionRef.current||pendingOrderRef.current)){
+      const before=currentIndexRef.current;
+      advanceOneRef.current?.();
+      if(currentIndexRef.current===before)return;
+    }
+    currentIndexRef.current=target;setCurrentIndex(target);
+  };
 
   const handleMarketChange = event => {
     if (lockedMarket || exitRef.current || historicalLoading) return;
@@ -645,6 +664,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
             pendingOrder={pendingOrder}
             spec={spec}
             currentPrice={currentPrice}
+            onGoTo={jumpToTime}
             chartMenuItems={chartMenuItems}
             onOrderModify={modifyPendingOrder}
             onOrderCancel={({ orderId }) => cancelPendingOrder(orderId)}
