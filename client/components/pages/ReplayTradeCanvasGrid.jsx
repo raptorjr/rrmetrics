@@ -139,8 +139,11 @@ const ReplayTradeCanvasGrid = ({
     const grid = gridRef.current;
     if (!grid) return;
     contextTimeframes.forEach((nextTimeframe, index) => {
-      const widget = grid.getWidget(index + 1);
-      if (widget && widget.getTimeframe() !== nextTimeframe) {
+      const chartIndex = index + 1;
+      const widget = grid.getWidget(chartIndex);
+      // A context chart becomes user-controlled when it is active. Do not
+      // overwrite its independent timeframe when the replay selection changes.
+      if (widget && grid.getActiveIndex() !== chartIndex && widget.getTimeframe() !== nextTimeframe) {
         void widget.setTimeframe(nextTimeframe);
       }
     });
