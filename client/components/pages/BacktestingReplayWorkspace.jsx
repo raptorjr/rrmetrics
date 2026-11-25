@@ -602,6 +602,7 @@ const BacktestingReplayWorkspace = () => {
             position={position}
             pendingOrder={pendingOrder}
             replayLayout={replayLayout}
+            contextTimeframes={contextTimeframes}
           />
           <div className="px-4 py-3 border-t border-border flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => setIsPlaying(value => !value)} disabled={!candles.length || (!isPlaying && currentIndex >= candles.length - 1)} aria-label={isPlaying ? 'Pause replay' : 'Play replay'} className="w-10 h-10 inline-flex items-center justify-center rounded-lg bg-accent text-accent-text text-sm font-semibold disabled:opacity-40">{isPlaying ? 'Ⅱ' : '▶'}</button>
