@@ -30,6 +30,16 @@ test('persistent replay accounts resume across clients, isolate trades and rejec
     const second=await write(desktop,url,'POST',{...meta,name:'Second'});assert.equal(second.status,201);
     assert.equal((await laptop.request(url+'/'+session.id)).status,200);
     assert.equal((await other.request(url+'/'+session.id)).status,404);
+    const analyticsUrl='/api/backtesting/replay-analytics', viewUrl='/api/backtesting/account-view';
+    const emptyAnalytics=(await (await desktop.request(analyticsUrl)).json() as any);
+    assert.equal(emptyAnalytics.accounts.length,2);assert.equal(emptyAnalytics.trades.length,0);
+    assert.deepEqual(await (await other.request(analyticsUrl)).json(),{accounts:[],trades:[]});
+    const settings={version:1,mode:'backtesting',trading:['manual::Practice'],backtesting:['replay::'+session.id]};
+    assert.equal((await write(desktop,viewUrl,'PUT',settings)).status,200);
+    assert.deepEqual(await (await laptop.request(viewUrl)).json(),{settings});
+    assert.deepEqual(await (await other.request(viewUrl)).json(),{settings:null});
+    assert.equal((await write(desktop,viewUrl,'PUT',{...settings,backtesting:['manual::Practice']})).status,400);
+    assert.equal((await write(desktop,viewUrl,'PUT',{...settings,trading:['replay::'+session.id]})).status,400);
     const time=Date.parse(start)/1000;
     const closed={id:'replay-1',direction:'long',quantity:1,entryPrice:100,exitPrice:110,entryTime:time,exitTime:time+60,pnl:200,rMultiple:2,fills:[
       {direction:'long',quantity:1,price:100,time,kind:'entry'},
@@ -44,6 +54,12 @@ test('persistent replay accounts resume across clients, isolate trades and rejec
     assert.equal((await write(other,save,'PUT',{...payload,revision:1})).status,404);
     const restored=(await (await laptop.request(url+'/'+session.id)).json() as any).session;
     assert.deepEqual(restored.checkpoint,checkpoint);assert.deepEqual(restored.trades,[closed]);
+    const projected=(await (await desktop.request(analyticsUrl)).json() as any);
+    assert.equal(projected.accounts.length,2);assert.equal(projected.trades.length,1);
+    assert.equal(projected.trades[0].manualPL,200);assert.equal(projected.trades[0].domain,'backtesting');
+    assert.equal(projected.trades[0].ticker,'NQ');assert.equal(projected.trades[0].quantity,1);
+    assert.equal(projected.trades[0].enterTime,start);assert.deepEqual(projected.trades[0].fills,closed.fills);
+    assert.equal(projected.accounts.find((a:any)=>a.id===session.id).balance,50220);
     assert.equal(restored.balance,50220);assert.equal(restored.tradeCount,1);assert.equal(restored.progress,30);
     assert.equal((await write(laptop,save,'PUT',{...payload,revision:1,trades:[]})).status,409);
     assert.equal((await write(laptop,save,'PUT',{...payload,revision:1,checkpoint:{...checkpoint,fingerprint:'b'.repeat(64)}})).status,409);
@@ -96,6 +112,9 @@ test('persistent replay accounts resume across clients, isolate trades and rejec
     assert.equal(renamedWithTrades.name,'Renamed second');
     assert.deepEqual(renamedWithTrades.trades,[closed]);assert.deepEqual(renamedWithTrades.checkpoint,checkpoint);
     assert.equal(renamedWithTrades.balance,untouched.balance);
+    const finalAnalytics=(await (await desktop.request(analyticsUrl)).json() as any);
+    assert.equal(finalAnalytics.accounts.length,1);assert.equal(finalAnalytics.trades.length,1);
+    assert.equal(finalAnalytics.trades[0].account,'Renamed second');assert.equal(finalAnalytics.trades[0].replaySessionId,secondSession.id);
     assert.equal((db.prepare('SELECT COUNT(*) AS n FROM trades').get() as any).n,0);
     assert.equal((db.prepare('SELECT COUNT(*) AS n FROM backtesting_trades').get() as any).n,0);
   } finally {db.close();}

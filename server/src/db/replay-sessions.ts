@@ -49,6 +49,29 @@ export function getReplaySession(db: Db, owner: string, session: string) {
   const row = rowFor(db,owner,session);
   return row ? view(db,row,true) : null;
 }
+// Read-only analytics projection. The replay trade's recorded P/L is authoritative,
+// especially after partial exits. Never insert these records into real trades.
+export function replayAnalytics(db: Db, owner: string) {
+  return db.transaction(() => {
+    const rows=db.prepare('SELECT * FROM replay_sessions WHERE user_id=? ORDER BY updated_at DESC').all(owner) as Row[];
+    const accounts=rows.map(row=>{
+      const summary=view(db,row);
+      return {...summary,key:'replay::'+row.id,provider:'replay',currencyCode:'USD'};
+    });
+    const trades=rows.flatMap(row=>{
+      const checkpoint=row.checkpoint_json?JSON.parse(row.checkpoint_json):null;
+      return allTrades(db,row.id).map(t=>({
+        _id:'replay::'+row.id+'::'+t.id,domain:'backtesting',replaySessionId:row.id,
+        account:row.name,ticker:checkpoint.marketKey.split('::')[0],direction:t.direction,
+        quantity:t.direction==='short'?-t.quantity:t.quantity,enterPrice:t.entryPrice,exitPrice:t.exitPrice,
+        enterTime:new Date(t.entryTime*1000).toISOString(),exitTime:new Date(t.exitTime*1000).toISOString(),
+        manualPL:t.pnl,grossPL:t.pnl,netPL:t.pnl,fees:0,currencyCode:'USD',
+        rMultiple:t.rMultiple??null,fills:t.fills,
+      }));
+    });
+    return {accounts,trades};
+  })();
+}
 export function createReplaySession(db: Db, owner: string, input: unknown) {
   if (!record(input) || typeof input.name !== 'string' || !input.name.trim() || input.name.length > 120
     || (input.description != null && (typeof input.description !== 'string' || input.description.length > 2000))

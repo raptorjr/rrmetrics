@@ -42,7 +42,7 @@ const { createPerformanceTiles } = require("../shared/performanceTileCatalog");
 
 
 
-const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
+const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter,backtesting=false }) => {
   const canvasRef = useRef(null);
   const barCanvasRef = useRef(null);
   const timeCanvasRef = useRef(null);
@@ -727,7 +727,7 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Analytics</h1>
-          <p className="text-text-secondary text-sm mt-1">Add trades to see analytics</p>
+          <p className="text-text-secondary text-sm mt-1">{backtesting?'Complete trades in a replay session to see analytics':'Add trades to see analytics'}</p>
         </div>
       </div>
     );
@@ -738,7 +738,7 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-text-primary">Analytics</h1>
-        <p className="text-text-secondary text-sm mt-1">Detailed performance analysis</p>
+        <p className="text-text-secondary text-sm mt-1">{backtesting?'Simulated performance · completed trades, before fees and slippage':'Detailed performance analysis'}</p>
       </div>
 
       {/* Period Filter + Eval filter */}
@@ -746,7 +746,7 @@ const AnalyticsPage = ({ trades: allTrades, evalFilter, setEvalFilter }) => {
         <div className="flex-1 min-w-0">
           <PeriodFilter value={period} onChange={setPeriod} trades={allTrades} />
         </div>
-        <EvalFilterControl trades={allTrades} evalFilter={evalFilter} setEvalFilter={setEvalFilter} />
+        {!backtesting&&<EvalFilterControl trades={allTrades} evalFilter={evalFilter} setEvalFilter={setEvalFilter} />}
       </div>
 
       {trades.length === 0 ? (

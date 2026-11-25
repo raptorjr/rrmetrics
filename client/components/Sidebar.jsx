@@ -8,7 +8,7 @@ const MIN_WIDTH = 64;
 const COLLAPSE_THRESHOLD = 140;
 const DEFAULT_WIDTH = 240;
 
-const Sidebar = ({ currentPage, onNavigate, onCollapsedChange, onWidthChange, trades, selectedAccounts, setSelectedAccounts, accountBrokers }) => {
+const Sidebar = ({ currentPage, onNavigate, onCollapsedChange, onWidthChange, trades, selectedAccounts, setSelectedAccounts, accountBrokers, accountMode, onAccountModeChange, replayAccounts, accountLoading }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [width, setWidth] = useState(() => {
     const stored = localStorage.getItem('sidebar-width');
@@ -130,7 +130,7 @@ const Sidebar = ({ currentPage, onNavigate, onCollapsedChange, onWidthChange, tr
               selectedAccounts={selectedAccounts}
               setSelectedAccounts={setSelectedAccounts}
               collapsed={isCollapsed}
-              accountBrokers={accountBrokers}
+              accountBrokers={accountBrokers} accountMode={accountMode} onAccountModeChange={onAccountModeChange} replayAccounts={replayAccounts} loading={accountLoading}
             />
           </div>
           <div className="space-y-1">

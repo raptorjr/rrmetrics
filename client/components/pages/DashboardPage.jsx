@@ -58,7 +58,7 @@ const { getTradePL, calculateAnalytics, calculateExpectancy, calculateProfitFact
 const { formatDuration } = require('../../utils/dateUtils');
 
 
-const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpenAddTrade, onEditTrade, dailyNotes, onSaveNote, onDeleteNote, tags, strategyRules, evalFilter, setEvalFilter, sidebarCollapsed }) => {
+const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpenAddTrade, onEditTrade, dailyNotes, onSaveNote, onDeleteNote, tags, strategyRules, evalFilter, setEvalFilter, sidebarCollapsed,backtesting=false,replayAccounts=[] }) => {
   const [period, setPeriod] = useState('all');
   const [syncing, setSyncing] = useState(false);
   const [kellyDrawdown, setKellyDrawdown] = useState(readKellyDrawdown);
@@ -137,7 +137,7 @@ const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpe
     defaultColumns: 4,
     defaultRows: 5,
     preview: <div className="h-[82px] rounded-md border border-border bg-bg-page p-2 flex flex-col justify-between"><div className="flex items-center justify-between"><span className="text-[10px] font-semibold text-text-secondary">Trading Calendar</span><span className="text-[9px] text-text-tertiary">Monthly</span></div><div className="grid grid-cols-7 gap-1">{Array.from({ length: 21 }, (_, index) => <span key={index} className={`h-2 rounded-[2px] ${[2, 5, 9, 12, 16, 19].includes(index) ? 'bg-positive/70' : [7, 14].includes(index) ? 'bg-negative/70' : 'bg-bg-input'}`} />)}</div></div>,
-    render: () => <CalendarView trades={baseTrades} dailyNotes={dailyNotes} onSaveNote={onSaveNote} onDeleteNote={onDeleteNote} tags={tags} strategyRules={strategyRules} onOpenAddTrade={onOpenAddTrade} onEditTrade={onEditTrade} sidebarCollapsed={sidebarCollapsed} />,
+    render: () => <CalendarView key={backtesting?'replay':'trading'} readOnly={backtesting} trades={baseTrades} dailyNotes={dailyNotes} onSaveNote={onSaveNote} onDeleteNote={onDeleteNote} tags={tags} strategyRules={strategyRules} onOpenAddTrade={onOpenAddTrade} onEditTrade={onEditTrade} sidebarCollapsed={sidebarCollapsed} />,
   }]).concat(createAnalyticsTiles(filteredTrades), createAnalyticsChartTiles(filteredTrades, {
     monteCarloSettings,
     onMonteCarloSettingsChange: handleMonteCarloSettingsChange,
@@ -151,7 +151,7 @@ const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpe
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
-          <p className="text-text-secondary text-sm mt-1">Overview of your trading performance</p>
+          <p className="text-text-secondary text-sm mt-1">{backtesting?'Simulated performance · completed trades, before fees and slippage':'Overview of your trading performance'}</p>
         </div>
         <div className="flex items-center gap-2">
           {hasBrokers && (
@@ -164,13 +164,13 @@ const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpe
               <Icons.RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
             </button>
           )}
-          <>
+          {!backtesting&&<>
               <button className="flex items-center gap-2 px-4 py-2.5 bg-accent text-accent-text text-sm font-semibold rounded-lg hover:brightness-110 transition-all" onClick={onOpenForm}>
                 <Icons.Plus className="w-4 h-4" />
                 New Trade
               </button>
 
-          </>
+          </>}
         </div>
       </div>
 
@@ -179,9 +179,10 @@ const DashboardPage = ({ trades, onOpenForm, onManualSync, brokerStatuses, onOpe
         <div className="flex-1 min-w-0">
           <PeriodFilter value={period} onChange={setPeriod} trades={trades} />
         </div>
-        <EvalFilterControl trades={trades} evalFilter={evalFilter} setEvalFilter={setEvalFilter} />
+        {!backtesting&&<EvalFilterControl trades={trades} evalFilter={evalFilter} setEvalFilter={setEvalFilter} />}
       </div>
 
+      {backtesting&&<div className="text-xs text-text-secondary">{replayAccounts.length} selected replay account(s) · {trades.length} completed trade(s). P/L charts exclude open positions and use historical exit dates; combining accounts pools completed trades, not cash balances.</div>}
       <DashboardGrid
         storageKey="rrmetrics_dashboard_tiles"
         defaultOrder={['totalPL', 'winRate', 'totalTrades', 'avgDuration', 'avgWinLoss', 'bestTrade', 'worstTrade', 'breakevenRate', 'profitFactor', 'expectancy', 'maxDrawdown', 'sharpeRatio', 'sortinoRatio', 'kellyRisk', 'tradingCalendar', 'longShortBreakdown', 'detailedStatistics', 'tickerPerformance', 'dailyNetPL', 'equityCurve', 'performanceByDay', 'performanceByEntryTime', 'monteCarloSimulation', 'tradingScore']}

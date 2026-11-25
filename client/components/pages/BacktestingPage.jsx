@@ -5,7 +5,7 @@ const { useState, useEffect } = React;
 const Icons = require('../shared/Icons');
 const ReplaySessionsPage = require('./ReplaySessionsPage');
 
-const BacktestingPage = () => {
+const BacktestingPage = ({onStatistics}) => {
   const [sessions, setSessions] = useState([]);
   const [activeTrades, setActiveTrades] = useState([]);
   const [allTrades, setAllTrades] = useState([]);
@@ -267,7 +267,7 @@ const BacktestingPage = () => {
           <p className="text-text-muted text-sm mt-1">Replay historical price action and practise simulated trades.</p>
         </div>
         {renderModeTabs()}
-        <ReplaySessionsPage />
+        <ReplaySessionsPage onStatistics={onStatistics} />
       </div>
     );
   }
