@@ -138,5 +138,6 @@ test('installed chart supports the native volume visibility and host style overr
 test('replay host disables native chart fullscreen in initial and future grid cells', () => {
   const fs=require('node:fs');
   const source=fs.readFileSync(require('node:path').join(__dirname,'../components/pages/ReplayTradeCanvasGrid.jsx'),'utf8');
-  assert.equal((source.match(/fullscreen: false, 'toolbar\\.fullscreen': false/g)||[]).length,2);
+  assert.equal(source.split("fullscreen: false, 'toolbar.fullscreen': false").length-1,2);
+  assert.ok(source.includes('[data-replay-workspace] .tcw-toolbar [data-role="fullscreen"]'));
 });
