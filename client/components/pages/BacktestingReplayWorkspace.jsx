@@ -5,10 +5,10 @@ const ReplayTradeCanvasGrid = require('./ReplayTradeCanvasGrid').default;
 const {
   getInstrumentSpec,
   normalizeOhlcvRows,
-  applyReplayFill, advanceReplayOrders, validateReplayQuantity, seedReplayOrderPrice, replayBreakevenPrice,
+  applyReplayFill, advanceReplayOrders, seedReplayOrderPrice, replayBreakevenPrice,
   calculateTradePnl,
   calculateTradeStats,
-  snapReplayPrice, validateReplayLevels, validateReplayEntry, updateReplayLevels, canMoveToBreakeven, replayOrderMenu,
+  snapReplayPrice, validateReplayLevels, validateReplayEntry, validateReplayOrderDraft, updateReplayLevels, canMoveToBreakeven, replayOrderMenu,
 } = require('../../utils/backtestingReplay');
 
 const getCssColor = (name, fallback) => {
@@ -419,6 +419,12 @@ const BacktestingReplayWorkspace = () => {
     setError('');
   };
 
+  const resetOrderPrice = () => {
+    if (pendingOrderRef.current) return;
+    setOrderPrice(seedReplayOrderPrice(orderType, latestCandle()?.close, spec));
+    setError('');
+  };
+
   const openPosition = (direction, options = {}) => {
     const candle = latestCandle();
     if (!candle || historicalLoading) { setError('Select an available historical market and period before placing a trade.'); return; }
@@ -426,10 +432,7 @@ const BacktestingReplayWorkspace = () => {
     const active = positionRef.current;
     const parsedQuantity = Number(options.quantity ?? quantity);
     const type = options.type ?? orderType;
-    const qtyError = validateReplayQuantity(active, direction, parsedQuantity);
-    if (qtyError) { setError(qtyError); return; }
-    const triggerPrice = type === 'market' ? candle.close : snapReplayPrice(options.price ?? orderPrice, spec);
-    const orderError = validateReplayEntry(direction, type, triggerPrice, candle.close);
+    const { triggerPrice, error: orderError } = validateReplayOrderDraft(active, direction, parsedQuantity, type, options.price ?? orderPrice, candle.close, spec);
     if (orderError) { setError(orderError); return; }
     const order = { id: 'replay-' + (++orderSequence.current), direction, quantity: parsedQuantity, type, triggerPrice, stopPrice: null, targetPrice: null, positionId: active?.id ?? null };
     setQuantity(parsedQuantity); setOrderType(type); setOrderPrice(type === 'market' ? '' : String(triggerPrice));
@@ -672,9 +675,9 @@ const BacktestingReplayWorkspace = () => {
             <h3 className="text-text-primary font-semibold text-sm">Order entry</h3>
             <div className={orderType === 'market' ? 'grid grid-cols-1' : 'grid grid-cols-2 gap-2'}>
               <div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Order type</label><select aria-label="Order type" value={orderType} disabled={!!pendingOrder} onChange={event => changeOrderType(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-2 py-2 text-sm text-text-primary"><option value="market">Market</option><option value="limit">Limit</option><option value="stop_market">Stop Market</option></select></div>
-              {orderType !== 'market' && <div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Order price</label><input aria-label="Order price" type="number" step={spec.tickSize} value={orderPrice} disabled={!!pendingOrder} onChange={event => setOrderPrice(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-2 py-2 text-sm text-text-primary" placeholder="Price" /></div>}
+              {orderType !== 'market' && <div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Order price</label><div className="flex items-center gap-1"><input aria-label="Order price" type="number" step={spec.tickSize} value={orderPrice} disabled={!!pendingOrder} onChange={event => { setOrderPrice(event.target.value); setError(''); }} className="w-full min-w-0 bg-bg-input border border-border rounded-lg px-2 py-2 text-sm text-text-primary" placeholder="Price" /><button type="button" aria-label="Reset to current market price" title="Reset to current market price" disabled={!!pendingOrder || historicalLoading || !currentPrice} onClick={resetOrderPrice} className="shrink-0 w-7 h-9 rounded-lg border border-border text-text-muted hover:text-text-primary disabled:opacity-40 flex items-center justify-center"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7v5h-5M4 17v-5h5M6 8a7 7 0 0 1 11.5-2L20 9M4 15l2.5 3A7 7 0 0 0 18 16"/></svg></button></div></div>}
             </div>
-            <div className="flex items-center justify-between text-xs"><span className="text-text-muted">Contracts</span><strong className="text-text-primary tabular-nums">{quantity}</strong></div>
+            {orderType !== 'market' && <div className="flex items-center justify-between text-xs"><span className="text-text-muted">Current market price</span><span className="text-text-secondary tabular-nums">{currentPrice > 0 ? formatPrice(currentPrice, spec.decimals) : '—'}</span></div>}
             <div className="flex items-center gap-1">
               <button type="button" onClick={() => adjustQuantity(-1)} disabled={!!pendingOrder || quantity <= 1} className="w-7 h-8 shrink-0 rounded-full border border-border text-text-primary disabled:opacity-40" aria-label="Decrease contracts">−</button>
               <div className="flex flex-1 justify-center gap-1 min-w-0">{quantityPresets.map((preset, index) => <button key={index} type="button" onClick={() => setQuantity(preset)} disabled={!!pendingOrder} className={"min-w-0 flex-1 h-8 px-1 rounded-full text-xs font-semibold disabled:opacity-40 " + (quantity === preset ? 'bg-accent text-accent-text' : 'bg-bg-input text-text-secondary hover:text-text-primary')}>{preset}</button>)}</div>
@@ -684,15 +687,16 @@ const BacktestingReplayWorkspace = () => {
             {editingPresets && <div className="rounded-lg border border-border bg-bg-input p-3 space-y-2"><div className="text-xs font-semibold text-text-secondary">Contract presets</div><div className="grid grid-cols-5 gap-2">{presetDraft.map((value, index) => <input key={index} type="number" min="1" max="100" step="1" value={value} onChange={event => setPresetDraft(previous => previous.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} className="min-w-0 w-full rounded border border-border bg-bg-surface px-1 py-2 text-center text-sm text-text-primary" aria-label={"Preset " + (index + 1)} />)}</div><div className="flex justify-end gap-2"><button type="button" onClick={() => setEditingPresets(false)} className="px-3 py-1.5 text-xs text-text-muted">Cancel</button><button type="button" onClick={savePresets} className="px-3 py-1.5 rounded bg-accent text-accent-text text-xs font-semibold">Save</button></div></div>}
             <div className="grid grid-cols-2 gap-2">
               {['long', 'short'].map(direction => {
-                const qtyError = validateReplayQuantity(position, direction, quantity);
-                const disabled = !candles.length || historicalLoading || !!pendingOrder || !!qtyError;
+                const { error: draftError } = validateReplayOrderDraft(position, direction, quantity, orderType, orderPrice, currentPrice, spec);
+                const disabled = !candles.length || historicalLoading || !!pendingOrder || !!draftError;
                 const action = !position ? '' : position.direction === direction ? 'Add' : quantity === position.quantity ? 'Close' : 'Reduce';
-                return <button key={direction} type="button" onClick={() => openPosition(direction)} title={qtyError || undefined} disabled={disabled} className={'py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-40 ' + (direction === 'long' ? 'bg-positive' : 'bg-negative')}>
+                return <button key={direction} type="button" onClick={() => openPosition(direction)} title={pendingOrder ? 'Cancel the working order before submitting another.' : draftError || undefined} disabled={disabled} className={'py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-40 ' + (direction === 'long' ? 'bg-positive' : 'bg-negative')}>
                   {direction === 'long' ? 'BUY' : 'SELL'} {quantity} @ {orderType === 'stop_market' ? 'STOP' : orderType.toUpperCase()}
                   {action && <span className="block text-[10px] font-normal opacity-80">{action}</span>}
                 </button>;
               })}
             </div>
+            {!pendingOrder && orderType !== 'market' && <p className="text-[11px] text-text-muted">{orderType === 'limit' ? 'Buy below · Sell above market' : 'Buy above · Sell below market'}{snapReplayPrice(orderPrice, spec) === currentPrice && currentPrice > 0 ? ' — adjust the order price' : ''}</p>}
             {pendingOrder && <div className="rounded-lg bg-bg-input p-3 text-xs space-y-2"><div className="flex justify-between"><span className="text-text-muted">Pending {pendingOrder.type.replace('_', ' ')}</span><strong>{pendingOrder.direction.toUpperCase()} × {pendingOrder.quantity}</strong></div><div className="flex justify-between"><span className="text-text-muted">Order price</span><span className="font-mono">{formatPrice(pendingOrder.triggerPrice, spec.decimals)}</span></div><button type="button" onClick={() => cancelPendingOrder(pendingOrder.id)} className="w-full py-2 rounded-lg border border-border text-sm text-text-secondary">Cancel pending order</button></div>}
             {position && <div className="space-y-2"><div className="rounded-lg bg-bg-input p-3 text-xs space-y-1"><div className="flex justify-between"><span className="text-text-muted">Open position</span><strong className={position.direction === 'long' ? 'text-positive' : 'text-negative'}>{position.direction.toUpperCase()} × {position.quantity}</strong></div><div className="flex justify-between"><span className="text-text-muted">Avg entry</span><span className="font-mono">{formatPrice(position.entryPrice, spec.decimals)}</span></div><div className="flex justify-between"><span className="text-text-muted">Unrealized P/L</span><strong className={unrealizedPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(unrealizedPnl)}</strong></div>{position.fills?.some(fill => fill.kind === 'exit') && <div className="flex justify-between"><span className="text-text-muted">Realized P/L</span><strong className={realizedOpenPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(realizedOpenPnl)}</strong></div>}</div>
               <div className="flex gap-2"><button type="button" onClick={() => closeFromChart(position.id)} className="flex-1 py-2 rounded-lg bg-accent text-accent-text text-sm font-semibold">Close position</button><button type="button" title="Move stop to remaining average entry (rounded to a protective tick, before fees)" disabled={!canMoveToBreakeven(position, currentPrice, spec)} onClick={moveToBreakeven} className="px-5 py-2 rounded-lg border border-border text-sm font-semibold text-text-primary disabled:opacity-40">BE</button></div>
