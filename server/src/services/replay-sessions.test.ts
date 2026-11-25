@@ -61,6 +61,41 @@ test('persistent replay accounts resume across clients, isolate trades and rejec
     assert.equal(restarted.revision,3);assert.equal(restarted.balance,50000);assert.equal(restarted.progress,0);assert.equal(restarted.trades.length,0);
     assert.deepEqual(restarted.checkpoint.layout,checkpoint.layout);
     assert.equal((await write(desktop,save,'PUT',payload)).status,409);
+    // Management actions are owner scoped, validate names and reject stale list revisions.
+    const uri=url+'/'+session.id;
+    const secondSession=(await second.json() as any).session;
+    const rename={revision:3,name:'  London practice  '};
+    assert.equal((await write(other,uri,'PATCH',rename)).status,404);
+    assert.equal((await write(laptop,uri,'PATCH',{...rename,name:'  '})).status,400);
+    assert.equal((await write(laptop,uri,'PATCH',{...rename,name:'x'.repeat(121)})).status,400);
+    assert.equal((await write(laptop,uri,'PATCH',{...rename,revision:2})).status,409);
+    const renamed=await write(laptop,uri,'PATCH',rename);
+    assert.equal(renamed.status,200);
+    const renamedSession=(await renamed.json() as any).session;
+    assert.equal(renamedSession.name,'London practice');assert.equal(renamedSession.id,session.id);
+    assert.equal(renamedSession.revision,4);
+    const afterRename=(await (await desktop.request(uri)).json() as any).session;
+    assert.deepEqual(afterRename.checkpoint,restarted.checkpoint);
+    assert.deepEqual(afterRename.trades,restarted.trades);
+    assert.equal(afterRename.balance,restarted.balance);
+    assert.equal((await write(desktop,save,'PUT',{revision:4,checkpoint,trades:[closed]})).status,200);
+    // A different session can have the same trade ID; it must survive deletion.
+    const otherSave=url+'/'+secondSession.id+'/checkpoint';
+    assert.equal((await write(desktop,otherSave,'PUT',payload)).status,200);
+    assert.equal((await write(other,uri,'DELETE',{revision:5})).status,404);
+    assert.equal((await write(laptop,uri,'DELETE',{})).status,400);
+    assert.equal((await write(laptop,uri,'DELETE',{revision:4})).status,409);
+    assert.equal((await write(laptop,uri,'DELETE',{revision:5})).status,200);
+    assert.equal((await desktop.request(uri)).status,404);
+    assert.equal((await write(desktop,save,'PUT',{revision:5,checkpoint,trades:[closed]})).status,404);
+    assert.equal((db.prepare('SELECT COUNT(*) AS n FROM replay_session_trades WHERE session_id=?').get(session.id) as any).n,0);
+    const untouched=(await (await desktop.request(url+'/'+secondSession.id)).json() as any).session;
+    assert.deepEqual(untouched.trades,[closed]);assert.equal(untouched.name,'Second');
+    assert.equal((await write(laptop,url+'/'+secondSession.id,'PATCH',{revision:1,name:'Renamed second'})).status,200);
+    const renamedWithTrades=(await (await desktop.request(url+'/'+secondSession.id)).json() as any).session;
+    assert.equal(renamedWithTrades.name,'Renamed second');
+    assert.deepEqual(renamedWithTrades.trades,[closed]);assert.deepEqual(renamedWithTrades.checkpoint,checkpoint);
+    assert.equal(renamedWithTrades.balance,untouched.balance);
     assert.equal((db.prepare('SELECT COUNT(*) AS n FROM trades').get() as any).n,0);
     assert.equal((db.prepare('SELECT COUNT(*) AS n FROM backtesting_trades').get() as any).n,0);
   } finally {db.close();}

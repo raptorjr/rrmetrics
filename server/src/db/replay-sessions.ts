@@ -67,6 +67,34 @@ export function createReplaySession(db: Db, owner: string, input: unknown) {
     VALUES (?,?,?,?,?,?,?,?,?)`).run(session,owner,input.name.trim(),String(input.description ?? '').trim(),startIso,endIso,Math.round(input.startingBalance*100),now,now);
   return getReplaySession(db,owner,session);
 }
+// Metadata mutations are explicit and revision checked, like checkpoint resets.
+// A stale list on another device must not delete newly saved executions.
+export function renameReplaySession(db: Db, owner: string, session: string, input: unknown) {
+  if (!record(input) || !integer(input.revision) || input.revision < 0 ||
+      typeof input.name !== 'string' || !input.name.trim() || input.name.length > 120)
+    return {error:'Enter a valid session name.',status:400} as const;
+  const name = input.name.trim();
+  return db.transaction(() => {
+    const row = rowFor(db,owner,session);
+    if (!row) return {error:'Session not found.',status:404} as const;
+    if (row.revision !== input.revision) return {error:'Session changed on another device. Refresh the session list and try again.',status:409} as const;
+    if (row.name !== name) db.prepare('UPDATE replay_sessions SET name=?, revision=revision+1, updated_at=? WHERE id=? AND user_id=?')
+      .run(name,new Date().toISOString(),session,owner);
+    return {session:view(db,rowFor(db,owner,session)!)};
+  })();
+}
+export function deleteReplaySession(db: Db, owner: string, session: string, input: unknown) {
+  if (!record(input) || !integer(input.revision) || input.revision < 0)
+    return {error:'Invalid session revision.',status:400} as const;
+  return db.transaction(() => {
+    const row = rowFor(db,owner,session);
+    if (!row) return {error:'Session not found.',status:404} as const;
+    if (row.revision !== input.revision) return {error:'Session changed on another device. Refresh the session list and try again.',status:409} as const;
+    // The foreign key cascades to this virtual account's completed trades only.
+    db.prepare('DELETE FROM replay_sessions WHERE id=? AND user_id=?').run(session,owner);
+    return {deleted:true as const};
+  })();
+}
 export function saveReplaySession(db: Db, owner: string, session: string, input: unknown) {
   if (!record(input) || !integer(input.revision) || !record(input.checkpoint) || !Array.isArray(input.trades)) return { error:'Invalid checkpoint.', status:400 } as const;
   const c = input.checkpoint, trades = input.trades;
