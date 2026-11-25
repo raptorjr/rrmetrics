@@ -135,3 +135,20 @@ test('first protective stop fixes R and below-market choices are correct', () =>
   assert.equal(next.initialRiskPoints, 5);
   assert.deepEqual(replayOrderMenu(95, 100, [1, 2], 1, String, () => {}).map(x => x.label), ['Market Buy', 'Market Sell', 'Limit Buy @ 95', 'Stop Sell @ 95']);
 });
+
+test('chart positions carry the same point value as replay execution for every configured instrument', () => {
+  const { toReplayChartPosition, getInstrumentSpec, INSTRUMENT_SPECS } = require('./backtestingReplay');
+  for (const symbol of Object.keys(INSTRUMENT_SPECS)) {
+    const spec = getInstrumentSpec(symbol);
+    for (const direction of ['long', 'short']) {
+      const position = { id: 'p1', direction, entryPrice: 100, quantity: 3, stopPrice: 100, targetPrice: direction === 'long' ? 124 : 76 };
+      const chart = toReplayChartPosition(position, spec);
+      assert.equal(chart.pointValue, spec.pointValue);
+      assert.equal(chart.currencySymbol, '$');
+      assert.equal(chart.quantity, 3);
+      assert.equal(chart.stopLoss, 100);
+      assert.equal(chart.takeProfit, position.targetPrice);
+      assert.equal((chart.takeProfit - chart.entryPrice) * chart.quantity * chart.pointValue * (chart.side === 'buy' ? 1 : -1), calculateTradePnl(position, position.targetPrice, spec.pointValue));
+    }
+  }
+});

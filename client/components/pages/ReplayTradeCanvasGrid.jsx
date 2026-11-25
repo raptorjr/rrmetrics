@@ -2,6 +2,7 @@ const React = require('react');
 const { useEffect, useMemo, useRef, useState } = React;
 const { ChartWidgetGrid } = require('@tradecanvas/chart/widget');
 const { timeframeSeconds } = require('../../utils/historicalReplay');
+const { calculateTradePnl, toReplayChartPosition } = require('../../utils/backtestingReplay');
 
 const toBars = candles => candles.map(bar => ({
   time: bar.time * 1000,
@@ -163,7 +164,7 @@ const ReplayTradeCanvasGrid = ({
       // The replay state is authoritative, regardless of each chart's interval.
       chart.setTradingConfig({ pricePrecision: spec.decimals,
         positionLabel: ctx => {
-          const pnl = (currentPrice - ctx.entryPrice) * (ctx.side === 'buy' ? 1 : -1) * ctx.openQuantity * spec.pointValue;
+          const pnl = calculateTradePnl({ direction: ctx.side === 'buy' ? 'long' : 'short', entryPrice: ctx.entryPrice, quantity: ctx.openQuantity }, currentPrice, spec.pointValue);
           return (ctx.side === 'buy' ? 'Long' : 'Short') + ' ' + (pnl < 0 ? '-$' : '+$') + Math.abs(pnl).toFixed(2);
         } });
       chart.setOrders(pendingOrder ? [{
@@ -171,11 +172,7 @@ const ReplayTradeCanvasGrid = ({
         type: pendingOrder.type === 'stop_market' ? 'stop' : 'limit', price: pendingOrder.triggerPrice,
         quantity: pendingOrder.quantity, draggable: true,
       }] : []);
-      chart.setPositions(position ? [{
-        id: position.id, side: position.direction === 'long' ? 'buy' : 'sell',
-        quantity: position.quantity, entryPrice: position.entryPrice,
-        stopLoss: position.stopPrice ?? undefined, takeProfit: position.targetPrice ?? undefined,
-      }] : []);
+      chart.setPositions(position ? [toReplayChartPosition(position, spec)] : []);
     });
   }, [position, pendingOrder, gridRevision, currentPrice, spec]);
   return (
