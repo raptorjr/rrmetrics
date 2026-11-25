@@ -1,3 +1,13 @@
+# Backtesting replay — persistent session first version
+
+Open Backtesting → Replay sessions. Create a named session with optional description, a historical date/time range and USD starting balance. The range must be covered by one base-resolution imported OHLCV dataset in this first version. Select an eligible execution market in the workspace before replay or the first order. The session then uses that one execution instrument and base interval; chart intervals remain independently adjustable. Independent symbols and shared Dashboard/Analytics account switching are later work.
+
+The full-window workspace uses a compact account header (Save & exit, starting balance, balance, equity, realized/unrealized P/L, save status and fullscreen), expandable charts, the existing order panel and collapsible history/statistics. The fullscreen control covers the whole workspace.
+
+Session metadata, versioned checkpoints, order state, fills, completed trades, selected contract presets, draft and replay speed are stored in SQLite. The chart grid layout captures its indicators, drawings and horizontal viewport via TradeCanvas; full visual round-trip needs browser acceptance. Restore reloads the same historical range and compares its fingerprint, restores paused, and never executes an order merely by opening the session. Changed or missing data blocks continuation without deleting saved trades. Autosave runs every five seconds once replay/trading starts; Save & exit awaits the latest acknowledged checkpoint. A stale revision blocks saving to avoid overwriting another device. Unsaved progress can be lost on abrupt shutdown. Reset is removed from saved sessions.
+
+Balance includes realized partial exits, equity includes open unrealized P/L. This is gross simulated USD cash, not margin or buying power. Completed trades are one round trip when flat. Existing broker and manual journal tables remain untouched.
+
 # Manual Backtesting — Chart Replay
 
 ## Product direction

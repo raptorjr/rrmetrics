@@ -526,3 +526,25 @@ CREATE INDEX IF NOT EXISTS idx_market_data_tick_datasets_query
   ON market_data_file_tick_datasets(user_id, instrument, source_symbol, start_time, end_time);
 CREATE INDEX IF NOT EXISTS idx_market_data_tick_datasets_file
   ON market_data_file_tick_datasets(file_id, user_id);
+
+-- Persistent chart-replay sessions are isolated from broker and legacy manual trades.
+CREATE TABLE IF NOT EXISTS replay_sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  start_time TEXT NOT NULL,
+  end_time TEXT NOT NULL,
+  starting_balance_cents INTEGER NOT NULL CHECK(starting_balance_cents > 0),
+  revision INTEGER NOT NULL DEFAULT 0,
+  checkpoint_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS replay_sessions_owner ON replay_sessions(user_id, updated_at);
+CREATE TABLE IF NOT EXISTS replay_session_trades (
+  session_id TEXT NOT NULL REFERENCES replay_sessions(id) ON DELETE CASCADE,
+  trade_id TEXT NOT NULL,
+  trade_json TEXT NOT NULL,
+  PRIMARY KEY(session_id, trade_id)
+);

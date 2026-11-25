@@ -1,5 +1,6 @@
 const React = require('react');
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
+const { createPortal } = require('react-dom');
 const { authFetch } = require('../../helper.js');
 const ReplayTradeCanvasGrid = require('./ReplayTradeCanvasGrid').default;
 const {
@@ -20,7 +21,7 @@ const getCssColor = (name, fallback) => {
 const formatMoney = value => (value < 0 ? '-$' : '$') + Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatPrice = (value, decimals = 2) => Number(value).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 const { formatDateEST, formatTimeEST, getDisplayTimeZone, getDateFormat, getTimeFormat } = require('../../utils/dateUtils');
-const { getAvailableMarkets, isRangeWithinCoverage, aggregateCandles, timeframeSeconds } = require('../../utils/historicalReplay');
+const { getSessionMarkets, isRangeWithinCoverage, aggregateCandles, timeframeSeconds } = require('../../utils/historicalReplay');
 
 const formatBarTime = value => {
   const date = new Date(value * 1000);
@@ -196,7 +197,20 @@ const formatInterval = seconds => seconds < 60
     ? (seconds / 60) + ' minute' + (seconds === 60 ? '' : 's')
     : (seconds / 3600) + ' hour' + (seconds === 3600 ? '' : 's');
 
-const BacktestingReplayWorkspace = () => {
+const BacktestingReplayWorkspace = ({session, onExit}) => {
+  const saved = session.checkpoint;
+  const workspaceRef = useRef(null), chartCaptureRef = useRef(null), fingerprintRef = useRef('');
+  const revisionRef = useRef(session.revision), saveInFlight = useRef(null), lastSavedRef = useRef('');
+  const exitRef = useRef(false), conflictRef = useRef(false), snapshotRef = useRef(null);
+  const [chartReady,setChartReady] = useState(false), [saveStatus,setSaveStatus] = useState(saved?'Restoring…':'Not saved yet');
+  const [savingExit,setSavingExit] = useState(false), [fullscreen,setFullscreen] = useState(false);
+  const [lockedMarket,setLockedMarket] = useState(!!saved), [showDetails,setShowDetails] = useState(false);
+  useEffect(()=>{
+    const update=()=>setFullscreen(document.fullscreenElement===workspaceRef.current);
+    document.addEventListener('fullscreenchange',update);
+    const old=document.body.style.overflow;document.body.style.overflow='hidden';
+    return()=>{document.removeEventListener('fullscreenchange',update);document.body.style.overflow=old;};
+  },[]);
   const [ticker, setTicker] = useState('NQ');
   const [candles, setCandles] = useState([]);
   const [marketBaseCandles, setMarketBaseCandles] = useState([]);
@@ -211,7 +225,8 @@ const BacktestingReplayWorkspace = () => {
   const [orderPrice, setOrderPrice] = useState('');
   const [pendingOrder, setPendingOrder] = useState(null);
   const [position, setPosition] = useState(null);
-  const [closedTrades, setClosedTrades] = useState([]);
+  const [closedTrades, setClosedTrades] = useState(session.trades || []);
+  const closedTradesRef = useRef(session.trades || []);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [importError, setImportError] = useState('');
@@ -219,9 +234,9 @@ const BacktestingReplayWorkspace = () => {
   const [selectedMarketKey, setSelectedMarketKey] = useState('');
   const [historicalLoading, setHistoricalLoading] = useState(false);
   const [historicalTimeframe, setHistoricalTimeframe] = useState('1m');
-  const [historicalStart, setHistoricalStart] = useState('');
-  const [historicalEnd, setHistoricalEnd] = useState('');
-  const [selectedCoverageIndex, setSelectedCoverageIndex] = useState(0);
+  const historicalStart = session.startTime;
+  const historicalEnd = session.endTime;
+  
   const currentIndexRef = useRef(80);
   const candlesRef = useRef(candles);
   const positionRef = useRef(null);
@@ -229,11 +244,11 @@ const BacktestingReplayWorkspace = () => {
   const advanceOneRef = useRef(null);
   const orderSequence = useRef(0);
 
-  const availableMarkets = useMemo(() => getAvailableMarkets(historicalDatasets), [historicalDatasets]);
+  const availableMarkets = useMemo(() => getSessionMarkets(historicalDatasets,Date.parse(session.startTime),Date.parse(session.endTime)), [historicalDatasets,session.startTime,session.endTime]);
   const selectedMarket = useMemo(() => availableMarkets.find(market => market.key === selectedMarketKey) || null, [availableMarkets, selectedMarketKey]);
   const historicalTimeframes = selectedMarket?.availableTimeframes || [];
   const baseTimeframe = selectedMarket?.baseTimeframe || '';
-  const selectedCoverage = selectedMarket?.coverage[selectedCoverageIndex] || selectedMarket?.coverage[0] || null;
+  const selectedCoverage = selectedMarket?.coverage.find(range=>isRangeWithinCoverage(Date.parse(session.startTime),Date.parse(session.endTime),range)) || null;
 
   useEffect(() => {
     let cancelled = false;
@@ -245,12 +260,12 @@ const BacktestingReplayWorkspace = () => {
         if (cancelled) return;
         const datasets = data.datasets || [];
         setHistoricalDatasets(datasets);
-        const markets = getAvailableMarkets(datasets);
-        if (markets.length) {
-          const preferred = markets.find(market => market.instrument === ticker) || markets[0];
-          setSelectedMarketKey(preferred.key);
-          setTicker(preferred.instrument);
-        }
+        const markets = getSessionMarkets(datasets,Date.parse(session.startTime),Date.parse(session.endTime));
+        const preferred = saved ? markets.find(m=>m.key===saved.marketKey) : markets.find(m=>m.instrument===ticker) || markets[0];
+        if (!preferred) throw Error('Historical data for this session is unavailable. Saved trades are preserved; replay cannot continue.');
+        if (saved && !preferred.availableTimeframes.includes(saved.timeframe)) throw Error('Saved execution timeframe is unavailable.');
+        setHistoricalTimeframe(saved?.timeframe || preferred.baseTimeframe);
+        setSelectedMarketKey(preferred.key);setTicker(preferred.instrument);
       } catch (loadError) {
         if (!cancelled) setImportError(loadError.message || 'Unable to load historical market-data catalogue.');
       }
@@ -260,25 +275,13 @@ const BacktestingReplayWorkspace = () => {
   }, []);
 
   useEffect(() => {
-    if (!selectedMarket) return;
-    setTicker(selectedMarket.instrument);
-    const first = selectedMarket.coverage[0];
-    setSelectedCoverageIndex(0);
-    if (first) {
-      setHistoricalStart(toDisplayDateTimeInput(first.start));
-      setHistoricalEnd(toDisplayDateTimeInput(first.end));
-    }
-    if (!selectedMarket.availableTimeframes.includes(historicalTimeframe)) setHistoricalTimeframe(selectedMarket.availableTimeframes[0] || '');
-  }, [selectedMarketKey, historicalDatasets.length]);
-
-  useEffect(() => {
     if (!selectedMarket || !baseTimeframe || !historicalStart || !historicalEnd) return undefined;
-    const startTime = fromDisplayDateTimeInput(historicalStart);
-    const endTime = fromDisplayDateTimeInput(historicalEnd);
+    const startTime = new Date(session.startTime);
+    const endTime = new Date(session.endTime);
     if (!startTime || !endTime || !Number.isFinite(startTime.getTime()) || !Number.isFinite(endTime.getTime()) || !isRangeWithinCoverage(startTime.getTime(), endTime.getTime(), selectedCoverage)) return undefined;
     let cancelled = false;
     const timer = setTimeout(async () => {
-      setHistoricalLoading(true);
+      setHistoricalLoading(true);setChartReady(false);
       setImportError('');
       try {
         const params = new URLSearchParams({ start: startTime.toISOString(), end: endTime.toISOString(), instrument: selectedMarket.instrument, timeframe: baseTimeframe });
@@ -288,19 +291,22 @@ const BacktestingReplayWorkspace = () => {
         if (!response.ok) throw new Error(data.error || 'Unable to prepare the selected historical market data.');
         if (cancelled) return;
         const baseCandles = normalizeOhlcvRows(data.bars || []);
-        setMarketBaseCandles(baseCandles);
         const normalized = historicalTimeframe === baseTimeframe ? baseCandles : aggregateCandles(baseCandles, historicalTimeframe);
         if (normalized.length < 2) throw new Error('There are not enough historical bars in this period to start replay.');
-        candlesRef.current = normalized;
-        setCandles(normalized);
-        setCurrentIndex(0);
-        currentIndexRef.current = 0;
-        setIsPlaying(false);
-        setPosition(null); positionRef.current = null;
-        setPendingOrder(null); pendingOrderRef.current = null;
-        setClosedTrades([]); 
-        setOrderType('market'); setOrderPrice('');
-        setMessage('Historical data prepared automatically.');
+        if (!/^[a-f0-9]{64}$/.test(data.fingerprint || '')) throw Error('Historical source fingerprint is missing.');
+        if (saved && (data.fingerprint !== saved.fingerprint || normalized.length !== saved.barCount || normalized[saved.index]?.time !== saved.time))
+          throw Error('Historical source has changed. Saved trades remain available, but replay cannot safely resume.');
+        fingerprintRef.current=data.fingerprint;setMarketBaseCandles(baseCandles);
+        candlesRef.current=normalized;setCandles(normalized);
+        const index=saved?.index ?? 0;
+        currentIndexRef.current=index;setCurrentIndex(index);setIsPlaying(false);
+        positionRef.current=saved?.position ?? null;setPosition(positionRef.current);
+        pendingOrderRef.current=saved?.pendingOrder ?? null;setPendingOrder(pendingOrderRef.current);
+        closedTradesRef.current=session.trades || [];setClosedTrades(closedTradesRef.current);
+        orderSequence.current=saved?.orderSequence ?? 0;
+        setQuantity(saved?.quantity ?? 1);setQuantityPresets(saved?.quantityPresets ?? [1,2,3,5,10]);
+        setOrderType(saved?.orderType ?? 'market');setOrderPrice(saved?.orderPrice ?? '');setSpeed(saved?.speed ?? 1);
+        setMessage(saved ? 'Session restored paused.' : 'Select your execution market before trading.');
       } catch (loadError) {
         if (!cancelled) { setMarketBaseCandles([]); setCandles([]); setCurrentIndex(0); currentIndexRef.current = 0; setImportError(loadError.message || 'Unable to prepare historical market data.'); }
       } finally {
@@ -318,7 +324,7 @@ const BacktestingReplayWorkspace = () => {
   const stats = useMemo(() => calculateTradeStats(closedTrades), [closedTrades]);
   const unrealizedPnl = position ? calculateTradePnl(position, currentPrice, spec.pointValue) : 0;
   const initialIndex = 0;
-  const canSeek = !position && !pendingOrder && closedTrades.length === 0;
+  const canSeek = chartReady && !position && !pendingOrder && closedTrades.length === 0;
 
   useEffect(() => { candlesRef.current = candles; }, [candles]);
   useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
@@ -329,7 +335,8 @@ const BacktestingReplayWorkspace = () => {
     if (result.error) { setError(result.error); return; }
     positionRef.current = result.position; setPosition(result.position);
     if (result.trade) {
-      setClosedTrades(previous => previous.concat(result.trade));
+      closedTradesRef.current=closedTradesRef.current.concat(result.trade);
+      setClosedTrades(closedTradesRef.current);
       setMessage('Position closed: ' + reason + ' · ' + formatMoney(result.trade.pnl));
       // Never let an adjustment survive a flat position.
       pendingOrderRef.current = null; setPendingOrder(null);
@@ -347,6 +354,8 @@ const BacktestingReplayWorkspace = () => {
   }, [spec, commitFill]);
 
   const advanceOne = useCallback(() => {
+    if (exitRef.current || conflictRef.current || !chartReady) return;
+    setLockedMarket(true);
     const nextIndex = currentIndexRef.current + 1;
     const data = candlesRef.current;
     if (nextIndex >= data.length) { setIsPlaying(false); return; }
@@ -358,7 +367,7 @@ const BacktestingReplayWorkspace = () => {
       else commitFill(result, result.reason, result.price);
     }
     if (nextIndex >= data.length - 1) setIsPlaying(false);
-  }, [spec, commitFill]);
+  }, [spec, commitFill, chartReady]);
 
   useEffect(() => { advanceOneRef.current = advanceOne; }, [advanceOne]);
 
@@ -370,47 +379,13 @@ const BacktestingReplayWorkspace = () => {
     return () => clearInterval(interval);
   }, [isPlaying, speed]);
 
-  const resetForMarketChange = () => {
-    setIsPlaying(false); setPosition(null); positionRef.current = null;
-    setPendingOrder(null); pendingOrderRef.current = null; setClosedTrades([]);
-     setMessage(''); setError('');
-    candlesRef.current = [];
-    setCandles([]); setMarketBaseCandles([]); setCurrentIndex(0); currentIndexRef.current = 0;
-  };
-
   const handleMarketChange = event => {
-    const market = availableMarkets.find(item => item.key === event.target.value);
-    if (!market) return;
-    resetForMarketChange();
-    setSelectedMarketKey(market.key);
-    setTicker(market.instrument);
-  };
-
-  const handleCoverageChange = event => {
-    const index = Number(event.target.value);
-    const range = selectedMarket?.coverage[index];
-    if (!range) return;
-    setSelectedCoverageIndex(index);
-    setHistoricalStart(toDisplayDateTimeInput(range.start));
-    setHistoricalEnd(toDisplayDateTimeInput(range.end));
-    resetForMarketChange();
-  };
-
-  const handleDateChange = (setter, value) => {
-    const nextDate = fromDisplayDateTimeInput(value);
-    if (!nextDate || !selectedCoverage
-      || nextDate.getTime() < selectedCoverage.start
-      || nextDate.getTime() > selectedCoverage.end) return;
-    if (setter === setHistoricalStart) {
-      setHistoricalStart(value);
-      const currentEnd = fromDisplayDateTimeInput(historicalEnd);
-      if (currentEnd && nextDate > currentEnd) setHistoricalEnd(value);
-    } else {
-      setHistoricalEnd(value);
-      const currentStart = fromDisplayDateTimeInput(historicalStart);
-      if (currentStart && nextDate < currentStart) setHistoricalStart(value);
-    }
-    resetForMarketChange();
+    if (lockedMarket || exitRef.current || historicalLoading) return;
+    const market=availableMarkets.find(item=>item.key===event.target.value);
+    if(!market)return;
+    setChartReady(false);setIsPlaying(false);setHistoricalLoading(true);
+    candlesRef.current=[];setCandles([]);setMarketBaseCandles([]);currentIndexRef.current=0;setCurrentIndex(0);
+    setSelectedMarketKey(market.key);setTicker(market.instrument);setHistoricalTimeframe(market.baseTimeframe);
   };
   const latestCandle = () => candlesRef.current[currentIndexRef.current];
   const changeOrderType = type => {
@@ -427,13 +402,14 @@ const BacktestingReplayWorkspace = () => {
 
   const openPosition = (direction, options = {}) => {
     const candle = latestCandle();
-    if (!candle || historicalLoading) { setError('Select an available historical market and period before placing a trade.'); return; }
+    if (exitRef.current || conflictRef.current || !chartReady || !candle || historicalLoading) { setError('Select an available historical market and period before placing a trade.'); return; }
     if (pendingOrderRef.current) return;
     const active = positionRef.current;
     const parsedQuantity = Number(options.quantity ?? quantity);
     const type = options.type ?? orderType;
     const { triggerPrice, error: orderError } = validateReplayOrderDraft(active, direction, parsedQuantity, type, options.price ?? orderPrice, candle.close, spec);
     if (orderError) { setError(orderError); return; }
+    setLockedMarket(true);
     const order = { id: 'replay-' + (++orderSequence.current), direction, quantity: parsedQuantity, type, triggerPrice, stopPrice: null, targetPrice: null, positionId: active?.id ?? null };
     setQuantity(parsedQuantity); setOrderType(type); setOrderPrice(type === 'market' ? '' : String(triggerPrice));
     if (type === 'market') {
@@ -447,6 +423,7 @@ const BacktestingReplayWorkspace = () => {
   };
 
   const applyPositionLevels = (id, changes) => {
+    if (exitRef.current || conflictRef.current || !chartReady) return;
     const active = positionRef.current, candle = latestCandle();
     if (!active || active.id !== id || !candle) return;
     const result = updateReplayLevels(active, changes, candle.close, spec);
@@ -462,6 +439,7 @@ const BacktestingReplayWorkspace = () => {
   };
 
   const modifyPendingOrder = ({ orderId, newPrice }) => {
+    if (exitRef.current || conflictRef.current || !chartReady) return;
     const order = pendingOrderRef.current, candle = latestCandle();
     if (!order || order.id !== orderId || !candle) return;
     const price = snapReplayPrice(newPrice, spec);
@@ -474,18 +452,20 @@ const BacktestingReplayWorkspace = () => {
   };
 
   const cancelPendingOrder = (id) => {
+    if (exitRef.current || conflictRef.current || !chartReady) return;
     if (!pendingOrderRef.current || pendingOrderRef.current.id !== id) return;
     pendingOrderRef.current = null; setPendingOrder(null); setError(''); setMessage('Pending order cancelled.');
   };
 
   const closeFromChart = (id) => {
+    if (exitRef.current || conflictRef.current || !chartReady) return;
     const active = positionRef.current, candle = latestCandle();
     if (active?.id === id && candle) closePosition(active, candle.close, candle.time, 'Manual close');
   };
 
   const chartMenuItems = (context) => {
     const candle = latestCandle();
-    if (historicalLoading || !candle || context.price == null) return [];
+    if (exitRef.current || conflictRef.current || !chartReady || historicalLoading || !candle || context.price == null) return [];
     const price = snapReplayPrice(context.price, spec);
     if (!Number.isFinite(price) || price <= 0) return [];
     const active = positionRef.current, pending = pendingOrderRef.current;
@@ -515,21 +495,6 @@ const BacktestingReplayWorkspace = () => {
       });
   };
 
-  const resetReplay = () => {
-    if ((closedTrades.length || position || pendingOrder) && !window.confirm('Reset replay and clear all orders and trades from this temporary session?')) return;
-    setIsPlaying(false);
-    setCurrentIndex(initialIndex);
-    currentIndexRef.current = initialIndex;
-    setPosition(null);
-    positionRef.current = null;
-    setClosedTrades([]);
-    setPendingOrder(null);
-    pendingOrderRef.current = null;
-    setError('');
-    setOrderType('market'); setOrderPrice('');
-    setMessage('Replay reset.');
-  };
-
   const adjustQuantity = delta => setQuantity(value => Math.max(1, Math.min(100, Number(value) + delta)));
   const savePresets = () => {
     const values = presetDraft.map(Number);
@@ -537,61 +502,80 @@ const BacktestingReplayWorkspace = () => {
     setQuantityPresets(values); setQuantity(values[0]); setEditingPresets(false); setError('');
   };
 
-  const realizedOpenPnl = position?.realizedPnl ?? 0;
+  const realizedOpenPnl=position?.realizedPnl ?? 0;
+  const realized=stats.netPnl+realizedOpenPnl, balance=session.startingBalance+realized;
+  snapshotRef.current=()=>{
+    const candle=latestCandle(), layout=chartCaptureRef.current?.();
+    if(!chartReady||historicalLoading||!candle||!layout||!fingerprintRef.current)return null;
+    return {checkpoint:{version:1,marketKey:selectedMarketKey,timeframe:historicalTimeframe,fingerprint:fingerprintRef.current,
+      index:currentIndexRef.current,barCount:candlesRef.current.length,time:candle.time,orderSequence:orderSequence.current,
+      quantity,quantityPresets,speed,orderType,orderPrice,position:positionRef.current,pendingOrder:pendingOrderRef.current,layout},trades:closedTradesRef.current};
+  };
+  const save=async()=>{
+    if(conflictRef.current)return false;
+    if(saveInFlight.current){await saveInFlight.current;if(conflictRef.current)return false;}
+    let payload,key;
+    try{payload=snapshotRef.current?.();if(!payload)return false;key=JSON.stringify(payload);}
+    catch(e){setSaveStatus('Could not capture session: '+e.message);return false;}
+    if(key===lastSavedRef.current)return true;
+    setLockedMarket(true);setSaveStatus('Saving…');
+    const work=(async()=>{
+      try{
+        const response=await authFetch('/api/backtesting/replay-sessions/'+encodeURIComponent(session.id)+'/checkpoint',{
+          method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,revision:revisionRef.current})});
+        const data=await response.json();
+        if(!response.ok){if(response.status===409){conflictRef.current=true;setIsPlaying(false);}throw Error(data.error||'Save failed.');}
+        revisionRef.current=data.revision;lastSavedRef.current=key;setSaveStatus('Saved');return true;
+      }catch(e){setSaveStatus(e.message||'Save failed');return false;}
+    })();
+    saveInFlight.current=work;
+    try{return await work;}finally{if(saveInFlight.current===work)saveInFlight.current=null;}
+  };
+  const saveRef=useRef(save);saveRef.current=save;
+  useEffect(()=>{
+    if(!chartReady||!lockedMarket)return;
+    const timer=setInterval(()=>{if(!exitRef.current&&!conflictRef.current&&!saveInFlight.current)void saveRef.current();},5000);
+    return()=>clearInterval(timer);
+  },[chartReady,lockedMarket]);
+  useEffect(()=>{
+    const warn=e=>{if(!exitRef.current&&JSON.stringify(snapshotRef.current?.())!==lastSavedRef.current){e.preventDefault();e.returnValue='';}};
+    window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);
+  },[]);
+  const saveExit=async()=>{
+    if(savingExit)return;
+    exitRef.current=true;setIsPlaying(false);setSavingExit(true);
+    if(!chartReady&&!candlesRef.current.length&&!saveInFlight.current&&window.confirm('Return to the session list without changing the saved session?')){onExit();return;}
+    const ok=await save();
+    if(ok){if(document.fullscreenElement===workspaceRef.current)try{await document.exitFullscreen();}catch{}onExit();}
+    else{exitRef.current=false;setSavingExit(false);}
+  };
+  const toggleFullscreen=async()=>{
+    try{if(document.fullscreenElement===workspaceRef.current)await document.exitFullscreen();else await workspaceRef.current.requestFullscreen();}
+    catch{setError('Fullscreen is not available in this browser.');}
+  };
   const statsProfitFactor = stats.profitFactor == null
     ? (stats.grossProfit > 0 ? '∞' : '—')
     : stats.profitFactor.toFixed(2);
 
-  return (
-    <div className="space-y-4">
-      <div className="bg-bg-surface border border-border rounded-xl p-4 space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <label className="space-y-1">
-            <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">Market / ticker</span>
-            <select value={selectedMarketKey} onChange={handleMarketChange} disabled={!availableMarkets.length || historicalLoading} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
-              {!availableMarkets.length && <option value="">No historical markets available</option>}
-              {availableMarkets.map(market => <option key={market.key} value={market.key}>{market.label}</option>)}
-            </select>
-          </label>
-          <label className="space-y-1">
-            <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">Chart timeframe</span>
-            <select value={historicalTimeframe} onChange={event => { setHistoricalTimeframe(event.target.value); resetForMarketChange(); }} disabled={!historicalTimeframes.length || historicalLoading} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
-              {historicalTimeframes.map(value => <option key={value} value={value}>{value}{value === baseTimeframe ? ' · source' : ' · aggregated'}</option>)}
-            </select>
-          </label>
-          {selectedMarket?.coverage.length > 1 && <label className="space-y-1">
-            <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">Continuous data period</span>
-            <select value={selectedCoverageIndex} onChange={handleCoverageChange} disabled={historicalLoading} className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary">
-              {selectedMarket.coverage.map((range, index) => <option key={index} value={index}>{formatDateEST(range.start)} {formatTimeEST(range.start)} – {formatDateEST(range.end)} {formatTimeEST(range.end)}</option>)}
-            </select>
-          </label>}
-          <div className="space-y-1">
-            <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">Available data</span>
-            <div className="bg-bg-input border border-border rounded-lg px-3 py-2 text-xs text-text-secondary">
-              {selectedCoverage ? formatDateEST(selectedCoverage.start) + ' – ' + formatDateEST(selectedCoverage.end) : 'No historical data'}
-            </div>
-          </div>
-          <label className="space-y-1">
-            <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">From · {getDisplayTimeZone()}</span>
-            <ReplayDateTimePicker value={historicalStart} onChange={value => handleDateChange(setHistoricalStart, value)} min={selectedCoverage ? toDisplayDateTimeInput(selectedCoverage.start) : undefined} max={selectedCoverage ? toDisplayDateTimeInput(selectedCoverage.end) : undefined} dateFormat={getDateFormat()} timeFormat={getTimeFormat()} />
-          </label>
-          <label className="space-y-1">
-            <span className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">To · {getDisplayTimeZone()}</span>
-            <ReplayDateTimePicker value={historicalEnd} onChange={value => handleDateChange(setHistoricalEnd, value)} min={selectedCoverage ? toDisplayDateTimeInput(selectedCoverage.start) : undefined} max={selectedCoverage ? toDisplayDateTimeInput(selectedCoverage.end) : undefined} dateFormat={getDateFormat()} timeFormat={getTimeFormat()} />
-          </label>
-          <div className="flex items-end text-xs text-text-muted">
-            {historicalLoading ? 'Preparing historical data…' : selectedMarket ? 'Data loads automatically when you change a selection.' : 'Import data under Settings → Providers → Historical Futures.'}
-          </div>
+  return createPortal(
+    <div ref={workspaceRef} className="fixed inset-0 z-[9999] bg-bg-page text-text-primary flex flex-col overflow-hidden" style={{height:'100dvh'}}>
+      <header className="shrink-0 flex items-center gap-3 border-b border-border bg-bg-surface px-3 py-2">
+        <button type="button" disabled={savingExit} onClick={saveExit} className="shrink-0 rounded-lg border border-border bg-bg-input px-3 py-1.5 text-sm font-semibold disabled:opacity-40">← {savingExit?'Saving…':'Save & exit'}</button>
+        <div className="flex-1 min-w-0 overflow-x-auto flex items-center gap-5 whitespace-nowrap text-xs">
+          <strong className="text-sm">{session.name}</strong>
+          {[['Starting',session.startingBalance],['Balance',balance],['Equity',balance+unrealizedPnl],['Realized P/L',realized],['Unrealized P/L',unrealizedPnl]].map(([label,value])=><div key={label}><span className="text-text-muted mr-2">{label}</span><strong className={label.includes('P/L')?(value<0?'text-negative':'text-positive'):'text-text-primary'}>{formatMoney(value)}</strong></div>)}
         </div>
-        {selectedMarket?.coverage.length > 1 && <p className="text-[11px] text-text-muted">Choose a continuous data period. The date controls are restricted to that period, so replay cannot cross a known coverage gap.</p>}
-        {!availableMarkets.length && <div className="rounded-lg border border-border bg-bg-page px-3 py-4 text-sm text-text-muted">No historical OHLCV markets are available yet. Add data under Settings → Providers → Historical Futures. Available markets and periods will appear here automatically.</div>}
-        {importError && <div className="text-xs text-negative">{importError}</div>}
-      </div>
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-4">
-        <div className="bg-bg-surface border border-border rounded-xl overflow-hidden min-w-0">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-border">
+        <span role="status" className="max-w-[180px] text-xs text-text-muted truncate" title={saveStatus}>{saveStatus}</span>
+        <button type="button" onClick={toggleFullscreen} className="shrink-0 bg-bg-input border border-border rounded-lg px-2 py-1.5 text-sm" aria-label={fullscreen?'Exit fullscreen':'Fullscreen'} title={fullscreen?'Exit fullscreen':'Fullscreen'}>{fullscreen?'↙':'⛶'}</button>
+      </header>
+      {importError&&<div className="shrink-0 px-3 py-2 text-xs text-negative" role="alert">{importError}</div>}
+      {conflictRef.current&&<div className="shrink-0 px-3 py-2 text-xs text-negative">Session changed on another device. Saving is blocked. <button onClick={()=>{if(window.confirm('Discard unsaved changes on this device and return to the session list?'))onExit();}} className="underline">Return to session list</button></div>}
+      <div className="flex-1 min-h-0 grid grid-cols-[minmax(0,1fr)_300px] gap-1 overflow-hidden" inert={savingExit||conflictRef.current?true:undefined}>
+
+        <div className="bg-bg-surface flex flex-col min-h-0 overflow-hidden min-w-0">
+          <div className="shrink-0 flex items-center justify-between gap-3 px-3 py-1 border-b border-border">
             <div>
-              <div className="text-text-primary font-semibold">{ticker} · {intervalLabel}</div>
+              <div className="flex items-center gap-2"><select aria-label="Execution market" value={selectedMarketKey} onChange={handleMarketChange} disabled={lockedMarket||historicalLoading||!availableMarkets.length} className="bg-bg-input rounded px-2 py-1 text-sm text-text-primary">{availableMarkets.map(m=><option key={m.key} value={m.key}>{m.label}</option>)}</select><span className="text-xs text-text-muted">{intervalLabel} execution</span></div>
               <div className="text-text-muted text-xs">{currentCandle ? formatBarTime(currentCandle.time) : 'No data'} · {currentIndex + 1} / {candles.length} bars revealed</div>
             </div>
             <div className="text-right">
@@ -601,6 +585,7 @@ const BacktestingReplayWorkspace = () => {
           </div>
           <ReplayTradeCanvasGrid
             ticker={ticker}
+            fullHeight={true} captureRef={chartCaptureRef} restoreLayout={saved?.layout} onReady={setChartReady} onRestoreError={setImportError}
             timeframe={historicalTimeframe}
             baseCandles={marketBaseCandles}
             replayTime={replayTime}
@@ -615,7 +600,7 @@ const BacktestingReplayWorkspace = () => {
             onPositionModify={({ positionId, stopLoss, takeProfit }) => applyPositionLevels(positionId, { stopPrice: stopLoss, targetPrice: takeProfit })}
             onPositionClose={({ positionId }) => closeFromChart(positionId)}
           />
-          <div className="px-4 py-3 border-t border-border space-y-3">
+          <div className="shrink-0 px-3 py-2 border-t border-border space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" onClick={() => {
                 if (!canSeek || !window.confirm('Jump to the beginning of this replay? The chart will return to the first candle.')) return;
@@ -624,9 +609,8 @@ const BacktestingReplayWorkspace = () => {
                 setCurrentIndex(0);
               }} disabled={!candles.length || !canSeek || currentIndex === 0} title="Jump to beginning" aria-label="Jump to beginning" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30"><span aria-hidden="true" className="text-xl leading-none tracking-[-0.12em]">||◀</span></button>
               <button type="button" onClick={() => { if (!canSeek) return; setIsPlaying(false); const next = Math.max(0, currentIndexRef.current - 1); currentIndexRef.current = next; setCurrentIndex(next); }} disabled={!candles.length || !canSeek || currentIndex === 0} title="Previous candle" aria-label="Previous candle" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30"><span aria-hidden="true" className="inline-block rotate-180 text-xl leading-none">▶|</span></button>
-              <button type="button" onClick={() => setIsPlaying(value => !value)} disabled={!candles.length || (!isPlaying && currentIndex >= candles.length - 1)} aria-label={isPlaying ? 'Pause replay' : 'Play replay'} className="w-10 h-10 inline-flex items-center justify-center rounded-lg bg-accent text-accent-text text-sm font-semibold disabled:opacity-40">{isPlaying ? 'Ⅱ' : '▶'}</button>
-              <button type="button" onClick={() => { setIsPlaying(false); advanceOne(); }} disabled={!candles.length || currentIndex >= candles.length - 1} title="Next candle" aria-label="Next candle" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30"><span aria-hidden="true" className="text-xl leading-none">▶|</span></button>
-              <button type="button" onClick={resetReplay} title="Reset replay and clear simulated trades" aria-label="Reset replay" className="w-9 h-9 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary">↺</button>
+              <button type="button" onClick={() => {setLockedMarket(true);setIsPlaying(value => !value);}} disabled={!chartReady || !candles.length || (!isPlaying && currentIndex >= candles.length - 1)} aria-label={isPlaying ? 'Pause replay' : 'Play replay'} className="w-10 h-10 inline-flex items-center justify-center rounded-lg bg-accent text-accent-text text-sm font-semibold disabled:opacity-40">{isPlaying ? 'Ⅱ' : '▶'}</button>
+              <button type="button" onClick={() => { setIsPlaying(false); advanceOne(); }} disabled={!chartReady || !candles.length || currentIndex >= candles.length - 1} title="Next candle" aria-label="Next candle" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30"><span aria-hidden="true" className="text-xl leading-none">▶|</span></button>
               <div className="ml-auto flex items-center gap-2 text-xs text-text-muted">
                 <label htmlFor="replay-speed">Bars/sec</label>
                 <select id="replay-speed" value={speed} onChange={event => setSpeed(Number(event.target.value))} className="bg-bg-input border border-border rounded-lg px-2 py-2 text-text-primary">
@@ -666,12 +650,12 @@ const BacktestingReplayWorkspace = () => {
               <span>{candles.length ? formatBarTime(candles[0].time) : ''}</span>
               <span>{candles.length ? formatBarTime(candles[candles.length - 1].time) : ''}</span>
             </div>
-            {!canSeek && <div className="text-[10px] text-text-muted">Rewind and seeking are disabled after a simulated trade to preserve execution history. Reset to start over.</div>}
+            {!canSeek && <div className="text-[10px] text-text-muted">Rewind and seeking are disabled after a simulated trade to preserve execution history.</div>}
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="bg-bg-surface border border-border rounded-xl p-4 space-y-3">
+        <div className="min-h-0 overflow-y-auto space-y-2 bg-bg-surface">
+          <div className="bg-bg-surface border border-border rounded-lg p-3 space-y-3">
             <h3 className="text-text-primary font-semibold text-sm">Order entry</h3>
             <div className={orderType === 'market' ? 'grid grid-cols-1' : 'grid grid-cols-2 gap-2'}>
               <div><label className="block text-text-tertiary text-[11px] font-semibold uppercase tracking-wider mb-1">Order type</label><select aria-label="Order type" value={orderType} disabled={!!pendingOrder} onChange={event => changeOrderType(event.target.value)} className="w-full bg-bg-input border border-border rounded-lg px-2 py-2 text-sm text-text-primary"><option value="market">Market</option><option value="limit">Limit</option><option value="stop_market">Stop Market</option></select></div>
@@ -688,7 +672,7 @@ const BacktestingReplayWorkspace = () => {
             <div className="grid grid-cols-2 gap-2">
               {['long', 'short'].map(direction => {
                 const { error: draftError } = validateReplayOrderDraft(position, direction, quantity, orderType, orderPrice, currentPrice, spec);
-                const disabled = !candles.length || historicalLoading || !!pendingOrder || !!draftError;
+                const disabled = !chartReady || !candles.length || historicalLoading || !!pendingOrder || !!draftError;
                 const action = !position ? '' : position.direction === direction ? 'Add' : quantity === position.quantity ? 'Close' : 'Reduce';
                 return <button key={direction} type="button" onClick={() => openPosition(direction)} title={pendingOrder ? 'Cancel the working order before submitting another.' : draftError || undefined} disabled={disabled} className={'py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-40 ' + (direction === 'long' ? 'bg-positive' : 'bg-negative')}>
                   {direction === 'long' ? 'BUY' : 'SELL'} {quantity} @ {orderType === 'stop_market' ? 'STOP' : orderType.toUpperCase()}
@@ -704,8 +688,7 @@ const BacktestingReplayWorkspace = () => {
             {error && <p className="text-xs text-negative">{error}</p>}{message && <p className="text-xs text-text-muted">{message}</p>}
           </div>
 
-          <div className="bg-bg-surface border border-border rounded-xl p-4 space-y-3">
-            <h3 className="text-text-primary font-semibold text-sm">Backtest statistics</h3>
+          <details className="bg-bg-surface border border-border rounded-lg p-3 space-y-3"><summary className="cursor-pointer text-sm font-semibold">Backtest statistics</summary>
             <div className="grid grid-cols-2 gap-3">
               <div><div className="text-[10px] uppercase tracking-wider text-text-muted">Closed trades</div><div className="text-xl font-semibold text-text-primary">{stats.total}</div></div>
               <div><div className="text-[10px] uppercase tracking-wider text-text-muted">Win rate</div><div className="text-xl font-semibold text-text-primary">{stats.winRate.toFixed(1)}%</div></div>
@@ -716,15 +699,13 @@ const BacktestingReplayWorkspace = () => {
             {position && position.fills?.some(fill => fill.kind === 'exit') && <div className="flex justify-between text-xs"><span className="text-text-muted">Realized on open trade (not included above)</span><strong className={realizedOpenPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(realizedOpenPnl)}</strong></div>}
             {position && <div className="flex justify-between text-xs"><span className="text-text-muted">Open P/L (not included above)</span><strong className={unrealizedPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(unrealizedPnl)}</strong></div>}
             {closedTrades.length === 0 && <p className="text-xs text-text-muted">Close your first simulated trade to start building statistics.</p>}
-          </div>
+          </details>
         </div>
       </div>
 
-      <div className="bg-bg-surface border border-border rounded-xl p-4">
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <h3 className="text-text-primary font-semibold text-sm">Trade history</h3>
-          <span className="text-text-muted text-xs">{closedTrades.length} closed</span>
-        </div>
+      <div className="shrink-0 bg-bg-surface border-t border-border px-3 py-1 max-h-[30vh] overflow-auto">
+        <button className="w-full text-left text-xs text-text-secondary py-1" onClick={()=>setShowDetails(v=>!v)}>{showDetails?"▾":"▸"} Trade history · {closedTrades.length} closed</button>
+        {showDetails && <div>
         {closedTrades.length === 0 ? (
           <p className="text-text-muted text-sm">No trades yet. Start the replay and place a simulated trade.</p>
         ) : (
@@ -749,14 +730,15 @@ const BacktestingReplayWorkspace = () => {
             </table>
           </div>
         )}
+        </div>}
       </div>
 
-      <div className="text-[11px] text-text-muted space-y-1">
-        <p>First-stage replay prototype: simulated trades and statistics are temporary and are not saved to the database yet. Scaling is supported; one completed trade is recorded when flat. Fees, slippage, exchange partial fills and tick-by-tick execution are not modelled.</p>
-        <p>When a stop and target are both inside the same candle, the replay assumes the stop was hit first. This is deliberately conservative; tick data will allow more precise sequencing later.</p>
+      <div className="shrink-0 px-3 py-1 text-[10px] text-text-muted">
+        <p>Simulated account · one completed trade per flat position · gross P/L before fees and slippage.</p>
       </div>
-    </div>
+    </div>, document.body
   );
 };
 
+export { ReplayDateTimePicker, toDisplayDateTimeInput, fromDisplayDateTimeInput };
 export default BacktestingReplayWorkspace;
