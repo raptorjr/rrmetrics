@@ -1,5 +1,7 @@
 ## Replay workspace refinements
 
+- Independent chart symbols and contract-specific historical context, per-symbol timeframe menus and drawings, and exact-origin execution guards. Restore context source fingerprints without mixing contracts or exposing future bars.
+
 - Extracted the trade editor clock field into a shared time picker; Go to uses the same field and dropdown with minute precision, while trade editing keeps seconds.
 
 - Positioned Go to before candle type and aligned its display and time controls with user timezone and 12/24-hour preferences, preserving existing timezone-anchored schedules until edited.

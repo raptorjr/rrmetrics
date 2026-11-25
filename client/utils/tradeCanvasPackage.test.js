@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { ChartWidgetGrid } = require('@tradecanvas/chart/widget');
+const { ChartWidgetGrid, ChartWidget } = require('@tradecanvas/chart/widget');
 
 test('installed TradeCanvas grid supports the replay-disabled toolbar picker', () => {
   // Check the compiled package actually used by RR Metrics, not the source
@@ -140,4 +140,11 @@ test('replay host disables native chart fullscreen in initial and future grid ce
   const source=fs.readFileSync(require('node:path').join(__dirname,'../components/pages/ReplayTradeCanvasGrid.jsx'),'utf8');
   assert.equal(source.split("fullscreen: false, 'toolbar.fullscreen': false").length-1,2);
   assert.ok(source.includes('[data-replay-workspace] .tcw-toolbar [data-role="fullscreen"]'));
+});
+
+
+test('installed chart package supports independent static replay markets',()=>{
+  assert.equal(typeof ChartWidget.prototype.setHostTimeframes,'function');
+  assert.match(String(ChartWidgetGrid),/onChartSymbolChange/);
+  assert.match(String(ChartWidgetGrid),/onChartMenuItems/);
 });

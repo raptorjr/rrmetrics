@@ -1,6 +1,6 @@
 # Replay sessions as virtual accounts — proposed next milestone
 
-Status: first implementation covers session overview/create, one-instrument replay, versioned checkpoints and separate trades, full-window workspace and account balances. Browser verification, multi-symbol and shared analytics remain outstanding. Remaining sections describe target architecture. Baseline: development 9873f28, with interactive replay trading, scaling and SQLite-backed chart display preferences.
+Status: first implementation covers session overview/create, one-instrument replay, versioned checkpoints and separate trades, full-window workspace and account balances. Independent chart symbols are implemented for context; browser verification and shared analytics remain outstanding. Remaining sections describe target architecture. Baseline: development 9873f28, with interactive replay trading, scaling and SQLite-backed chart display preferences.
 
 ## Product requirements
 
@@ -50,7 +50,7 @@ Starting balance is a virtual cash baseline, not a margin model. Balance = start
 4. Add common analytics projection and account popup Trading/Backtesting switch, independently persisted selection, empty sessions, hard data isolation, reuse Dashboard and Analytics; audit metric and action compatibility. Verify real account results are unchanged and no simulated data leaks to broker paths. Extend balance tiles and session summaries using shared calculations.
 5. Browser and cross-device acceptance tests on Babylon. Later: multi-instrument execution, session duplication, strategy version association, chart templates, history overlays, costs and risk/margin modeling.
 
-First implementation deliberately restricts the period to a single base-resolution dataset and locks the execution market once replay or trading starts or a checkpoint is saved. Chart layout state uses TradeCanvas capture/restore; independent horizontal and manual price viewport and drawing synchronization use the updated TradeCanvas fork and need real browser verification. Trading/Backtesting analytics mode and independent chart symbols remain unimplemented.
+First implementation deliberately restricts the period to a single base-resolution dataset and locks the execution market once replay or trading starts or a checkpoint is saved. Chart layout state uses TradeCanvas capture/restore; independent horizontal and manual price viewport and drawing synchronization use the updated TradeCanvas fork and need real browser verification. Trading/Backtesting analytics mode remains unimplemented. Independent chart symbols use one shared execution timestamp and contract-specific sources; trading stays confined to the locked execution instrument.
 
 ## First-version refinements
 

@@ -644,7 +644,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
         <div className="bg-bg-surface flex flex-col min-h-0 overflow-hidden min-w-0">
           <div className="shrink-0 flex items-center justify-between gap-3 px-3 py-1 border-b border-border">
             <div>
-              <div className="flex items-center gap-2"><select aria-label="Execution market" value={selectedMarketKey} onChange={handleMarketChange} disabled={lockedMarket||historicalLoading||!availableMarkets.length} className="bg-bg-input rounded px-2 py-1 text-sm text-text-primary">{availableMarkets.map(m=><option key={m.key} value={m.key}>{m.label}</option>)}</select><span className="text-xs text-text-secondary">{intervalLabel} execution</span></div>
+              <div className="flex items-center gap-2"><span className="text-xs text-text-secondary">Execution instrument</span><select aria-label="Execution market" value={selectedMarketKey} onChange={handleMarketChange} disabled={lockedMarket||historicalLoading||!availableMarkets.length} className="bg-bg-input rounded px-2 py-1 text-sm text-text-primary">{availableMarkets.map(m=><option key={m.key} value={m.key}>{m.label}</option>)}</select><span className="text-xs text-text-secondary">{intervalLabel} execution</span></div>
             </div>
             <div className="text-right">
               <div className="font-mono text-text-primary text-lg">{formatPrice(currentPrice, spec.decimals)}</div>
@@ -654,7 +654,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
           <div className="relative flex flex-1 min-h-0 min-w-0">
           <ReplayTradeCanvasGrid
             key={(selectedMarketKey || 'loading')+'|'+chartGeneration}
-            ticker={ticker}
+            ticker={ticker} executionMarket={selectedMarket} markets={availableMarkets} historicalStart={historicalStart} historicalEnd={historicalEnd}
             fullHeight={true} captureRef={chartCaptureRef} restoreLayout={restartLayout || saved?.layout} onReady={setChartReady} onRestoreError={setImportError}
             timeframe={historicalTimeframe}
             availableTimeframes={selectedMarket?.availableTimeframes}
