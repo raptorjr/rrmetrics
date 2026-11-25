@@ -2,6 +2,8 @@
 
 ### Interactive chart replay trading
 
+- Keep the Trading settings button visible in the active native toolbar by excluding it from TradeCanvas automatic overflow folding. Retains the existing shared layout selector and settings persistence.
+
 - Added a dedicated Trading settings dialog on the active chart toolbar. Currency, points, ticks and percentage can be combined; preferences are shared across charts and devices, saved in the SQLite database with explicit save confirmation. Pending orders show market distance, not P/L. No simulation or statistics changes.
 
 - Corrected SL/TP dollar labels to use the same futures point value and contract quantity as simulated execution, including drag previews. No execution or statistics changes.

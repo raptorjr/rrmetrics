@@ -66,3 +66,25 @@ test('installed chart package applies unit preferences to position, protective a
   const pending = { id: 'o1', side: 'buy', type: 'limit', price: 24990, quantity: 2 };
   assert.ok(labels(new OrderRenderer().tags([pending], viewport, config, null)).includes('$400.00 · 40 ticks away'));
 });
+
+test('replay Trading settings uses a native toolbar button exempt from responsive folding', () => {
+  const { addReplayTradingSettingsButton } = require('./replayTradingToolbar');
+  const classes = new Set(['tcw-btn', 'tcw-host-btn', 'tcw-toolbar-overflow']);
+  const attrs = new Map([['data-tcw-folded', '']]);
+  const element = { classList: { remove: value => classes.delete(value) },
+    removeAttribute: key => attrs.delete(key), setAttribute: (key, value) => attrs.set(key, value) };
+  let spec, opened = 0;
+  const handle = { element };
+  const widget = { addToolbarButton: value => { spec = value; return handle; } };
+  assert.equal(addReplayTradingSettingsButton(widget, () => opened++), handle);
+  assert.equal(spec.id, 'rr-trading-settings');
+  assert.equal(spec.side, 'right');
+  assert.equal(spec.text, 'Trading');
+  assert.equal(classes.has('tcw-toolbar-overflow'), false);
+  assert.equal(attrs.has('data-tcw-folded'), false);
+  assert.equal(attrs.get('aria-label'), 'Trading settings');
+  assert.ok(classes.has('tcw-host-btn'));
+  spec.onClick();
+  assert.equal(opened, 1);
+  assert.equal(addReplayTradingSettingsButton({ addToolbarButton: () => null }, () => {}), null);
+});
