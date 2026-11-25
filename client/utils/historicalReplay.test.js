@@ -69,3 +69,11 @@ test('market catalogue keeps disjoint coverage periods separate', () => {
     markets[0].coverage[0],
   ), false);
 });
+
+test('saved replay date ranges only offer eligible base-resolution markets', () => {
+  const { getSessionMarkets } = require('./historicalReplay');
+  const start = Date.parse('2026-01-01T00:00:00Z'), end = Date.parse('2026-01-02T00:00:00Z');
+  const row = (instrument, timeframe, a, b) => ({instrument,timeframe,data_kind:'ohlcv',start_time:new Date(a).toISOString(),end_time:new Date(b).toISOString()});
+  const markets = getSessionMarkets([row('NQ','1m',start,end),row('ES','1m',start,end-60000),row('ES','5m',start,end)],start,end);
+  assert.deepEqual(markets.map(m=>m.instrument),['NQ']);
+});

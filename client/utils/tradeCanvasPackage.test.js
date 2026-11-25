@@ -110,3 +110,9 @@ test('installed chart uses replay P/L colour on position tag and axis badge with
     assert.deepEqual(badges.map(badge => badge.color), ['#e8505b', '#1fa874', expected]);
   }
 });
+
+test('installed TradeCanvas provides the grid capture and restore APIs required for saved sessions', () => {
+  const { ChartWidgetGrid } = require('@tradecanvas/chart/widget');
+  assert.equal(typeof ChartWidgetGrid.prototype.captureLayout, 'function');
+  assert.equal(typeof ChartWidgetGrid.prototype.restoreLayout, 'function');
+});

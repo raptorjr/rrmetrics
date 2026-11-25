@@ -246,7 +246,6 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
 
   const availableMarkets = useMemo(() => getSessionMarkets(historicalDatasets,Date.parse(session.startTime),Date.parse(session.endTime)), [historicalDatasets,session.startTime,session.endTime]);
   const selectedMarket = useMemo(() => availableMarkets.find(market => market.key === selectedMarketKey) || null, [availableMarkets, selectedMarketKey]);
-  const historicalTimeframes = selectedMarket?.availableTimeframes || [];
   const baseTimeframe = selectedMarket?.baseTimeframe || '';
   const selectedCoverage = selectedMarket?.coverage.find(range=>isRangeWithinCoverage(Date.parse(session.startTime),Date.parse(session.endTime),range)) || null;
 
@@ -323,8 +322,7 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
   const intervalLabel = historicalTimeframe || formatInterval(intervalSeconds);
   const stats = useMemo(() => calculateTradeStats(closedTrades), [closedTrades]);
   const unrealizedPnl = position ? calculateTradePnl(position, currentPrice, spec.pointValue) : 0;
-  const initialIndex = 0;
-  const canSeek = chartReady && !position && !pendingOrder && closedTrades.length === 0;
+  const canSeek = chartReady && !savingExit && !conflictRef.current && !position && !pendingOrder && closedTrades.length === 0;
 
   useEffect(() => { candlesRef.current = candles; }, [candles]);
   useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
@@ -538,13 +536,16 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
     return()=>clearInterval(timer);
   },[chartReady,lockedMarket]);
   useEffect(()=>{
-    const warn=e=>{if(!exitRef.current&&JSON.stringify(snapshotRef.current?.())!==lastSavedRef.current){e.preventDefault();e.returnValue='';}};
+    const warn=e=>{if(exitRef.current)return;let dirty=true;try{const snapshot=snapshotRef.current?.();dirty=!!snapshot&&JSON.stringify(snapshot)!==lastSavedRef.current;}catch{}if(dirty){e.preventDefault();e.returnValue='';}};
     window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);
   },[]);
   const saveExit=async()=>{
     if(savingExit)return;
     exitRef.current=true;setIsPlaying(false);setSavingExit(true);
-    if(!chartReady&&!candlesRef.current.length&&!saveInFlight.current&&window.confirm('Return to the session list without changing the saved session?')){onExit();return;}
+    if(!chartReady&&!saveInFlight.current){
+      if(window.confirm('Return to the session list without changing the saved session?')){onExit();return;}
+      exitRef.current=false;setSavingExit(false);return;
+    }
     const ok=await save();
     if(ok){if(document.fullscreenElement===workspaceRef.current)try{await document.exitFullscreen();}catch{}onExit();}
     else{exitRef.current=false;setSavingExit(false);}
@@ -584,6 +585,7 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
             </div>
           </div>
           <ReplayTradeCanvasGrid
+            key={selectedMarketKey || 'loading'}
             ticker={ticker}
             fullHeight={true} captureRef={chartCaptureRef} restoreLayout={saved?.layout} onReady={setChartReady} onRestoreError={setImportError}
             timeframe={historicalTimeframe}
@@ -640,6 +642,7 @@ const BacktestingReplayWorkspace = ({session, onExit}) => {
               onChange={event => {
                 setIsPlaying(false);
                 const next = Number(event.target.value);
+                if(next>0)setLockedMarket(true);
                 currentIndexRef.current = next;
                 setCurrentIndex(next);
               }}
