@@ -51,7 +51,7 @@ The project has a test command in `package.json`; do not repeat older documentat
 
 ### Replay sessions as virtual accounts
 
-- See [REPLAY-SESSION-ACCOUNTS.md](REPLAY-SESSION-ACCOUNTS.md). First version implements separate session records and trades, owner-scoped checkpoints, one execution instrument, balance and edge-to-edge workspace. Independent symbols and shared Dashboard account mode remain future work. Preserve legacy manual journal and broker isolation.
+- See [REPLAY-SESSION-ACCOUNTS.md](REPLAY-SESSION-ACCOUNTS.md). First version implements separate session records and trades, owner-scoped checkpoints, one execution instrument, balance and edge-to-edge workspace. Independent context chart symbols now use the shared execution clock; shared Dashboard account mode remains future work. Preserve legacy manual journal and broker isolation.
 
 ### Dashboard and reusable components
 

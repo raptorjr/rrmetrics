@@ -153,7 +153,7 @@ function replayChartIntervals(base, available = [], favorites = [], custom = [])
   return { menu, initial: pins[0] || fallback[0] || menu[0] || '1m', defaults: DEFAULT_REPLAY_CHART_FAVORITES.filter(tf=>menu.includes(tf)) };
 }
 function resetReplayChartLayout(layout) {
-  return {...layout,cells:layout.cells.map(cell=>{
+  return {...layout,rrDrawings:{},cells:layout.cells.map(cell=>{
     if (!cell.chart) return cell;
     const {hostReplayView,...chart}=cell.chart;
     return {...cell,chart:{...chart,drawings:[]}};
