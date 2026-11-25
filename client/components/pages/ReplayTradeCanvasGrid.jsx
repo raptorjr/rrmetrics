@@ -35,13 +35,9 @@ const setDataKeepingReplayViewport = (widget, data, baseTimeframe, previousBars)
   const nextLast = data.length ? data[data.length - 1].time : null;
   if (!visible || previousLast == null || nextLast == null
     || typeof chart.setVisibleRange !== 'function' || visible.to < visible.from) return;
-  // Keep the viewport's distance from the replay edge and its zoom level.
-  // This prevents backward/forward seeking from resetting the chart to its
-  // default right-aligned range.
-  const span = visible.to - visible.from;
-  const distanceFromReplayEdge = previousLast - visible.to;
-  const nextTo = nextLast - distanceFromReplayEdge;
-  chart.setVisibleRange(nextTo - span, nextTo);
+  // Keep the exact timestamps the user positioned on screen. Do not move
+  // the viewport with the replay edge: playback and seeking must not recenter it.
+  chart.setVisibleRange(visible.from, visible.to);
 };
 
 const ReplayTradeCanvasGrid = ({
