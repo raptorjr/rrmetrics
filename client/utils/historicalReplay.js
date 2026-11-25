@@ -121,6 +121,25 @@ function getSessionMarkets(datasets, start, end) {
   return getAvailableMarkets(datasets).filter(m => m.datasets.some(d => d.timeframe === m.baseTimeframe &&
     isRangeWithinCoverage(start, end, { start: Date.parse(d.start_time), end: Date.parse(d.end_time) })));
 }
+// The session form uses minute precision. Round inward so a displayed boundary
+// never selects an instant outside the imported source. Group identical periods
+// and list every market eligible for the entire selectable range.
+function replaySessionRangeChoices(datasets) {
+  const choices=new Map();
+  for(const market of getAvailableMarkets(datasets)){
+    for(const dataset of market.datasets.filter(d=>d.timeframe===market.baseTimeframe)){
+      const start=Math.ceil(Date.parse(dataset.start_time)/60000)*60000;
+      const end=Math.floor(Date.parse(dataset.end_time)/60000)*60000;
+      if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start)continue;
+      const key=start+'|'+end;
+      if(!choices.has(key))choices.set(key,{key,start,end,sourceLabels:[]});
+      const entry=choices.get(key);
+      if(!entry.sourceLabels.includes(market.label))entry.sourceLabels.push(market.label);
+    }
+  }
+  return [...choices.values()].map(range=>({...range,eligibleLabels:getSessionMarkets(datasets,range.start,range.end).map(m=>m.label)}))
+    .sort((a,b)=>b.end-a.end||a.start-b.start);
+}
 // Simulated active-market seconds per wall-clock second, not bars/sec.
 const REPLAY_SPEEDS = [1,10,30,60,120,300,600,1200];
 function restoreReplaySpeed(checkpoint, intervalSeconds) {
@@ -159,4 +178,4 @@ function resetReplayChartLayout(layout) {
     return {...cell,chart:{...chart,drawings:[]}};
   })};
 }
-module.exports = { replayChartIntervals, resetReplayChartLayout, REPLAY_SPEEDS, restoreReplaySpeed, replayStepBudget, getSessionMarkets, TIMEFRAME_SECONDS, timeframeSeconds, compareTimeframes, getAvailableMarkets, isRangeWithinCoverage, aggregateCandles };
+module.exports = { replaySessionRangeChoices, replayChartIntervals, resetReplayChartLayout, REPLAY_SPEEDS, restoreReplaySpeed, replayStepBudget, getSessionMarkets, TIMEFRAME_SECONDS, timeframeSeconds, compareTimeframes, getAvailableMarkets, isRangeWithinCoverage, aggregateCandles };

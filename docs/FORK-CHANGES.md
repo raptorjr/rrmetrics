@@ -1,5 +1,7 @@
 ## Replay workspace refinements
 
+- Create-session historical range shortcuts and eligible market names; viewport-bounded calendar popup outside the dialog scroll container, minute-precision date/time selection with inward-rounded coverage.
+
 - Independent chart symbols and contract-specific historical context, per-symbol timeframe menus and drawings, and exact-origin execution guards. Restore context source fingerprints without mixing contracts or exposing future bars.
 
 - Extracted the trade editor clock field into a shared time picker; Go to uses the same field and dropdown with minute precision, while trade editing keeps seconds.
