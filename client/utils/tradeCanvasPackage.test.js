@@ -80,7 +80,7 @@ test('replay Trading settings uses a native toolbar button exempt from responsiv
   assert.equal(addReplayTradingSettingsButton(widget, () => opened++, doc), handle);
   assert.equal(spec.id, 'rr-trading-settings');
   assert.equal(spec.side, 'right');
-  assert.equal(spec.text, '');
+  assert.equal(spec.text, 'Settings');
   assert.equal(spec.icon.name, 'svg');
   assert.deepEqual(spec.icon.children.map(child => child.name), ['path', 'circle']);
   assert.equal(spec.label, 'Settings');
@@ -91,4 +91,22 @@ test('replay Trading settings uses a native toolbar button exempt from responsiv
   spec.onClick();
   assert.equal(opened, 1);
   assert.equal(addReplayTradingSettingsButton({ addToolbarButton: () => null }, () => {}, doc), null);
+});
+
+test('installed chart uses replay P/L colour on position tag and axis badge without recolouring protective levels', () => {
+  const { PositionRenderer } = require('@tradecanvas/core');
+  const { toReplayChartPosition, replayPositionColors, getInstrumentSpec } = require('./backtestingReplay');
+  const spec = getInstrumentSpec('NQ');
+  const viewport = { visibleRange: { from: 0, to: 100 }, priceRange: { min: 0, max: 100 },
+    barWidth: 10, barSpacing: 0, offset: 0, chartRect: { x: 0, y: 0, width: 1000, height: 300 } };
+  const renderer = new PositionRenderer();
+  const position = { id: 'p1', direction: 'long', quantity: 1, entryPrice: 50, stopPrice: 30, targetPrice: 74 };
+  for (const [market, expected] of [[55, '#1fa874'], [45, '#e8505b'], [50, '#4c8dff']]) {
+    const config = { enabled: true, pricePrecision: 2, positionColors: replayPositionColors(position, market, spec) };
+    const chartPosition = toReplayChartPosition(position, spec);
+    const tags = renderer.tags([chartPosition], market, viewport, config);
+    assert.deepEqual(tags.map(tag => tag.color), [expected, '#e8505b', '#1fa874']);
+    const badges = renderer.axisBadges([chartPosition], viewport, config);
+    assert.deepEqual(badges.map(badge => badge.color), ['#e8505b', '#1fa874', expected]);
+  }
 });

@@ -2,9 +2,11 @@
 
 ### Interactive chart replay trading
 
+- Restored the visible Settings label alongside the gear, made Cancel pending order a filled button, and colour the open-position entry line/tag/axis badge by unrealized P/L (green/red/blue at zero) on every chart. SL/TP and pending-order colours remain independent.
+
 - Removed the redundant contract counter. Limit/stop entry shows current market price and an explicit reset-to-market button; Buy/Sell availability follows the latest revealed price without changing the entered draft. Final submission uses the same validator.
 
-- Compact order panel: type and seeded limit/stop price first, quantity controls then always-available buy/sell while no order is working, chart-only SL/TP, smaller Close position and BE to its right. Gear-only Settings toolbar button. Weighted-average adds, partial exits and complete round-trip accounting with one working adjustment, no implicit reversal, and protection-first ambiguous candle handling.
+- Compact order panel: type and seeded limit/stop price first, quantity controls then always-available buy/sell while no order is working, chart-only SL/TP, smaller Close position and BE to its right. Gear and Settings label in the chart toolbar. Weighted-average adds, partial exits and complete round-trip accounting with one working adjustment, no implicit reversal, and protection-first ambiguous candle handling.
 
 - Keep the Trading settings button visible in the active native toolbar by excluding it from TradeCanvas automatic overflow folding. Retains the existing shared layout selector and settings persistence.
 

@@ -2,7 +2,7 @@ const React = require('react');
 const { useEffect, useMemo, useRef, useState } = React;
 const { ChartWidgetGrid } = require('@tradecanvas/chart/widget');
 const { timeframeSeconds } = require('../../utils/historicalReplay');
-const { toReplayChartPosition, snapReplayPrice } = require('../../utils/backtestingReplay');
+const { toReplayChartPosition, snapReplayPrice, replayPositionColors } = require('../../utils/backtestingReplay');
 const { loadTradingDisplay, saveTradingDisplay, formatTradingAmounts, formatPendingDistance } = require('../../utils/replayTradingDisplay');
 const ReplayTradingSettings = require('./ReplayTradingSettings');
 const { addReplayTradingSettingsButton } = require('../../utils/replayTradingToolbar');
@@ -216,6 +216,7 @@ const ReplayTradeCanvasGrid = ({
       const chart = widget.getChart();
       // The replay state is authoritative, regardless of each chart's interval.
       chart.setTradingConfig({ pricePrecision: spec.decimals,
+        positionColors: replayPositionColors(position, currentPrice, spec),
         positionLabel: ctx => {
           const label = formatTradingAmounts({ ...ctx, currentPrice }, spec, labelUnits);
           return (ctx.side === 'buy' ? 'Long' : 'Short') + (label ? ' ' + label : '');

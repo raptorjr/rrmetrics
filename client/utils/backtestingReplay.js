@@ -299,6 +299,14 @@ function calculateTradePnl(position, exitPrice, pointValue) {
   return Math.round(pnl * 1e8) / 1e8 || 0;
 }
 
+// The entry line, position tag and price-axis badge share one replay P/L colour.
+function replayPositionColors(position, currentPrice, spec) {
+  const profit = '#1fa874', loss = '#e8505b', neutral = '#4c8dff';
+  const pnl = position && Number.isFinite(currentPrice) && currentPrice > 0
+    ? calculateTradePnl(position, currentPrice, spec.pointValue) : 0;
+  return { profit, loss, entry: pnl > 0 ? profit : pnl < 0 ? loss : neutral };
+}
+
 function calculateTradeStats(trades) {
   const safeTrades = Array.isArray(trades) ? trades : [];
   const wins = safeTrades.filter(trade => trade.pnl > 0);
@@ -329,7 +337,7 @@ module.exports = {
   evaluateCandleExit,
   calculateTradePnl,
   calculateTradeStats,
-  toReplayChartPosition,
+  toReplayChartPosition, replayPositionColors,
   replayBreakevenPrice, validateReplayQuantity, createReplayPosition, applyReplayFill, advanceReplayOrders, seedReplayOrderPrice,
   snapReplayPrice, validateReplayLevels, validateReplayEntry, validateReplayOrderDraft, updateReplayLevels, canMoveToBreakeven, replayOrderMenu,
 };
