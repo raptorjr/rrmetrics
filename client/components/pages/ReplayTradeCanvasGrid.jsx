@@ -21,6 +21,7 @@ const ReplayTradeCanvasGrid = ({
   position,
   pendingOrder,
   replayLayout,
+  contextTimeframes = [],
   onActiveChartChange,
 }) => {
   const hostRef = useRef(null);
@@ -30,7 +31,12 @@ const ReplayTradeCanvasGrid = ({
   const dataIdentityRef = useRef('');
   const [gridRevision, setGridRevision] = useState(0);
   const lastExternalTimeframeRef = useRef(timeframe);
+  const contextTimeframesRef = useRef(contextTimeframes);
   const [activeChart, setActiveChart] = useState(0);
+
+  useEffect(() => {
+    contextTimeframesRef.current = contextTimeframes;
+  }, [contextTimeframes.join('|')]);
 
   const visibleBars = useMemo(() => {
     if (!baseTimeframe || !replayTime) return [];
@@ -42,7 +48,7 @@ const ReplayTradeCanvasGrid = ({
 
   useEffect(() => {
     if (!hostRef.current) return undefined;
-    const defaultTimeframes = [timeframe, '5m', '15m'];
+    const defaultTimeframes = [timeframe, ...contextTimeframesRef.current];
     const cells = defaultTimeframes.map((tf, index) => ({
       symbol: ticker,
       timeframe: tf,
@@ -64,7 +70,13 @@ const ReplayTradeCanvasGrid = ({
         setActiveChart(index);
         if (onActiveChartChange) onActiveChartChange(index);
       },
-      onChartAdd: widget => {
+      onChartAdd: (widget, index) => {
+        if (index > 0) {
+          const desiredTimeframe = contextTimeframesRef.current[index - 1];
+          if (desiredTimeframe && widget.getTimeframe() !== desiredTimeframe) {
+            void widget.setTimeframe(desiredTimeframe);
+          }
+        }
         if (barsRef.current.length) widget.setData(barsRef.current, baseTimeframeRef.current);
         setGridRevision(value => value + 1);
       },
@@ -122,6 +134,17 @@ const ReplayTradeCanvasGrid = ({
     lastExternalTimeframeRef.current = timeframe;
     void grid.getActiveWidget().setTimeframe(timeframe);
   }, [timeframe]);
+
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    contextTimeframes.forEach((nextTimeframe, index) => {
+      const widget = grid.getWidget(index + 1);
+      if (widget && widget.getTimeframe() !== nextTimeframe) {
+        void widget.setTimeframe(nextTimeframe);
+      }
+    });
+  }, [contextTimeframes.join('|'), gridRevision]);
 
   useEffect(() => {
     const grid = gridRef.current;
