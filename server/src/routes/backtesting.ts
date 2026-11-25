@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env, AuthContext } from '../bindings';
 import * as backtestingDb from '../db/backtesting';
 import { readReplayChartSettings, saveReplayChartSettings, validateReplayChartSettings } from '../db/replay-chart-settings';
+import { readGoToSettings, saveGoToSettings, validateGoToSettings } from '../db/replay-go-to-settings';
 import * as replaySessions from '../db/replay-sessions';
 import { requiresLogin } from '../middleware/auth';
 
@@ -33,6 +34,18 @@ backtesting.put('/api/backtesting/chart-settings', requiresLogin, async (c) => {
     console.error('Replay chart settings save failed:', err);
     return c.json({ error: 'Could not save trading settings.' }, 500);
   }
+});
+
+backtesting.get('/api/backtesting/go-to-settings', requiresLogin, (c) => {
+  try { return c.json({settings:readGoToSettings(c.get('db'),c.get('user').id)}); }
+  catch(err){console.error('Go to settings load failed:',err);return c.json({error:'Could not load Go to settings.'},500);}
+});
+backtesting.put('/api/backtesting/go-to-settings', requiresLogin, async (c) => {
+  let body:unknown;try{body=await c.req.json();}catch{return c.json({error:'Invalid Go to settings.'},400);}
+  const settings=validateGoToSettings(body);
+  if(!settings)return c.json({error:'Enter valid names and times for all Go to options.'},400);
+  try{saveGoToSettings(c.get('db'),c.get('user').id,settings);return c.json({settings});}
+  catch(err){console.error('Go to settings save failed:',err);return c.json({error:'Could not save Go to settings.'},500);}
 });
 
 // GET /api/backtesting/sessions — list all sessions with stats

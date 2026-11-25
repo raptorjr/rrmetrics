@@ -420,6 +420,12 @@ CREATE TABLE IF NOT EXISTS replay_chart_settings (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS replay_go_to_settings (
+  user_id TEXT PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
+  settings_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 -- ─── dashboard collections ──────────────────────────────────────────────────
 -- One authoritative dashboard collection per local RR Metrics user/install.
 CREATE TABLE IF NOT EXISTS dashboard_settings (

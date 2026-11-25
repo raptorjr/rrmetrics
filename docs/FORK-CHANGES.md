@@ -1,5 +1,7 @@
 ## Replay workspace refinements
 
+- Added configurable New York-time Go to destinations in the shared chart toolbar, SQLite-backed profile preferences, forward-only execution-safe jumps and immediate clearing of the restored status once ready.
+
 - Grouped and centered replay session selector/account metrics with stable header columns during autosave; disabled individual chart fullscreen. Leading play action in the replay list, replay-first tabs, accurate manual-journal description and one centered Start Session action.
 
 - Replay polish: session selector with save-before-switch, centered account values, quieter save status, one replay progress readout, visible BE styling, restart clears drawings, chart display starts at a compatible favourite, source intervals in menu, and candle-matched default volume colours.
