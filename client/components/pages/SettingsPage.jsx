@@ -1,5 +1,6 @@
 const React = require('react');
 const { useState, useEffect, useCallback } = React;
+const {useConfirm}=require('../shared/AppModal');
 const { authFetch } = require('../../helper.js');
 const { TAG_COLOR_PRESETS } = require('../../utils/tagConstants');
 const Icons = require('../shared/Icons');
@@ -368,6 +369,7 @@ const RobinhoodBrokerSection = ({ hook, expandedBroker, toggleBroker, brokerHead
 };
 
 const SettingsPage = ({ onSyncComplete, onNavigate, onOpenImport, theme, onThemeChange, customColors, tags, triggerReload }) => {
+  const askConfirm=useConfirm();
   const [activeTab, setActiveTab] = useState('providers');
   const [message, setMessage] = useState(null);
   const [timeFormat, setTimeFormat] = useState(() => {
@@ -768,9 +770,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, onOpenImport, theme, onTheme
     }
   };
   const handlePxClear = async (connectionId) => {
-    const confirmed = window.confirm(
-      'Clear all imported Topstep trades and raw execution history for this connection? Your Topstep login and selected accounts will be kept. This cannot be undone.'
-    );
+    const confirmed = await askConfirm({title:'Clear Topstep history?',message:'Clear all imported Topstep trades and raw execution history for this connection? Your Topstep login and selected accounts will be kept. This cannot be undone.',danger:true,confirmLabel:'Clear history'});
     if (!confirmed) return;
 
     setMessage(null);
@@ -797,7 +797,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, onOpenImport, theme, onTheme
   };
 
   const handlePxDisconnect = async (connectionId) => {
-    if (!confirm('Disconnect this Topstep connection?')) return;
+    if (!(await askConfirm({title:'Disconnect Topstep?',message:'Disconnect this Topstep connection?',danger:true,confirmLabel:'Disconnect'}))) return;
     setMessage(null);
     try {
       const response = await authFetch(`/api/projectx/connections/${connectionId}`, { method: 'DELETE' });
@@ -882,7 +882,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, onOpenImport, theme, onTheme
   };
 
   const handleDeleteTag = async (tagId) => {
-    if (!confirm('Delete this tag? It will be removed from all trades.')) return;
+    if (!(await askConfirm({title:'Delete tag?',message:'This tag will be removed from all trades.',danger:true,confirmLabel:'Delete tag'}))) return;
     try {
       const response = await authFetch('/api/removeTag', {
         method: 'POST',
@@ -1282,7 +1282,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, onOpenImport, theme, onTheme
                                       <p className="text-xs text-text-secondary">Account selection, account types and currencies are locked after the initial import to protect existing journal data.</p>
                                       <p className="text-xs text-text-muted">{(conn.selectedAccounts || []).length} accounts selected · Setup saved</p>
                                       <button onClick={async () => {
-                                        if (!window.confirm('Reset Topstep setup? This deletes all imported Topstep trades and raw executions for this connection. You can then select accounts and configure them again.')) return;
+                                        if (!(await askConfirm({title:'Reset Topstep setup?',message:'This deletes all imported Topstep trades and raw executions for this connection. You can then select accounts and configure them again.',danger:true,confirmLabel:'Reset setup'}))) return;
                                         try {
                                           const response = await authFetch('/api/projectx/reset-setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ connectionId: conn.connectionId }) });
                                           const data = await response.json();
@@ -1392,7 +1392,7 @@ const SettingsPage = ({ onSyncComplete, onNavigate, onOpenImport, theme, onTheme
                                           <Icons.RefreshCw className={`w-3.5 h-3.5 ${pxSyncingId === conn.connectionId ? 'animate-spin' : ''}`} />
                                           {pxSyncingId === conn.connectionId ? 'Syncing...' : 'Sync Now'}
                                         </button>
-                                        <button onClick={() => { if (window.confirm('Fetch all available Topstep trade and order history for the selected accounts? This uses more API requests than a normal sync.')) handlePxSync(conn.connectionId, true); }} disabled={pxSyncingId !== null}
+                                        <button onClick={async () => { if (await askConfirm({title:'Full historical sync?',message:'Fetch all available Topstep trade and order history for the selected accounts? This uses more API requests than a normal sync.',confirmLabel:'Start sync'})) handlePxSync(conn.connectionId, true); }} disabled={pxSyncingId !== null}
                                           className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-bg-surface rounded-lg transition-colors disabled:opacity-50">Refresh complete trade history</button>
                                         <button onClick={() => handlePxDiagnostics(conn.connectionId)} disabled={pxDiagnosticLoading !== null || pxSyncingId !== null}
                                           className="px-3 py-1.5 text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-bg-surface rounded-lg transition-colors disabled:opacity-50">
