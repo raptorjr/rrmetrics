@@ -1,3 +1,4 @@
+const {useConfirm}=require('../shared/AppModal');
 const helper = require('../../helper.js');
 const { authFetch } = helper;
 const React = require('react');
@@ -6,6 +7,7 @@ const Icons = require('../shared/Icons');
 const ReplaySessionsPage = require('./ReplaySessionsPage');
 
 const BacktestingPage = ({onStatistics}) => {
+  const askConfirm=useConfirm();
   const [sessions, setSessions] = useState([]);
   const [activeTrades, setActiveTrades] = useState([]);
   const [allTrades, setAllTrades] = useState([]);
@@ -110,7 +112,7 @@ const BacktestingPage = ({onStatistics}) => {
   };
 
   const handleDeleteSession = async (sessionId) => {
-    if (!window.confirm('Delete this session and all its trades?')) return;
+    if (!(await askConfirm({title:'Delete journal session?',message:'Delete this session and all its trades?',danger:true,confirmLabel:'Delete session'}))) return;
     try {
       await authFetch(`/api/backtesting/sessions/${sessionId}`, { method: 'DELETE' });
       await load(false);
