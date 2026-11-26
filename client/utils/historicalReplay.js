@@ -140,6 +140,18 @@ function replaySessionRangeChoices(datasets) {
   return [...choices.values()].map(range=>({...range,eligibleLabels:getSessionMarkets(datasets,range.start,range.end).map(m=>m.label)}))
     .sort((a,b)=>b.end-a.end||a.start-b.start);
 }
+// Session picker is minute precision; never reuse the last revealed minute.
+function continuationRanges(ranges, lastReplayTime) {
+  if(lastReplayTime==null)return ranges;
+  const time=Date.parse(lastReplayTime);
+  if(!Number.isFinite(time))return [];
+  const min=(Math.floor(time/60000)+1)*60000;
+  return ranges.map(r=>({...r,start:Math.max(r.start,min)}))
+    .filter(r=>r.end>r.start);
+}
+function earliestContinuationRange(ranges) {
+  return [...ranges].sort((a,b)=>a.start-b.start||b.end-a.end)[0]||null;
+}
 // Simulated active-market seconds per wall-clock second, not bars/sec.
 const REPLAY_SPEEDS = [1,10,30,60,120,300,600,1200];
 function restoreReplaySpeed(checkpoint, intervalSeconds) {
@@ -178,4 +190,4 @@ function resetReplayChartLayout(layout) {
     return {...cell,chart:{...chart,drawings:[]}};
   })};
 }
-module.exports = { replaySessionRangeChoices, replayChartIntervals, resetReplayChartLayout, REPLAY_SPEEDS, restoreReplaySpeed, replayStepBudget, getSessionMarkets, TIMEFRAME_SECONDS, timeframeSeconds, compareTimeframes, getAvailableMarkets, isRangeWithinCoverage, aggregateCandles };
+module.exports = { continuationRanges, earliestContinuationRange, replaySessionRangeChoices, replayChartIntervals, resetReplayChartLayout, REPLAY_SPEEDS, restoreReplaySpeed, replayStepBudget, getSessionMarkets, TIMEFRAME_SECONDS, timeframeSeconds, compareTimeframes, getAvailableMarkets, isRangeWithinCoverage, aggregateCandles };
