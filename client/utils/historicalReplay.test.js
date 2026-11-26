@@ -134,3 +134,14 @@ test('clickable replay ranges group identical market coverage and round inward t
   assert.deepEqual(ranges[1].eligibleLabels,['ES','MGC','NQ']);
   assert.deepEqual(getSessionMarkets(datasets,Date.parse('2026-11-08T23:00:00Z'),ranges[1].end).map(m=>m.instrument),['MGC']);
 });
+
+test('continuation skips revealed minutes and expired source ranges without bridging gaps',()=>{
+ const {continuationRanges,earliestContinuationRange}=require('./historicalReplay');
+ const m=Date.parse('2026-11-01T00:00:00Z'),minute=60000;
+ const ranges=[{key:'later',start:m+10*minute,end:m+20*minute},{key:'overlap',start:m,end:m+5*minute},{key:'old',start:m-minute*3,end:m}];
+ const result=continuationRanges(ranges,new Date(m+10000).toISOString());
+ assert.deepEqual(result.map(r=>[r.key,r.start,r.end]),[['later',m+10*minute,m+20*minute],['overlap',m+minute,m+5*minute]]);
+ assert.equal(earliestContinuationRange(result).key,'overlap');
+ assert.equal(earliestContinuationRange(continuationRanges(ranges,new Date(m+20*minute).toISOString())),null);
+ assert.equal(continuationRanges(ranges,null),ranges);
+});
