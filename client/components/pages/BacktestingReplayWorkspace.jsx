@@ -338,7 +338,9 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
   const intervalLabel = historicalTimeframe || formatInterval(intervalSeconds);
   const stats = useMemo(() => calculateTradeStats(closedTrades), [closedTrades]);
   const unrealizedPnl = position ? calculateTradePnl(position, currentPrice, spec.pointValue) : 0;
-  const canSeek = chartReady && !savingExit && !conflictRef.current && !position && !pendingOrder && closedTrades.length === 0;
+  const capitalExhausted=!position && Math.round((session.startingBalance+stats.netPnl)*100)<=0;
+  const exhaustedNow=useCallback(()=>!positionRef.current && Math.round((session.startingBalance+closedTradesRef.current.reduce((sum,t)=>sum+t.pnl,0))*100)<=0,[session.startingBalance]);
+  const canSeek = !capitalExhausted && chartReady && !savingExit && !conflictRef.current && !position && !pendingOrder && closedTrades.length === 0;
 
   useEffect(() => { candlesRef.current = candles; }, [candles]);
   useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
@@ -354,11 +356,12 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
       setMessage('Position closed: ' + reason + ' · ' + formatMoney(result.trade.pnl));
       // Never let an adjustment survive a flat position.
       pendingOrderRef.current = null; setPendingOrder(null);
+      if(exhaustedNow()){setIsPlaying(false);setMessage('Account capital exhausted. Save and exit to review your history.');}
     } else {
       setMessage(reason + ' @ ' + formatPrice(price, spec.decimals) + ' · ' + result.position.quantity + ' open');
     }
     setError('');
-  }, [spec.decimals]);
+  }, [spec.decimals,exhaustedNow]);
 
   const closePosition = useCallback((activePosition, exitPrice, exitTime, reason) => {
     const result = applyReplayFill(activePosition, {
@@ -368,7 +371,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
   }, [spec, commitFill]);
 
   const advanceOne = useCallback(() => {
-    if (exitRef.current || conflictRef.current || !chartReady) return;
+    if (exitRef.current || conflictRef.current || !chartReady || exhaustedNow()) {setIsPlaying(false);return;}
     setLockedMarket(true);
     const nextIndex = currentIndexRef.current + 1;
     const data = candlesRef.current;
@@ -381,7 +384,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
       else commitFill(result, result.reason, result.price);
     }
     if (nextIndex >= data.length - 1) setIsPlaying(false);
-  }, [spec, commitFill, chartReady]);
+  }, [spec, commitFill, chartReady,exhaustedNow]);
 
   useEffect(() => { advanceOneRef.current = advanceOne; }, [advanceOne]);
 
@@ -402,7 +405,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
   // Forward-only jump. Run the exact same execution path while a position or
   // working order exists; when flat, no bar can create an execution by itself.
   const jumpToTime = option => {
-    if(!chartReady||historicalLoading||exitRef.current||conflictRef.current)return;
+    if(!chartReady||historicalLoading||exitRef.current||conflictRef.current||exhaustedNow())return;
     const target=nextGoToIndex(candlesRef.current,currentIndexRef.current,option.time,option.timeZone);
     if(target<0){setError('No later '+option.label+' with historical data in this session.');return;}
     setIsPlaying(false);setLockedMarket(true);setError('');
@@ -411,6 +414,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
       advanceOneRef.current?.();
       if(currentIndexRef.current===before)return;
     }
+    if(exhaustedNow())return;
     currentIndexRef.current=target;setCurrentIndex(target);setJumpRevision(v=>v+1);
   };
 
@@ -436,6 +440,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
   };
 
   const openPosition = (direction, options = {}) => {
+    if(exhaustedNow()){setError('Account capital exhausted. Create a new account to continue trading.');return;}
     const candle = latestCandle();
     if (exitRef.current || conflictRef.current || !chartReady || !candle || historicalLoading) { setError('Select an available historical market and period before placing a trade.'); return; }
     if (pendingOrderRef.current) return;
@@ -500,7 +505,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
 
   const chartMenuItems = (context) => {
     const candle = latestCandle();
-    if (exitRef.current || conflictRef.current || !chartReady || historicalLoading || !candle || context.price == null) return [];
+    if (exitRef.current || conflictRef.current || !chartReady || historicalLoading || !candle || context.price == null || exhaustedNow()) return [];
     const price = snapReplayPrice(context.price, spec);
     if (!Number.isFinite(price) || price <= 0) return [];
     const active = positionRef.current, pending = pendingOrderRef.current;
@@ -595,7 +600,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
     exitRef.current=false;setSavingExit(false);
   };
   const restartSession=async()=>{
-    if(!chartReady||savingExit||exitRef.current||conflictRef.current)return;
+    if(!chartReady||savingExit||exitRef.current||conflictRef.current||exhaustedNow())return;
     if(!window.confirm('Restart this session from its first candle? This permanently clears its simulated trades, open position and working orders and restores the starting balance. Chart drawings are cleared; layout and indicators are kept.'))return;
     exitRef.current=true;setIsPlaying(false);setSavingExit(true);
     try{
@@ -648,6 +653,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
         </div>
       </header>
       {saveStatus!=='Saved'&&!/^(Saving|Restoring|Restarting|Not saved)/.test(saveStatus)&&<div className="shrink-0 px-3 py-2 text-xs text-negative" role="alert">{saveStatus}</div>}
+      {capitalExhausted&&<div className="shrink-0 px-3 py-2 text-xs text-negative" role="status">Account capital exhausted. Trading and restart are disabled. Save &amp; exit to review this session or create a new account.</div>}
       {importError&&<div className="shrink-0 px-3 py-2 text-xs text-negative" role="alert">{importError}</div>}
       {conflictRef.current&&<div className="shrink-0 px-3 py-2 text-xs text-negative">Session changed on another device. Saving is blocked. <button onClick={()=>{if(window.confirm('Discard unsaved changes on this device and return to the session list?'))onExit();}} className="underline">Return to session list</button></div>}
       <div className="flex-1 min-h-0 grid grid-cols-[minmax(0,1fr)_300px] gap-1 overflow-hidden" inert={savingExit||conflictRef.current?true:undefined}>
@@ -696,9 +702,9 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
                 setCurrentIndex(0);
               }} disabled={!candles.length || !canSeek || currentIndex === 0} title="Jump to beginning" aria-label="Jump to beginning" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30"><span aria-hidden="true" className="text-xl leading-none tracking-[-0.12em]">||◀</span></button>
               <button type="button" onClick={() => { if (!canSeek) return; setIsPlaying(false); const next = Math.max(0, currentIndexRef.current - 1); currentIndexRef.current = next; setCurrentIndex(next); }} disabled={!candles.length || !canSeek || currentIndex === 0} title="Previous candle" aria-label="Previous candle" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30"><span aria-hidden="true" className="inline-block rotate-180 text-xl leading-none">▶|</span></button>
-              <button type="button" onClick={() => {setLockedMarket(true);setIsPlaying(value => !value);}} disabled={!chartReady || !candles.length || (!isPlaying && currentIndex >= candles.length - 1)} aria-label={isPlaying ? 'Pause replay' : 'Play replay'} className="w-10 h-10 inline-flex items-center justify-center rounded-lg bg-accent text-accent-text text-sm font-semibold disabled:opacity-40">{isPlaying ? 'Ⅱ' : '▶'}</button>
-              <button type="button" onClick={() => { setIsPlaying(false); advanceOne(); }} disabled={!chartReady || !candles.length || currentIndex >= candles.length - 1} title="Next candle" aria-label="Next candle" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30"><span aria-hidden="true" className="text-xl leading-none">▶|</span></button>
-              <button type="button" onClick={restartSession} disabled={!chartReady||savingExit} title="Restart session and reset its simulated trades" aria-label="Restart session" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30 text-xl">↺</button>
+              <button type="button" onClick={() => {setLockedMarket(true);setIsPlaying(value => !value);}} disabled={capitalExhausted || !chartReady || !candles.length || (!isPlaying && currentIndex >= candles.length - 1)} aria-label={isPlaying ? 'Pause replay' : 'Play replay'} className="w-10 h-10 inline-flex items-center justify-center rounded-lg bg-accent text-accent-text text-sm font-semibold disabled:opacity-40">{isPlaying ? 'Ⅱ' : '▶'}</button>
+              <button type="button" onClick={() => { setIsPlaying(false); advanceOne(); }} disabled={capitalExhausted || !chartReady || !candles.length || currentIndex >= candles.length - 1} title="Next candle" aria-label="Next candle" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30"><span aria-hidden="true" className="text-xl leading-none">▶|</span></button>
+              <button type="button" onClick={restartSession} disabled={capitalExhausted||!chartReady||savingExit} title="Restart session and reset its simulated trades" aria-label="Restart session" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30 text-xl">↺</button>
               </div>
               <div className="justify-self-end flex items-center gap-2 text-xs text-text-secondary">
                 <label htmlFor="replay-speed" title="Simulated active-market time per real second. Closed-market gaps are skipped.">Speed</label>
@@ -756,7 +762,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
             <div className="grid grid-cols-2 gap-2">
               {['long', 'short'].map(direction => {
                 const { error: draftError } = validateReplayOrderDraft(position, direction, quantity, orderType, orderPrice, currentPrice, spec);
-                const disabled = !chartReady || !candles.length || historicalLoading || !!pendingOrder || !!draftError;
+                const disabled = capitalExhausted || !chartReady || !candles.length || historicalLoading || !!pendingOrder || !!draftError;
                 const action = !position ? '' : position.direction === direction ? 'Add' : quantity === position.quantity ? 'Close' : 'Reduce';
                 return <button key={direction} type="button" onClick={() => openPosition(direction)} title={pendingOrder ? 'Cancel the working order before submitting another.' : draftError || undefined} disabled={disabled} className={'py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-40 ' + (direction === 'long' ? 'bg-positive' : 'bg-negative')}>
                   {direction === 'long' ? 'BUY' : 'SELL'} {quantity} @ {orderType === 'stop_market' ? 'STOP' : orderType.toUpperCase()}
