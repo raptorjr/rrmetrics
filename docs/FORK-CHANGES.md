@@ -1,5 +1,7 @@
 ## Public release preparation
 
+- Documented the provider verification and improved CSV import roadmap, including TopstepX file import without an API subscription, independent reconciliation tests, verification status and shared watched-folder infrastructure. Planning only; no broker or import behaviour changed.
+
 - Added the Unraid Community Applications public-release roadmap and a durable TradeCanvas-first chart policy. Removed unused Lightweight Charts, KLineCharts and orphaned Fancy Canvas dependencies after a source and lockfile audit. Kept historical change records and existing statistical visualizations.
 
 ## Replay workspace refinements
