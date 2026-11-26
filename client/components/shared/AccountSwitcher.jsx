@@ -21,7 +21,7 @@ const BROKER_ICONS = {
   webull: { icon: '/assets/img/webull.svg', label: 'Webull' },
   projectx: { icon: '/assets/img/topstep.png', label: 'Topstep' },
   tradezella: { icon: null, label: 'TradeZella' },
-  replay: { icon: null, label: 'Replay sessions' },
+  replay: { icon: null, label: 'Virtual accounts' },
 };
 
 const AccountSwitcher = ({ trades, selectedAccounts, setSelectedAccounts, collapsed, accountBrokers, accountMode='trading', onAccountModeChange, replayAccounts=[], loading=false }) => {
