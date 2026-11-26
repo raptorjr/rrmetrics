@@ -90,7 +90,7 @@ function ReplaySessionsPage({onStatistics}) {
     e.preventDefault(); if(busy||!eligible.length||!continuationValid)return;
     setBusy(true);setError('');
     try {
-      const {session} = await request('/api/backtesting/replay-sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,description,...(continuing?{accountId,previousRevision:continuing.revision}:{accountName:accountName.trim()||name,startingBalance:Number(balance)}),startTime:startTime.toISOString(),endTime:endTime.toISOString()})});
+      const {session} = await request('/api/backtesting/replay-sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,description,...(continuing?{accountId,previousSessionId:continuing.id,previousRevision:continuing.revision}:{accountName:accountName.trim()||name,startingBalance:Number(balance)}),startTime:startTime.toISOString(),endTime:endTime.toISOString()})});
       setCreating(false);setSessions(previous=>[session,...previous.map(s=>s.accountId===session.accountId?{...s,sealed:true,canContinue:false,sessionCount:session.sessionCount,status:'completed'}:s)]);setActive(session);
     } catch(e) {setError(e.message);} finally {setBusy(false);}
   };
