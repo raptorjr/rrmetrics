@@ -73,14 +73,15 @@ test('persistent replay accounts resume across clients, isolate trades and rejec
     db.prepare("DELETE FROM market_data_files WHERE id='f'").run();
     const again=(await (await laptop.request(url+'/'+session.id)).json() as any).session;
     assert.equal(again.revision,2);assert.equal(again.trades.length,1);
-    const reset={revision:2,restart:true,checkpoint:{...checkpoint,index:0,time,position:null,pendingOrder:null,speed:60,speedMode:'time'},trades:[]};
+    const reset={revision:2,restart:true,checkpoint:{...checkpoint,index:0,time,position:null,pendingOrder:null,speed:83,speedMode:'time'},trades:[]};
     assert.equal((await write(other,save,'PUT',reset)).status,404);
     assert.equal((await write(laptop,save,'PUT',{...reset,revision:1})).status,409);
     assert.equal((await write(laptop,save,'PUT',{...reset,checkpoint:{...reset.checkpoint,position:open}})).status,400);
+    for(const speed of [0,1201,1.5,'83'])assert.equal((await write(laptop,save,'PUT',{...reset,checkpoint:{...reset.checkpoint,speed}})).status,400);
     assert.equal((await write(laptop,save,'PUT',reset)).status,200);
     const restarted=(await (await laptop.request(url+'/'+session.id)).json() as any).session;
     assert.equal(restarted.revision,3);assert.equal(restarted.balance,50000);assert.equal(restarted.progress,0);assert.equal(restarted.trades.length,0);
-    assert.deepEqual(restarted.checkpoint.layout,checkpoint.layout);
+    assert.deepEqual(restarted.checkpoint.layout,checkpoint.layout);assert.equal(restarted.checkpoint.speed,83);
     assert.equal((await write(desktop,save,'PUT',payload)).status,409);
     // Management actions are owner scoped, validate names and reject stale list revisions.
     const uri=url+'/'+session.id;
