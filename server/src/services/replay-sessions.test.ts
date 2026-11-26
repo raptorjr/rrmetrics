@@ -175,5 +175,20 @@ test('legacy accounts migrate idempotently and sequential sessions carry balance
     assert.ok(analytics.trades.every((t:any)=>t.replayAccountId==='legacy'));
     assert.equal((await get('legacy')).trades[0].pnl,200);
     assert.deepEqual(await (await other.request('/api/backtesting/replay-analytics')).json(),{accounts:[],trades:[]});
+    // A flat account with exhausted capital remains reviewable but cannot resume, restart or continue.
+    const lastSave=url+'/'+session.id+'/checkpoint';
+    const loss={...trade2,id:'replay-2',pnl:-50200,entryTime:time+420,exitTime:time+480,
+      fills:[{...trade2.fills[0],time:time+420},{...trade2.fills[1],time:time+480}]};
+    const exhaustedCheckpoint={...checkpoint,index:3,barCount:6,time:time+480};
+    const exhaustedTrades=[trade2,loss];
+    assert.equal((await write(desktop,lastSave,'PUT',{revision:1,checkpoint:exhaustedCheckpoint,trades:exhaustedTrades})).status,200);
+    const exhausted=await get(session.id);assert.equal(exhausted.accountStatus,'depleted');assert.equal(exhausted.canContinue,false);
+    assert.equal((await write(desktop,lastSave,'PUT',{revision:2,checkpoint:{...exhaustedCheckpoint,index:4,time:time+540},trades:exhaustedTrades})).status,409);
+    assert.equal((await write(desktop,lastSave,'PUT',{revision:2,restart:true,checkpoint:{...exhaustedCheckpoint,index:0,time:time+300},trades:[]})).status,409);
+    assert.equal((await write(desktop,url,'POST',{...next,previousSessionId:session.id,previousRevision:2,startTime:'2026-01-01T00:09:00.000Z'})).status,400);
+    assert.equal((await get(session.id)).trades.length,2);
+    // Saving unchanged executions/checkpoint is allowed, so save & exit still works.
+    assert.equal((await write(desktop,lastSave,'PUT',{revision:2,checkpoint:exhaustedCheckpoint,trades:exhaustedTrades})).status,200);
+
   }finally{db.close();}
 });
