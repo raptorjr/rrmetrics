@@ -220,7 +220,7 @@ backtesting.get('/api/backtesting/replay-sessions', requiresLogin, (c) =>
 backtesting.post('/api/backtesting/replay-sessions', requiresLogin, async (c) => {
   let body: unknown; try { body = await c.req.json(); } catch { return c.json({error:'Invalid session.'},400); }
   const session = replaySessions.createReplaySession(c.get('db'),c.get('user').id,body);
-  return session ? c.json({session},201) : c.json({error:'Choose a name, positive starting balance and a historical range covered by an imported OHLCV dataset.'},400);
+  return session ? c.json({session},201) : c.json({error:'Choose a valid name and covered historical range. For a new account, enter a positive starting balance. To continue an account, its latest saved session must be flat, have no pending orders, and the new period must start after its last replay time. Refresh the session list if it changed.'},400);
 });
 backtesting.get('/api/backtesting/replay-sessions/:id', requiresLogin, (c) => {
   const session = replaySessions.getReplaySession(c.get('db'),c.get('user').id,c.req.param('id'));
