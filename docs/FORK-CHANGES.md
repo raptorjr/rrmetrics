@@ -1,3 +1,10 @@
+## Replay chart usability
+
+- Secondary charts display a per-cell historical-data loading overlay. Autosave defers while a context series is loading; explicit Save & exit waits for the pending request before capturing the complete layout. Source failures are still reported and provenance validation is unchanged.
+- Replace discrete replay speeds with a logarithmic 1×–1200× slider; exact integer time-based speeds are checkpointed, and older candle-based checkpoints retain the existing conversion.
+- Chart theme follows the application's theme by default. Explicit native chart toggles or the chart settings selector persist an override in the current browser; Follow application clears it. Apply after saved-layout restoration and to newly added/unparked charts. No TradeCanvas dependency upgrade.
+- Babylon confirmed the preceding account hierarchy refinement. Next batches: current trading-day statistics and optional objectives, then automatic capital-loss liquidation.
+
 ## Virtual account hierarchy refinement
 
 - Indent the resume/review control together with the session name, rather than indenting only the label; retain aligned statistics columns.
