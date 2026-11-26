@@ -183,7 +183,7 @@ const ReplayTradeCanvasGrid = ({
       if(gridRef.current)setGridRevision(v=>v+1);
     });
     contextWorkRef.current.set(widget,work);
-    void work.catch(error=>{setContextError(error.message||'Could not restore previous chart.');});
+    void work.catch(error=>{if(gridRef.current?.getWidgets().includes(widget)&&widgetStateRef.current.get(widget)===token){widgetStateRef.current.set(widget,{...token,loading:false});setGridRevision(v=>v+1);setContextError(error.message||'Could not restore previous chart.');}});
   };
   const captureLayout=grid=>{
     if(!restoredRef.current)return null;
@@ -257,6 +257,7 @@ const ReplayTradeCanvasGrid = ({
         if (onActiveChartChange) onActiveChartChange(index);
       },
       onChartAdd: widget => {
+        widget.setTheme(desiredTheme());
         const chart = widget.getChart();
         chart.setHostReplayViewport(true);
         // Follow the actual candle body colours by default; explicit user volume colours win.
@@ -298,7 +299,7 @@ const ReplayTradeCanvasGrid = ({
     expectedThemeRef.current=desiredTheme();
     const themeObserver=new MutationObserver(()=>{
       if(!restoredRef.current)return;
-      const actual=hostRef.current?.querySelector('.tcw-root')?.dataset.tcwTheme;
+      const actual=hostRef.current?.querySelector('.tcw-grid')?.dataset.tcwTheme;
       if((actual==='dark'||actual==='light')&&actual!==expectedThemeRef.current){
         themeRef.current=actual;expectedThemeRef.current=actual;setChartTheme(actual);saveChartTheme(actual);
       }
