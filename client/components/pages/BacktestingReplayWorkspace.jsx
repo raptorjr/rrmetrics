@@ -7,6 +7,7 @@ const { replayDatePopupPosition } = require('../../utils/replayDatePopup');
 const { authFetch } = require('../../helper.js');
 const ReplayTradeCanvasGrid = require('./ReplayTradeCanvasGrid').default;
 const ReplayTradeHistory = require('../shared/ReplayTradeHistory');
+const {replayTradingDay,buildReplayStatistics}=require('../../utils/replayDailyStats');
 const {
   getInstrumentSpec,
   normalizeOhlcvRows,
@@ -228,6 +229,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
   },[chartReady]);
   const [savingExit,setSavingExit] = useState(false), [fullscreen,setFullscreen] = useState(false);
   const [lockedMarket,setLockedMarket] = useState(!!saved), [showDetails,setShowDetails] = useState(false);
+  const [statsScope,setStatsScope]=useState('today');
   useEffect(()=>{
     const update=()=>setFullscreen(document.fullscreenElement===workspaceRef.current);
     document.addEventListener('fullscreenchange',update);
@@ -344,6 +346,10 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
   const intervalSeconds = useMemo(() => getIntervalSeconds(candles), [candles]);
   const intervalLabel = historicalTimeframe || formatInterval(intervalSeconds);
   const stats = useMemo(() => calculateTradeStats(closedTrades), [closedTrades]);
+  const scopedStats=useMemo(()=>buildReplayStatistics(session.priorSessions||[],closedTrades,position,ticker),[session.priorSessions,closedTrades,position,ticker]);
+  const tradingDay=replayTradingDay(currentCandle?.time);
+  const displayStats=statsScope==='today'?scopedStats.day(tradingDay):scopedStats[statsScope];
+  const dayLabel=tradingDay?new Date(tradingDay+'T00:00:00Z').toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric',timeZone:'UTC'}):'Waiting for replay';
   const unrealizedPnl = position ? calculateTradePnl(position, currentPrice, spec.pointValue) : 0;
   const capitalExhausted=!position && Math.round((session.startingBalance+stats.netPnl)*100)<=0;
   const exhaustedNow=useCallback(()=>!positionRef.current && Math.round((session.startingBalance+closedTradesRef.current.reduce((sum,t)=>sum+t.pnl,0))*100)<=0,[session.startingBalance]);
@@ -645,9 +651,9 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
     try{if(document.fullscreenElement===workspaceRef.current)await document.exitFullscreen();else await workspaceRef.current.requestFullscreen();}
     catch{setError('Fullscreen is not available in this browser.');}
   };
-  const statsProfitFactor = stats.profitFactor == null
-    ? (stats.grossProfit > 0 ? '∞' : '—')
-    : stats.profitFactor.toFixed(2);
+  const statsProfitFactor = displayStats.profitFactor == null
+    ? (displayStats.grossProfit > 0 ? '∞' : '—')
+    : displayStats.profitFactor.toFixed(2);
 
   return createPortal(
     <div ref={workspaceRef} data-replay-workspace="true" className="fixed inset-0 z-[9999] bg-bg-page text-text-primary flex flex-col overflow-hidden" style={{height:'100dvh'}}>
@@ -799,17 +805,25 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
             {error && <p className="text-xs text-negative">{error}</p>}{message && <p className="text-xs text-text-secondary">{message}</p>}
           </div>
 
-          <div className="mt-auto bg-bg-surface border border-border rounded-lg p-3 space-y-3"><h3 className="text-sm font-semibold">Backtest statistics</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div><div className="text-[10px] uppercase tracking-wider text-text-secondary">Closed trades</div><div className="text-xl font-semibold text-text-primary">{stats.total}</div></div>
-              <div><div className="text-[10px] uppercase tracking-wider text-text-secondary">Win rate</div><div className="text-xl font-semibold text-text-primary">{stats.winRate.toFixed(1)}%</div></div>
-              <div><div className="text-[10px] uppercase tracking-wider text-text-secondary">Net P/L</div><div className={'text-lg font-semibold ' + (stats.netPnl >= 0 ? 'text-positive' : 'text-negative')}>{formatMoney(stats.netPnl)}</div></div>
-              <div><div className="text-[10px] uppercase tracking-wider text-text-secondary">Profit factor</div><div className="text-lg font-semibold text-text-primary">{statsProfitFactor}</div></div>
+          <div className="mt-auto bg-bg-surface border border-border rounded-lg p-3 space-y-2">
+            <h3 className="text-sm font-semibold">Backtest statistics</h3>
+            <div className="flex rounded-lg bg-bg-input p-0.5 gap-0.5" role="group" aria-label="Statistics period">
+              {['today','session','account'].map(scope=><button key={scope} type="button" aria-pressed={statsScope===scope} onClick={()=>setStatsScope(scope)} className={'flex-1 rounded-md px-2 py-1.5 text-xs font-medium '+(statsScope===scope?'bg-accent text-accent-text':'text-text-secondary hover:text-text-primary')}>{scope[0].toUpperCase()+scope.slice(1)}</button>)}
             </div>
-            <div className="border-t border-border pt-2 flex justify-between text-xs"><span className="text-text-secondary">Wins / losses / BE</span><span className="text-text-primary">{stats.wins} / {stats.losses} / {stats.breakeven}</span></div>
-            {position && position.fills?.some(fill => fill.kind === 'exit') && <div className="flex justify-between text-xs"><span className="text-text-secondary">Realized on open trade (not included above)</span><strong className={realizedOpenPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(realizedOpenPnl)}</strong></div>}
-            {position && <div className="flex justify-between text-xs"><span className="text-text-secondary">Open P/L (not included above)</span><strong className={unrealizedPnl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(unrealizedPnl)}</strong></div>}
-            {closedTrades.length === 0 && <p className="text-xs text-text-secondary">Close your first simulated trade to start building statistics.</p>}
+            <p className="text-[10px] text-text-secondary" title={statsScope==='today'?'Historical trading date; day rolls at 18:00 New York time. Includes earlier sessions of this account.':undefined}>{statsScope==='today'?dayLabel+' · 18:00 ET rollover':statsScope==='session'?'Current replay session':'All sessions through current replay'}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div><div className="text-[10px] uppercase tracking-wider text-text-secondary">Closed trades</div><div className="text-xl font-semibold text-text-primary">{displayStats.total}</div></div>
+              <div><div className="text-[10px] uppercase tracking-wider text-text-secondary">Win rate</div><div className="text-xl font-semibold text-text-primary">{displayStats.winRate.toFixed(1)}%</div></div>
+              <div><div className="text-[10px] uppercase tracking-wider text-text-secondary" title="Includes realized partial exits, excludes unrealized P/L and unmodeled costs">Realized P/L</div><div className={'text-lg font-semibold '+(displayStats.realizedPnl==null?'text-text-secondary':displayStats.realizedPnl<0?'text-negative':'text-positive')}>{displayStats.realizedPnl==null?'—':formatMoney(displayStats.realizedPnl)}</div></div>
+              <div><div className="text-[10px] uppercase tracking-wider text-text-secondary">Profit factor</div><div className="text-lg font-semibold text-text-primary">{statsProfitFactor}</div></div>
+              <div><div className="text-[10px] uppercase tracking-wider text-text-secondary">Average win</div><div className="text-sm font-semibold text-positive">{displayStats.wins?formatMoney(displayStats.grossProfit/displayStats.wins):'—'}</div></div>
+              <div><div className="text-[10px] uppercase tracking-wider text-text-secondary">Average loss</div><div className="text-sm font-semibold text-negative">{displayStats.losses?formatMoney(-displayStats.grossLoss/displayStats.losses):'—'}</div></div>
+            </div>
+            <div className="border-t border-border pt-2 flex justify-between text-xs"><span className="text-text-secondary">Wins / losses / BE</span><span className="text-text-primary">{displayStats.wins} / {displayStats.losses} / {displayStats.breakeven}</span></div>
+            {(displayStats.realizedPnl==null||Math.abs(displayStats.realizedPnl-displayStats.netPnl)>=.005)&&<div className="flex justify-between text-xs gap-2"><span className="text-text-secondary" title="Entire P/L of trades completed in this period; realized exits may have occurred on other days.">Closed trade P/L</span><strong className={displayStats.netPnl>=0?'text-positive':'text-negative'}>{formatMoney(displayStats.netPnl)}</strong></div>}
+            {displayStats.realizedPnl==null&&<p className="text-xs text-text-secondary">Daily realized P/L unavailable: saved fills could not be reconciled across trading days.</p>}
+            {position&&<div className="flex justify-between text-xs gap-2"><span className="text-text-secondary">Unrealized P/L (open position)</span><strong className={unrealizedPnl>=0?'text-positive':'text-negative'}>{formatMoney(unrealizedPnl)}</strong></div>}
+            {!displayStats.total&&<p className="text-xs text-text-secondary">No completed trades {statsScope==='today'?'this trading day':statsScope==='session'?'in this session':'in this account'}.</p>}
           </div>
         </div>
       </div>

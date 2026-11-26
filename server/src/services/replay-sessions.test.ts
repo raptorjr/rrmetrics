@@ -58,7 +58,7 @@ test('persistent replay accounts resume across clients, isolate trades and rejec
     assert.equal((await write(laptop,save,'PUT',payload)).status,409);
     assert.equal((await write(other,save,'PUT',{...payload,revision:1})).status,404);
     const restored=(await (await laptop.request(url+'/'+session.id)).json() as any).session;
-    assert.deepEqual(restored.checkpoint,checkpoint);assert.deepEqual(restored.trades,[closed]);
+    assert.deepEqual(restored.checkpoint,checkpoint);assert.deepEqual(restored.trades,[closed]);assert.deepEqual(restored.priorSessions,[]);
     const projected=(await (await desktop.request(analyticsUrl)).json() as any);
     assert.equal(projected.accounts.length,2);assert.equal(projected.trades.length,1);
     assert.equal(projected.trades[0].manualPL,200);assert.equal(projected.trades[0].domain,'backtesting');
@@ -162,7 +162,8 @@ test('legacy accounts migrate idempotently and sequential sessions carry balance
     const created=await write(desktop,url,'POST',{...next,startingBalance:1});assert.equal(created.status,201);
     const {session}=await created.json() as any;
     assert.equal(session.startingBalance,50200);assert.equal(session.accountStartingBalance,50000);assert.equal(session.sequence,2);assert.equal(session.accountId,'legacy');
-    const sealed=await get('legacy');assert.equal(sealed.sealed,true);assert.equal(sealed.revision,2);
+    assert.deepEqual(session.priorSessions,[{id:'legacy',instrument:'NQ',trades:[trade]}]);
+    const sealed=await get('legacy');assert.equal(sealed.sealed,true);assert.equal(sealed.revision,2);assert.deepEqual(sealed.priorSessions,[]);
     assert.equal((await write(desktop,save,'PUT',{revision:2,checkpoint,trades:[trade]})).status,409);
     assert.equal((await write(desktop,url+'/legacy','DELETE',{revision:2})).status,409);
     assert.equal((await write(desktop,url,'POST',next)).status,400);
@@ -175,6 +176,7 @@ test('legacy accounts migrate idempotently and sequential sessions carry balance
     assert.equal(new Set(analytics.trades.map((t:any)=>t._id)).size,2);
     assert.ok(analytics.trades.every((t:any)=>t.replayAccountId==='legacy'));
     assert.equal((await get('legacy')).trades[0].pnl,200);
+    assert.deepEqual((await get(session.id)).priorSessions,[{id:'legacy',instrument:'NQ',trades:[trade]}]);
     assert.deepEqual(await (await other.request('/api/backtesting/replay-analytics')).json(),{accounts:[],trades:[]});
     // A flat account with exhausted capital remains reviewable but cannot resume, restart or continue.
     const lastSave=url+'/'+session.id+'/checkpoint';
