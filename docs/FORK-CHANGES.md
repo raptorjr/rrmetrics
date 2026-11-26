@@ -1,3 +1,9 @@
+## Replay continuation and historical import polish
+
+- Selecting historical CSV/Parquet files immediately stages and inspects each file sequentially; explicit import confirmation remains. Progress identifies the current filename, failures do not stop subsequent files, and staged/ready status is blue while imported status is green.
+- Continuing an account automatically selects the earliest later selectable minute within imported coverage, restricts earlier ranges, and explains exhausted coverage. New accounts show the latest available coverage as guidance, not a guarantee of contiguous data.
+- Flat standard virtual accounts with zero/negative remaining capital stop playback and cannot trade, restart or continue; saved history stays reviewable. No margin, forced liquidation, prop-firm rules or payouts are implied.
+
 ## Persistent virtual accounts
 
 - Introduced an independent virtual account identity with multiple chronological replay sessions. Legacy accounts migrate one-to-one without losing account selections, trades or saved checkpoints. New sessions can continue a flat saved account, inherit its balance and seal the prior session. Dashboard and Analytics aggregate by virtual account; session history remains separate. Multi-session deletion, prop-firm constraints, payout simulation and equity history are not implemented yet.
