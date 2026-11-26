@@ -145,3 +145,16 @@ test('continuation skips revealed minutes and expired source ranges without brid
  assert.equal(earliestContinuationRange(continuationRanges(ranges,new Date(m+20*minute).toISOString())),null);
  assert.equal(continuationRanges(ranges,null),ranges);
 });
+
+test('logarithmic slider spans the full supported range and preserves saved intermediate speeds',()=>{
+ const {replaySpeedAtPercent,replaySpeedPercent,restoreReplaySpeed}=require('./historicalReplay');
+ assert.equal(replaySpeedAtPercent(0),1);assert.equal(replaySpeedAtPercent(100),1200);
+ assert.equal(replaySpeedAtPercent(50),35);
+ for(const speed of [1,2,17,60,83,239,600,1199,1200]){
+   assert.equal(replaySpeedAtPercent(replaySpeedPercent(speed)),speed);
+   assert.equal(restoreReplaySpeed({speed,speedMode:'time'},10),speed);
+ }
+ assert.equal(restoreReplaySpeed({speed:9999,speedMode:'time'},10),1200);
+ assert.equal(restoreReplaySpeed({speed:0,speedMode:'time'},10),1);
+ assert.equal(restoreReplaySpeed({speed:NaN,speedMode:'time'},10),60);
+});
