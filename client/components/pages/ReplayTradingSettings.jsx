@@ -1,7 +1,7 @@
 const React = require('react');
 const { LABEL_UNITS, formatTradingAmounts } = require('../../utils/replayTradingDisplay');
 
-function ReplayTradingSettings({ dialogRef, units, onChange, spec, status, error, onRetry, onSave, onDiscard }) {
+function ReplayTradingSettings({ dialogRef, units, onChange, spec, status, error, onRetry, onSave, onDiscard, chartTheme, onChartThemeChange }) {
   const entry = spec.basePrice;
   const ready = status === 'ready';
   const saving = status === 'saving';
@@ -11,7 +11,7 @@ function ReplayTradingSettings({ dialogRef, units, onChange, spec, status, error
   }, spec, units);
   return (
     <dialog ref={dialogRef} aria-labelledby="rr-trading-settings-title"
-      style={{ width: 440, maxWidth: "calc(100% - 2rem)", maxHeight: "calc(100% - 2rem)" }}
+      style={{ position:"fixed", inset:0, margin:"auto", height:"fit-content", width: 440, maxWidth: "calc(100% - 2rem)", maxHeight: "calc(100% - 2rem)" }}
       className="overflow-y-auto m-auto rounded-xl border border-border bg-bg-surface text-text-primary shadow-2xl p-0 backdrop:bg-black/60"
       onClick={event => { if (event.target === event.currentTarget) close(); }}
       onCancel={event => { if (saving) event.preventDefault(); }}
@@ -20,6 +20,13 @@ function ReplayTradingSettings({ dialogRef, units, onChange, spec, status, error
         <div className="flex items-center justify-between gap-3">
           <h2 id="rr-trading-settings-title" className="text-lg font-semibold">Settings</h2>
           <button type="button" aria-label="Close settings" disabled={saving} onClick={close} className="text-text-muted hover:text-text-primary text-xl px-2">×</button>
+        </div>
+        <div>
+          <label className="block text-sm font-semibold" htmlFor="replay-chart-theme">Chart theme</label>
+          <select id="replay-chart-theme" className="mt-2 w-full rounded-lg border border-border bg-bg-input px-3 py-2 text-sm" value={chartTheme} onChange={e=>onChartThemeChange(e.target.value)}>
+            <option value="app">Follow application</option><option value="light">Light</option><option value="dark">Dark</option>
+          </select>
+          <p className="text-xs text-text-secondary mt-1">Applies immediately and is remembered in this browser.</p>
         </div>
         <div>
           <h3 className="font-semibold text-sm">Order and position labels</h3>
