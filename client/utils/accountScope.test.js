@@ -27,3 +27,11 @@ test('an explicit empty or missing replay selection never becomes All',()=>{
  assert.deepEqual(filterReplayAccounts(accounts,[NO_ACCOUNTS]),[]);
  assert.deepEqual(filterReplayAccounts(accounts,[]),accounts);
 });
+
+test('multiple replay sessions share an account without merging real trade identity',()=>{
+ const first={domain:'backtesting',replaySessionId:'old',replayAccountId:'a',manualPL:200};
+ const second={...first,replaySessionId:'new',manualPL:-50};
+ const other={...first,replayAccountId:'b'};
+ assert.equal(getTradeAccountKey(second),'replay::a');
+ assert.deepEqual(filterAccountDomain([first,second,other],'backtesting',['replay::a']),[first,second]);
+});
