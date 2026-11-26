@@ -157,6 +157,19 @@ const REPLAY_SPEEDS = [1,10,30,60,120,300,600,1200]; // legacy candle-speed migr
 const MIN_REPLAY_SPEED=1, MAX_REPLAY_SPEED=1200;
 function replaySpeedAtPercent(percent){return Math.max(1,Math.min(1200,Math.round(1200**(Math.max(0,Math.min(100,percent))/100))));}
 function replaySpeedPercent(speed){return Math.max(0,Math.min(100,100*Math.log(Math.max(1,speed))/Math.log(1200)));}
+// Nominal wall-clock duration of one active market hour at the chosen speed.
+// Real playback may be slower because of rendering and processing limits.
+function replayHourDuration(speed) {
+  if (!Number.isFinite(speed) || speed <= 0) return '—';
+  const seconds = 3600 / speed;
+  if (seconds >= 3600) return '1 h';
+  if (seconds >= 60) {
+    const rounded = Math.round(seconds);
+    const minutes = Math.floor(rounded / 60), remainder = rounded % 60;
+    return minutes + ' min' + (remainder ? ' ' + remainder + ' s' : '');
+  }
+  return Number(seconds.toFixed(1)) + ' s';
+}
 function restoreReplaySpeed(checkpoint, intervalSeconds) {
   if (!checkpoint) return 60;
   const wanted = checkpoint.speedMode === 'time' ? checkpoint.speed : checkpoint.speed * intervalSeconds;
@@ -195,4 +208,4 @@ function resetReplayChartLayout(layout) {
     return {...cell,chart:{...chart,drawings:[]}};
   })};
 }
-module.exports = { continuationRanges, earliestContinuationRange, replaySessionRangeChoices, replayChartIntervals, resetReplayChartLayout, REPLAY_SPEEDS, MIN_REPLAY_SPEED, MAX_REPLAY_SPEED, replaySpeedAtPercent, replaySpeedPercent, restoreReplaySpeed, replayStepBudget, getSessionMarkets, TIMEFRAME_SECONDS, timeframeSeconds, compareTimeframes, getAvailableMarkets, isRangeWithinCoverage, aggregateCandles };
+module.exports = { continuationRanges, earliestContinuationRange, replaySessionRangeChoices, replayChartIntervals, resetReplayChartLayout, REPLAY_SPEEDS, MIN_REPLAY_SPEED, MAX_REPLAY_SPEED, replaySpeedAtPercent, replaySpeedPercent, replayHourDuration, restoreReplaySpeed, replayStepBudget, getSessionMarkets, TIMEFRAME_SECONDS, timeframeSeconds, compareTimeframes, getAvailableMarkets, isRangeWithinCoverage, aggregateCandles };

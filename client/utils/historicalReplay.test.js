@@ -158,3 +158,16 @@ test('logarithmic slider spans the full supported range and preserves saved inte
  assert.equal(restoreReplaySpeed({speed:0,speedMode:'time'},10),1);
  assert.equal(restoreReplaySpeed({speed:NaN,speedMode:'time'},10),60);
 });
+
+test('market hour estimate formats nominal duration at slow, intermediate and fast speeds',()=>{
+ const {replayHourDuration}=require('./historicalReplay');
+ assert.equal(replayHourDuration(1),'1 h');
+ assert.equal(replayHourDuration(2),'30 min');
+ assert.equal(replayHourDuration(7),'8 min 34 s');
+ assert.equal(replayHourDuration(12),'5 min');
+ assert.equal(replayHourDuration(60),'1 min');
+ assert.equal(replayHourDuration(83),'43.4 s');
+ assert.equal(replayHourDuration(1200),'3 s');
+ assert.equal(replayHourDuration(0),'—');
+ assert.equal(replayHourDuration(NaN),'—');
+});
