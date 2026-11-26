@@ -114,7 +114,7 @@ export function createReplaySession(db: Db, owner: string, input: unknown) {
     let accountId=session,sequence=1,cents=0;
     if(input.accountId!=null){
       accountId=input.accountId;
-      const members=accountRows(db,owner,accountId),previous=members.at(-1);
+      const members=accountRows(db,owner,accountId),previous=members[members.length-1];
       if(!previous || previous.revision!==input.previousRevision)return null;
       const summary=view(db,previous);
       if(!summary.canContinue || !summary.lastReplayTime || start<=Date.parse(summary.lastReplayTime))return null;
@@ -184,7 +184,8 @@ export function saveReplaySession(db: Db, owner: string, session: string, input:
     const row = rowFor(db,owner,session);
     if (!row) return {error:'Session not found.',status:404} as const;
     if (row.revision !== input.revision) return {error:'Session changed on another device. Reopen it before saving again.',status:409} as const;
-    if(membership(db,row).sequence<membership(db,row).sessionCount)return {error:'This session is sealed because the account continued in a later session.',status:409} as const;
+    const m=membership(db,row);
+    if(m.sequence<m.sessionCount)return {error:'This session is sealed because the account continued in a later session.',status:409} as const;
     if (c.time * 1000 < Date.parse(row.start_time) || c.time * 1000 > Date.parse(row.end_time)) return {error:'Replay time is outside this session.',status:400} as const;
     const prior = row.checkpoint_json ? JSON.parse(row.checkpoint_json) : null;
     if (prior && (prior.marketKey !== c.marketKey || prior.timeframe !== c.timeframe || prior.fingerprint !== c.fingerprint)) return {error:'Session historical source changed.',status:409} as const;
