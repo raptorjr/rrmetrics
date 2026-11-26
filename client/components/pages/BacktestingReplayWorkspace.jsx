@@ -348,7 +348,16 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
   const stats = useMemo(() => calculateTradeStats(closedTrades), [closedTrades]);
   const scopedStats=useMemo(()=>buildReplayStatistics(session.priorSessions||[],closedTrades,position,ticker),[session.priorSessions,closedTrades,position,ticker]);
   const tradingDay=replayTradingDay(currentCandle?.time);
-  const displayStats=statsScope==='today'?scopedStats.day(tradingDay):scopedStats[statsScope];
+  const todayStats=scopedStats.day(tradingDay);
+  const statisticsViews={today:todayStats,session:scopedStats.session,account:scopedStats.account};
+  const displayStats=statisticsViews[statsScope];
+  const views=Object.values(statisticsViews);
+  const needsClosedPnl=view=>view.realizedPnl==null||Math.abs(view.realizedPnl-view.netPnl)>=.005;
+  // Reserve the optional rows whenever any scope needs them, so selecting a
+  // different scope does not move the entire bottom-aligned statistics card.
+  const reserveClosedPnl=views.some(needsClosedPnl);
+  const reserveWarning=views.some(view=>view.realizedPnl==null);
+  const reserveEmpty=views.some(view=>!view.total);
   const dayLabel=tradingDay?new Date(tradingDay+'T00:00:00Z').toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric',timeZone:'UTC'}):'Waiting for replay';
   const unrealizedPnl = position ? calculateTradePnl(position, currentPrice, spec.pointValue) : 0;
   const capitalExhausted=!position && Math.round((session.startingBalance+stats.netPnl)*100)<=0;
@@ -731,13 +740,13 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
               <button type="button" onClick={() => { setIsPlaying(false); advanceOne(); }} disabled={capitalExhausted || !chartReady || !candles.length || currentIndex >= candles.length - 1} title="Next candle" aria-label="Next candle" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30"><span aria-hidden="true" className="text-xl leading-none">▶|</span></button>
               <button type="button" onClick={restartSession} disabled={capitalExhausted||!chartReady||savingExit} title="Restart session and reset its simulated trades" aria-label="Restart session" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30 text-xl">↺</button>
               </div>
-              <div className="justify-self-end flex flex-col items-end gap-1 text-xs text-text-secondary">
+              <div className="justify-self-end flex flex-col items-center gap-1 text-xs text-text-secondary">
               <div className="flex items-center gap-2">
                 <label htmlFor="replay-speed" title="Simulated active-market time per real second. Closed-market gaps are skipped.">Speed</label>
                 <input id="replay-speed" type="range" min="0" max="100" step="any" value={replaySpeedPercent(speed)} onChange={event=>setSpeed(replaySpeedAtPercent(Number(event.target.value)))} onKeyDown={event=>{if(['ArrowLeft','ArrowDown','ArrowRight','ArrowUp'].includes(event.key)){event.preventDefault();const direction=['ArrowLeft','ArrowDown'].includes(event.key)?-1:1;setSpeed(current=>Math.max(1,Math.min(1200,current+direction*Math.max(1,Math.round(current*.05)))));}}} className="w-24 sm:w-36 accent-accent" aria-valuetext={speed+' times real time'} title="1×–1200×; logarithmic scale"/>
                 <span className="text-text-primary font-semibold tabular-nums min-w-[48px] text-right">{speed}×</span>
               </div>
-              <span className="text-[11px] tabular-nums whitespace-nowrap" title="Theoretical duration at the selected speed. Actual playback depends on data and processing performance.">1 market hour ≈ {replayHourDuration(speed)}</span>
+              <span className="text-[11px] tabular-nums whitespace-nowrap text-center" title="Theoretical duration at the selected speed. Actual playback depends on data and processing performance.">1 market hour ≈ {replayHourDuration(speed)}</span>
               </div>
             </div>
             <div className="flex items-center justify-between gap-3 text-xs">
@@ -805,7 +814,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
             {error && <p className="text-xs text-negative">{error}</p>}{message && <p className="text-xs text-text-secondary">{message}</p>}
           </div>
 
-          <div className="mt-auto bg-bg-surface border border-border rounded-lg p-3 space-y-2">
+          <div className="mt-auto shrink-0 bg-bg-surface border border-border rounded-lg p-3 space-y-2">
             <h3 className="text-sm font-semibold">Backtest statistics</h3>
             <div className="flex rounded-lg bg-bg-input p-0.5 gap-0.5" role="group" aria-label="Statistics period">
               {['today','session','account'].map(scope=><button key={scope} type="button" aria-pressed={statsScope===scope} onClick={()=>setStatsScope(scope)} className={'flex-1 rounded-md px-2 py-1.5 text-xs font-medium '+(statsScope===scope?'bg-accent text-accent-text':'text-text-secondary hover:text-text-primary')}>{scope[0].toUpperCase()+scope.slice(1)}</button>)}
@@ -820,10 +829,10 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
               <div><div className="text-[10px] uppercase tracking-wider text-text-secondary">Average loss</div><div className="text-sm font-semibold text-negative">{displayStats.losses?formatMoney(-displayStats.grossLoss/displayStats.losses):'—'}</div></div>
             </div>
             <div className="border-t border-border pt-2 flex justify-between text-xs"><span className="text-text-secondary">Wins / losses / BE</span><span className="text-text-primary">{displayStats.wins} / {displayStats.losses} / {displayStats.breakeven}</span></div>
-            {(displayStats.realizedPnl==null||Math.abs(displayStats.realizedPnl-displayStats.netPnl)>=.005)&&<div className="flex justify-between text-xs gap-2"><span className="text-text-secondary" title="Entire P/L of trades completed in this period; realized exits may have occurred on other days.">Closed trade P/L</span><strong className={displayStats.netPnl>=0?'text-positive':'text-negative'}>{formatMoney(displayStats.netPnl)}</strong></div>}
-            {displayStats.realizedPnl==null&&<p className="text-xs text-text-secondary">Daily realized P/L unavailable: saved fills could not be reconciled across trading days.</p>}
+            {reserveClosedPnl&&<div aria-hidden={!needsClosedPnl(displayStats)} className={'flex justify-between text-xs gap-2 '+(needsClosedPnl(displayStats)?'':'invisible')}><span className="text-text-secondary" title="Entire P/L of trades completed in this period; realized exits may have occurred on other days.">Closed trade P/L</span><strong className={displayStats.netPnl>=0?'text-positive':'text-negative'}>{formatMoney(displayStats.netPnl)}</strong></div>}
+            {reserveWarning&&<p aria-hidden={displayStats.realizedPnl!=null} className={'text-xs text-text-secondary '+(displayStats.realizedPnl==null?'':'invisible')}>Daily realized P/L unavailable: saved fills could not be reconciled across trading days.</p>}
             {position&&<div className="flex justify-between text-xs gap-2"><span className="text-text-secondary">Unrealized P/L (open position)</span><strong className={unrealizedPnl>=0?'text-positive':'text-negative'}>{formatMoney(unrealizedPnl)}</strong></div>}
-            {!displayStats.total&&<p className="text-xs text-text-secondary">No completed trades {statsScope==='today'?'this trading day':statsScope==='session'?'in this session':'in this account'}.</p>}
+            {reserveEmpty&&<p aria-hidden={!!displayStats.total} className={'text-xs text-text-secondary '+(displayStats.total?'invisible':'')}>No completed trades in this period.</p>}
           </div>
         </div>
       </div>
