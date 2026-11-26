@@ -2,6 +2,7 @@ const React = require('react');
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
 const { createPortal } = require('react-dom');
 const {useConfirm}=require('../shared/AppModal');
+const {allowedMinutes,closestAllowedTime}=require('../../utils/replayAccountPresentation');
 const { replayDatePopupPosition } = require('../../utils/replayDatePopup');
 const { authFetch } = require('../../helper.js');
 const ReplayTradeCanvasGrid = require('./ReplayTradeCanvasGrid').default;
@@ -137,7 +138,10 @@ const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeForma
     if (max && nextValue > max) nextValue = max;
     update(nextValue);
   };
-  const setTime = (nextHour, nextMinute = minute) => update(candidate(selectedDate, nextHour, nextMinute));
+  const setTime = (nextHour, nextMinute = minute) => {const value=closestAllowedTime(selectedDate,[nextHour],nextHour,nextMinute,min,max);if(value)update(value);};
+  const hourAllowed=h=>allowedMinutes(selectedDate,h,min,max).length>0;
+  const periodHours=period=>Array.from({length:12},(_,i)=>i+(period==='PM'?12:0));
+  const actualHour=h=>timeFormat==='24h'?h:(h%12)+(hour>=12?12:0);
   const displayDate = (() => {
     if (!parts) return 'Select date and time';
     const date = new Date(Date.UTC(year, month - 1, day));
@@ -152,7 +156,7 @@ const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeForma
     const nextHour = timeFormat === '24h' ? nextDisplayHour : (nextDisplayHour % 12) + (hour >= 12 ? 12 : 0);
     setTime(nextHour);
   };
-  const setPeriod = period => setTime((hour % 12) + (period === 'PM' ? 12 : 0));
+  const setPeriod = period => {const wanted=(hour%12)+(period==='PM'?12:0);const value=closestAllowedTime(selectedDate,periodHours(period),wanted,minute,min,max);if(value)update(value);};
   const monthStepAllowed = direction => monthIndex + direction >= minMonth && monthIndex + direction <= maxMonth;
   return (
     <div ref={pickerRef} className="relative">
@@ -179,13 +183,13 @@ const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeForma
           <div className="text-[10px] font-semibold uppercase tracking-wider text-text-secondary mb-2">Time · {timeFormat === '24h' ? '24-hour' : '12-hour'}</div>
           <div className="grid gap-2 items-center" style={{ gridTemplateColumns: timeFormat === '24h' ? '1fr auto 1fr' : '1fr auto 1fr 1fr' }}>
             <select aria-label="Hour" value={displayHour} onChange={event => setHourDisplay(Number(event.target.value))} className="min-w-0 bg-bg-input border border-border rounded-md px-2 py-2 text-sm text-text-primary">
-              {(timeFormat === '24h' ? Array.from({length:24},(_,i)=>i) : Array.from({length:12},(_,i)=>i+1)).map(value => <option key={value} value={value}>{pad(value)}</option>)}
+              {(timeFormat === '24h' ? Array.from({length:24},(_,i)=>i) : Array.from({length:12},(_,i)=>i+1)).map(value => <option key={value} value={value} disabled={!hourAllowed(actualHour(value))}>{pad(value)}</option>)}
             </select>
             <span className="text-text-secondary">:</span>
             <select aria-label="Minute" value={minute} onChange={event => setTime(hour,Number(event.target.value))} className="min-w-0 bg-bg-input border border-border rounded-md px-2 py-2 text-sm text-text-primary">
-              {Array.from({length:60},(_,i)=>i).map(value => <option key={value} value={value}>{pad(value)}</option>)}
+              {Array.from({length:60},(_,i)=>i).map(value => <option key={value} value={value} disabled={!isAllowed(candidate(selectedDate,hour,value))}>{pad(value)}</option>)}
             </select>
-            {timeFormat !== '24h' && <select aria-label="AM or PM" value={hour >= 12 ? 'PM' : 'AM'} onChange={event => setPeriod(event.target.value)} className="min-w-0 bg-bg-input border border-border rounded-md px-2 py-2 text-sm text-text-primary"><option>AM</option><option>PM</option></select>}
+            {timeFormat !== '24h' && <select aria-label="AM or PM" value={hour >= 12 ? 'PM' : 'AM'} onChange={event => setPeriod(event.target.value)} className="min-w-0 bg-bg-input border border-border rounded-md px-2 py-2 text-sm text-text-primary">{['AM','PM'].map(period=><option key={period} disabled={!periodHours(period).some(hourAllowed)}>{period}</option>)}</select>}
           </div>
         </div>
         <div className="flex justify-end mt-3"><button type="button" onClick={() => {setOpen(false);triggerRef.current?.focus();}} className="px-3 py-1.5 rounded-md text-xs font-medium bg-bg-input text-text-primary hover:bg-bg-page">Done</button></div>
