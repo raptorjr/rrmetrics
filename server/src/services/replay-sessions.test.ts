@@ -189,6 +189,24 @@ test('legacy accounts migrate idempotently and sequential sessions carry balance
     assert.equal((await get(session.id)).trades.length,2);
     // Saving unchanged executions/checkpoint is allowed, so save & exit still works.
     assert.equal((await write(desktop,lastSave,'PUT',{revision:2,checkpoint:exhaustedCheckpoint,trades:exhaustedTrades})).status,200);
+    const accountUrl='/api/backtesting/replay-accounts/legacy';
+    const snapshot={sessions:[{id:'legacy',revision:2},{id:session.id,revision:3}]};
+    assert.equal((await write(other,accountUrl,'DELETE',snapshot)).status,404);
+    assert.equal((await write(desktop,accountUrl,'DELETE',{sessions:[snapshot.sessions[0]]})).status,409);
+    assert.equal((await write(desktop,accountUrl,'DELETE',{sessions:[snapshot.sessions[0],{id:session.id,revision:2}]})).status,409);
+    assert.equal((await write(desktop,url+'/'+session.id,'DELETE',{revision:2})).status,409);
+    assert.equal((await write(desktop,url+'/'+session.id,'DELETE',{revision:3})).status,200);
+    const reopened=await get('legacy');assert.equal(reopened.sealed,false);assert.equal(reopened.revision,3);
+    assert.equal(reopened.balance,50200);assert.equal(reopened.tradeCount,1);
+    assert.equal((await desktop.request(url+'/'+session.id)).status,404);
+    const again=await write(desktop,url,'POST',{...next,previousRevision:3});assert.equal(again.status,201);
+    const {session:third}=await again.json() as any;
+    assert.equal(third.sequence,2);assert.equal(third.startingBalance,50200);
+    assert.equal((await write(desktop,accountUrl,'DELETE',{sessions:[{id:'legacy',revision:4},{id:third.id,revision:0}]})).status,200);
+    assert.deepEqual(await (await desktop.request('/api/backtesting/replay-analytics')).json(),{accounts:[],trades:[]});
+    assert.equal((db.prepare("SELECT COUNT(*) AS n FROM market_data_file_datasets WHERE id='d'").get() as any).n,1);
+    db.exec(schema);
+    assert.deepEqual(await (await desktop.request(url)).json(),{sessions:[]});
 
   }finally{db.close();}
 });
