@@ -26,7 +26,7 @@ const formatMoney = value => (value < 0 ? '-$' : '$') + Math.abs(value).toLocale
 const formatPrice = (value, decimals = 2) => Number(value).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 const { formatDateEST, formatTimeEST, getDisplayTimeZone, getDateFormat, getTimeFormat } = require('../../utils/dateUtils');
 const { nextGoToIndex } = require('../../utils/replayGoTo');
-const { getSessionMarkets, isRangeWithinCoverage, aggregateCandles, timeframeSeconds, REPLAY_SPEEDS, restoreReplaySpeed, replayStepBudget, resetReplayChartLayout } = require('../../utils/historicalReplay');
+const { getSessionMarkets, isRangeWithinCoverage, aggregateCandles, timeframeSeconds, replaySpeedAtPercent, replaySpeedPercent, restoreReplaySpeed, replayStepBudget, resetReplayChartLayout } = require('../../utils/historicalReplay');
 
 const formatBarTime = value => {
   const date = new Date(value * 1000);
@@ -217,6 +217,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
   const askConfirm=useConfirm();
   const saved = session.checkpoint;
   const workspaceRef = useRef(null), chartCaptureRef = useRef(null), fingerprintRef = useRef('');
+  const chartPendingRef=useRef(null);
   const revisionRef = useRef(session.revision), saveInFlight = useRef(null), lastSavedRef = useRef('');
   const exitRef = useRef(false), conflictRef = useRef(false), snapshotRef = useRef(null);
   const [jumpRevision,setJumpRevision]=useState(0);
@@ -558,13 +559,21 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
       index:currentIndexRef.current,barCount:candlesRef.current.length,time:candle.time,orderSequence:orderSequence.current,
       quantity,quantityPresets,speed,speedMode:'time',orderType,orderPrice,position:positionRef.current,pendingOrder:pendingOrderRef.current,layout},trades:closedTradesRef.current};
   };
-  const save=async()=>{
+  const save=async({explicit=false}={})=>{
     if(conflictRef.current)return false;
     if(saveInFlight.current){await saveInFlight.current;if(conflictRef.current)return false;}
     let payload,key;
-    try{payload=snapshotRef.current?.();if(!payload)return false;key=JSON.stringify(payload);}
+    try{
+      if(chartPendingRef.current?.()){
+        if(!explicit)return false;
+        setSaveStatus('Waiting for chart data…');
+        await chartPendingRef.current('wait');
+        if(conflictRef.current)return false;
+      }
+      payload=snapshotRef.current?.();if(!payload)return false;key=JSON.stringify(payload);
+    }
     catch(e){setSaveStatus('Could not capture session: '+e.message);return false;}
-    if(key===lastSavedRef.current)return true;
+    if(key===lastSavedRef.current){setSaveStatus('Saved');return true;}
     setLockedMarket(true);setSaveStatus('Saving…');
     const work=(async()=>{
       try{
@@ -601,12 +610,12 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
       }
       exitRef.current=false;setSavingExit(false);return;
     }
-    const ok=await save();
+    const ok=await save({explicit:true});
     if(ok){try{await navigate();return;}catch(e){setError(e.message||'Could not open session.');}}
     exitRef.current=false;setSavingExit(false);
   };
   const restartSession=async()=>{
-    if(!chartReady||savingExit||exitRef.current||conflictRef.current||exhaustedNow())return;
+    if(!chartReady||savingExit||exitRef.current||conflictRef.current||exhaustedNow()||chartPendingRef.current?.())return;
     setIsPlaying(false);
     if(!(await askConfirm({title:'Restart replay session?',message:'This permanently clears its simulated trades, open position and working orders and restores the starting balance. Chart drawings are cleared; layout and indicators are kept.',danger:true,confirmLabel:'Restart session'})))return;
     if(!chartReady||savingExit||exitRef.current||conflictRef.current||exhaustedNow())return;
@@ -656,11 +665,11 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
           </div>
         </div>
         <div className="flex min-w-0 justify-end items-center gap-2">
-          <span role="status" className={'min-w-0 text-xs truncate '+(/^(Saving|Restoring|Restarting|Not saved)/.test(saveStatus)?'text-text-secondary':'text-negative')} title={saveStatus==='Saved'?undefined:saveStatus}>{saveStatus==='Saved'?'':saveStatus}</span>
+          <span role="status" className={'min-w-0 text-xs truncate '+(/^(Saving|Restoring|Restarting|Not saved|Waiting)/.test(saveStatus)?'text-text-secondary':'text-negative')} title={saveStatus==='Saved'?undefined:saveStatus}>{saveStatus==='Saved'?'':saveStatus}</span>
           <button type="button" onClick={toggleFullscreen} className="shrink-0 bg-bg-input border border-border rounded-lg px-2 py-1.5 text-sm" aria-label={fullscreen?'Exit fullscreen':'Fullscreen'} title={fullscreen?'Exit fullscreen':'Fullscreen'}>{fullscreen?'↙':'⛶'}</button>
         </div>
       </header>
-      {saveStatus!=='Saved'&&!/^(Saving|Restoring|Restarting|Not saved)/.test(saveStatus)&&<div className="shrink-0 px-3 py-2 text-xs text-negative" role="alert">{saveStatus}</div>}
+      {saveStatus!=='Saved'&&!/^(Saving|Restoring|Restarting|Not saved|Waiting)/.test(saveStatus)&&<div className="shrink-0 px-3 py-2 text-xs text-negative" role="alert">{saveStatus}</div>}
       {capitalExhausted&&<div className="shrink-0 px-3 py-2 text-xs text-negative" role="status">Account capital exhausted. Trading and restart are disabled. Save &amp; exit to review this session or create a new account.</div>}
       {importError&&<div className="shrink-0 px-3 py-2 text-xs text-negative" role="alert">{importError}</div>}
       {conflictRef.current&&<div className="shrink-0 px-3 py-2 text-xs text-negative">Session changed on another device. Saving is blocked. <button onClick={async()=>{if(await askConfirm({title:'Discard unsaved changes?',message:'Discard unsaved changes on this device and return to the session list?',danger:true,confirmLabel:'Discard changes'}))onExit();}} className="underline">Return to session list</button></div>}
@@ -680,7 +689,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
           <ReplayTradeCanvasGrid
             key={(selectedMarketKey || 'loading')+'|'+chartGeneration}
             ticker={ticker} executionMarket={selectedMarket} markets={availableMarkets} historicalStart={historicalStart} historicalEnd={historicalEnd}
-            fullHeight={true} captureRef={chartCaptureRef} restoreLayout={restartLayout || saved?.layout} onReady={setChartReady} onRestoreError={setImportError}
+            fullHeight={true} captureRef={chartCaptureRef} pendingRef={chartPendingRef} restoreLayout={restartLayout || saved?.layout} onReady={setChartReady} onRestoreError={setImportError}
             timeframe={historicalTimeframe}
             availableTimeframes={selectedMarket?.availableTimeframes}
             baseCandles={marketBaseCandles}
@@ -718,9 +727,8 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
               </div>
               <div className="justify-self-end flex items-center gap-2 text-xs text-text-secondary">
                 <label htmlFor="replay-speed" title="Simulated active-market time per real second. Closed-market gaps are skipped.">Speed</label>
-                <select id="replay-speed" value={speed} onChange={event => setSpeed(Number(event.target.value))} className="bg-bg-input border border-border rounded-lg px-2 py-2 text-text-primary" title="60× = one minute of market time per real second">
-                  {REPLAY_SPEEDS.map(value=><option key={value} value={value}>{value}×</option>)}
-                </select>
+                <input id="replay-speed" type="range" min="0" max="100" step="any" value={replaySpeedPercent(speed)} onChange={event=>setSpeed(replaySpeedAtPercent(Number(event.target.value)))} onKeyDown={event=>{if(['ArrowLeft','ArrowDown','ArrowRight','ArrowUp'].includes(event.key)){event.preventDefault();const direction=['ArrowLeft','ArrowDown'].includes(event.key)?-1:1;setSpeed(current=>Math.max(1,Math.min(1200,current+direction*Math.max(1,Math.round(current*.05)))));}}} className="w-24 sm:w-36 accent-accent" aria-valuetext={speed+' times real time'} title="1×–1200×; logarithmic scale"/>
+                <span className="text-text-primary font-semibold tabular-nums min-w-[48px] text-right">{speed}×</span>
               </div>
             </div>
             <div className="flex items-center justify-between gap-3 text-xs">
