@@ -1,3 +1,8 @@
+## Virtual account hierarchy refinement
+
+- Indent the resume/review control together with the session name, rather than indenting only the label; retain aligned statistics columns.
+- Rename the Backtesting view selector to Virtual accounts. Babylon acceptance of the preceding account-management batch passed eight of nine checks; the remaining visual hierarchy check is addressed here and awaits verification.
+
 ## Virtual account management follow-up
 
 - Account-first header and create button; indented session names and matching primary continuation buttons.

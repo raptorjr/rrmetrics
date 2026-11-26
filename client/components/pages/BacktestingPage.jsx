@@ -247,7 +247,7 @@ const BacktestingPage = ({onStatistics}) => {
         onClick={() => setActiveView('replay')}
         className={"px-4 py-2 rounded-lg text-sm font-medium transition-colors " + (activeView === 'replay' ? 'bg-bg-surface border border-border text-accent' : 'text-text-muted hover:text-text-primary')}
       >
-        Replay sessions
+        Virtual accounts
       </button>
       <button
         type="button"
