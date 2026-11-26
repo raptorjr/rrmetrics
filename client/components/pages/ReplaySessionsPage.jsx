@@ -4,6 +4,7 @@ const { createPortal } = require('react-dom');
 const { authFetch } = require('../../helper');
 const { replaySessionRangeChoices, getSessionMarkets } = require('../../utils/historicalReplay');
 const Workspace = require('./BacktestingReplayWorkspace').default;
+const ReplayTradeHistory = require('../shared/ReplayTradeHistory');
 const { ReplayDateTimePicker, toDisplayDateTimeInput, fromDisplayDateTimeInput } = require('./BacktestingReplayWorkspace');
 const { getDateFormat, getTimeFormat, getDisplayTimeZone, formatDateEST, formatTimeEST } = require('../../utils/dateUtils');
 const money = n => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -16,7 +17,7 @@ async function request(url, options) {
   if (!response.ok) throw Error(data.error || 'Request failed.');
   return data;
 }
-function SessionActions({session,disabled,onAction,onStatistics}){
+function SessionActions({session,disabled,onAction,onStatistics,onHistory}){
   const trigger=useRef(null),menu=useRef(null);
   const [open,setOpen]=useState(false),[style,setStyle]=useState({visibility:'hidden'});
   useLayoutEffect(()=>{
@@ -45,6 +46,7 @@ function SessionActions({session,disabled,onAction,onStatistics}){
     </button>
     {open&&createPortal(<div ref={menu} style={style} className="fixed z-[1100] rounded-lg border border-border bg-bg-surface shadow-xl p-1 text-sm" role="group" aria-label="Session actions">
       {onStatistics&&<button type="button" onClick={()=>{setOpen(false);onStatistics(session.id);}} className="w-full flex items-center gap-2 rounded px-3 py-2 text-left text-text-primary hover:bg-bg-input"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3 3v18h18M7 16l4-5 4 3 5-8"/></svg>Statistics</button>}
+      <button type="button" onClick={()=>{setOpen(false);onHistory(session.id);}} className="w-full flex items-center gap-2 rounded px-3 py-2 text-left text-text-primary hover:bg-bg-input"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h8"/></svg>Trade history</button>
       <button type="button" onClick={()=>action('rename')} className="w-full flex items-center gap-2 rounded px-3 py-2 text-left text-text-primary hover:bg-bg-input"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z"/></svg>Rename</button>
       <button type="button" onClick={()=>action('delete')} className="w-full flex items-center gap-2 rounded px-3 py-2 text-left text-negative hover:bg-bg-input"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5m4-5v5"/></svg>Delete</button>
     </div>,document.body)}
@@ -54,6 +56,7 @@ function ReplaySessionsPage({onStatistics}) {
   const [sessions,setSessions] = useState([]), [datasets,setDatasets] = useState([]);
   const [active,setActive] = useState(null), [creating,setCreating] = useState(false), [busy,setBusy] = useState(true);
   const [error,setError] = useState(''), [filter,setFilter] = useState('all');
+  const [history,setHistory]=useState(null);
   const [name,setName] = useState(''), [description,setDescription] = useState(''), [balance,setBalance] = useState('50000');
   const [start,setStart] = useState(''), [end,setEnd] = useState('');
   const [action,setAction]=useState(null),[renameName,setRenameName]=useState(''),[actionError,setActionError]=useState(''),[actionBusy,setActionBusy]=useState(false);
@@ -119,11 +122,21 @@ function ReplaySessionsPage({onStatistics}) {
     try { const {session}=await request('/api/backtesting/replay-sessions/'+encodeURIComponent(id));setActive(session); }
     catch(e){setError(e.message);}finally{setBusy(false);}
   };
+  const openHistory=async id=>{
+    setBusy(true);setError('');
+    try{const {session}=await request('/api/backtesting/replay-sessions/'+encodeURIComponent(id));setHistory(session);}
+    catch(e){setError(e.message);}finally{setBusy(false);}
+  };
   const switchSession=async id=>{
     const {session}=await request('/api/backtesting/replay-sessions/'+encodeURIComponent(id));
     setActive(session);
   };
   if(active) return <Workspace key={active.id} session={active} sessions={sessions} onSwitchSession={switchSession} onExit={()=>{setActive(null);void load();}}/>;
+  if(history)return <div className="space-y-4">
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold text-text-primary">{history.name} · Trade history</h2><p className="text-sm text-text-muted">Saved simulated executions · read-only</p></div><button type="button" className={secondary} onClick={()=>{setHistory(null);void load();}}>← Replay sessions</button></div>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{[['Starting balance',money(history.startingBalance)],['Saved balance',money(history.balance)],['Realized P/L',money(history.realizedPnl)],['Completed trades',history.tradeCount]].map(([label,value])=><div key={label} className="rounded-xl border border-border bg-bg-surface p-3"><div className="text-xs text-text-secondary">{label}</div><div className="text-lg font-semibold text-text-primary tabular-nums">{value}</div></div>)}</div>
+    <div className="rounded-xl border border-border bg-bg-surface p-3"><p className="text-xs text-text-secondary mb-3">Balance and realized P/L include partial exits on any still-open position. The history below contains only completed trades; unrealized P/L is excluded.</p><ReplayTradeHistory trades={history.trades}/></div>
+  </div>;
   const filtered=sessions.filter(s=>filter==='all'||s.status===filter);
   return <div className="space-y-4">
     <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-semibold text-text-primary">Replay sessions</h2><p className="text-sm text-text-muted">Independent simulated accounts. Resume on any device.</p></div><button className={primary} disabled={busy||!ranges.length} onClick={openCreate}>+ Create session</button></div>
@@ -144,7 +157,7 @@ function ReplaySessionsPage({onStatistics}) {
     </form></div>}
     <div className="bg-bg-surface border border-border rounded-xl overflow-hidden">
       <div className="flex gap-2 p-2 border-b border-border">{[['all','All'],['in_progress','In progress'],['completed','Completed']].map(([id,label])=><button key={id} className={'px-3 py-2 rounded text-sm '+(filter===id?'text-accent bg-bg-input':'text-text-muted')} onClick={()=>setFilter(id)}>{label}</button>)}</div>
-      <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm text-left"><thead className="bg-bg-input text-text-muted text-xs"><tr>{['','Session','Period','Starting balance','Balance','Realized P/L','Trades','Win %','Progress',''].map((label,i)=><th key={i} className="p-3">{label}</th>)}</tr></thead><tbody>{filtered.map(s=><tr key={s.id} className="border-t border-border text-text-primary"><td className="p-3 w-12"><button type="button" className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-bg-input border border-border text-accent hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40" disabled={busy} onClick={()=>resume(s.id)} title={(s.revision?'Resume ':'Start ')+s.name} aria-label={(s.revision?'Resume ':'Start ')+s.name}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 4.5v15l12-7.5z"/></svg></button></td><td className="p-3"><strong>{s.name}</strong>{s.description&&<p className="text-xs text-text-muted max-w-[220px] truncate">{s.description}</p>}</td><td className="p-3 text-xs text-text-secondary">{formatDateEST(s.startTime)} – {formatDateEST(s.endTime)}</td><td className="p-3">{money(s.startingBalance)}</td><td className="p-3">{money(s.balance)}</td><td className={'p-3 '+(s.realizedPnl<0?'text-negative':'text-positive')}>{money(s.realizedPnl)}</td><td className="p-3">{s.tradeCount}</td><td className="p-3">{s.winRate.toFixed(1)}%</td><td className="p-3"><div className="flex items-center gap-2"><div className="w-16 h-1.5 rounded bg-bg-input"><div className="h-full rounded bg-accent" style={{width:s.progress+'%'}}/></div>{s.progress}%</div></td><td className="p-3 w-12 text-right"><SessionActions session={s} disabled={busy||actionBusy||!!action} onAction={openAction} onStatistics={onStatistics}/></td></tr>)}</tbody></table></div>
+      <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm text-left"><thead className="bg-bg-input text-text-muted text-xs"><tr>{['','Session','Period','Starting balance','Balance','Realized P/L','Trades','Win %','Progress',''].map((label,i)=><th key={i} className="p-3">{label}</th>)}</tr></thead><tbody>{filtered.map(s=><tr key={s.id} className="border-t border-border text-text-primary"><td className="p-3 w-12"><button type="button" className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-bg-input border border-border text-accent hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40" disabled={busy} onClick={()=>resume(s.id)} title={(s.revision?'Resume ':'Start ')+s.name} aria-label={(s.revision?'Resume ':'Start ')+s.name}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 4.5v15l12-7.5z"/></svg></button></td><td className="p-3"><strong>{s.name}</strong>{s.description&&<p className="text-xs text-text-muted max-w-[220px] truncate">{s.description}</p>}</td><td className="p-3 text-xs text-text-secondary">{formatDateEST(s.startTime)} – {formatDateEST(s.endTime)}</td><td className="p-3">{money(s.startingBalance)}</td><td className="p-3">{money(s.balance)}</td><td className={'p-3 '+(s.realizedPnl<0?'text-negative':'text-positive')}>{money(s.realizedPnl)}</td><td className="p-3">{s.tradeCount}</td><td className="p-3">{s.winRate.toFixed(1)}%</td><td className="p-3"><div className="flex items-center gap-2"><div className="w-16 h-1.5 rounded bg-bg-input"><div className="h-full rounded bg-accent" style={{width:s.progress+'%'}}/></div>{s.progress}%</div></td><td className="p-3 w-12 text-right"><SessionActions session={s} disabled={busy||actionBusy||!!action} onAction={openAction} onStatistics={onStatistics} onHistory={openHistory}/></td></tr>)}</tbody></table></div>
       {!filtered.length&&<p className="p-6 text-center text-text-muted text-sm">{busy?'Loading sessions…':'No sessions in this view.'}</p>}
     </div>
   </div>;
