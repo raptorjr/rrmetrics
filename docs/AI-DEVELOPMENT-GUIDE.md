@@ -58,7 +58,9 @@ The project has a test command in `package.json`; do not repeat older documentat
 - User-level preferences should be server-backed (SQLite scoped to the existing local profile), not tied to a browser. Browser-local storage is appropriate only for genuinely device-specific state or an explicitly labelled cache.
 - Replay trading label settings use the server as the source of truth. Load before editing, preview locally, confirm saves, and show failures without silently overwriting the server with defaults. Chart layout persistence and replay-session persistence are separate future tasks where not already implemented.
 
-### Replay sessions as virtual accounts
+### Virtual accounts and replay sessions
+
+- Current model: a standard virtual account can span sequential replay sessions; a session is no longer the account identity. Preserve existing migrated account keys, the distinction between account and session P/L, chronological sealed histories, and server-validated carry-forward balances. See the current-model section in the replay documentation. Shared account analytics should serve real and simulated accounts where supported by evidence. Virtual Combine/XFA training is approved direction, to be implemented incrementally from verified rules after browser validation; avoid speculative frameworks.
 
 - See [REPLAY-SESSION-ACCOUNTS.md](REPLAY-SESSION-ACCOUNTS.md). First version implements separate session records and trades, owner-scoped checkpoints, one execution instrument, balance and edge-to-edge workspace. Independent context chart symbols now use the shared execution clock; shared Dashboard/Analytics account mode uses a separate replay projection and SQLite-backed account selection; preserve this domain boundary. Preserve legacy manual journal and broker isolation.
 
