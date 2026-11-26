@@ -198,7 +198,7 @@ export function saveReplaySession(db: Db, owner: string, session: string, input:
     || !integer(c.index) || c.index < 0 || !integer(c.barCount) || c.barCount < 2 || c.index >= c.barCount || !integer(c.time)
     || !integer(c.orderSequence) || c.orderSequence < 0 || !qty(c.quantity)
     || !Array.isArray(c.quantityPresets) || c.quantityPresets.length !== 5 || !c.quantityPresets.every(qty)
-    || !(c.speedMode === 'time' ? [1,10,30,60,120,300,600,1200].includes(c.speed) : c.speedMode == null && [.25,.5,1,2,5,10,20].includes(c.speed)) || !type(c.orderType) || typeof c.orderPrice !== 'string' || c.orderPrice.length > 80
+    || !(c.speedMode === 'time' ? integer(c.speed) && c.speed>=1 && c.speed<=1200 : c.speedMode == null && [.25,.5,1,2,5,10,20].includes(c.speed)) || !type(c.orderType) || typeof c.orderPrice !== 'string' || c.orderPrice.length > 80
     || (c.position != null && !position(c.position)) || (c.pendingOrder != null && !pending(c.pendingOrder))
     || !record(c.layout) || c.layout.kind !== 'grid' || c.layout.v !== 1 || !Array.isArray(c.layout.cells) || c.layout.cells.length > 4
     || trades.length > 20000 || !trades.every(trade) || new Set(trades.map(t=>t.id)).size !== trades.length
