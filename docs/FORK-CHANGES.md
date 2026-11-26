@@ -1,3 +1,8 @@
+## Replay viewport restoration follow-up
+
+- Reapply saved independent replay viewports after the grid arrangement, active toolbar, theme and deferred cell resizing settle. Resize each visible chart before restoring; match its saved cell index, symbol and interval, not just the symbol.
+- Babylon chart-usability acceptance passed nine of eleven checks. Viewport restoration requires further browser testing; intermittent symbol substitution on resume is reported but not reproducible yet and is not claimed fixed.
+
 ## Replay chart usability
 
 - Secondary charts display a per-cell historical-data loading overlay. Autosave defers while a context series is loading; explicit Save & exit waits for the pending request before capturing the complete layout. Source failures are still reported and provenance validation is unchanged.
