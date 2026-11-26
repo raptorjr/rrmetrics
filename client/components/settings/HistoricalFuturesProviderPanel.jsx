@@ -1,5 +1,5 @@
 const React = require('react');
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 const { authFetch } = require('../../helper.js');
 const { formatDateEST, formatTimeEST } = require('../../utils/dateUtils');
 
@@ -87,9 +87,8 @@ const statusLabel = (file) => {
 };
 
 const statusClass = (file) => {
-  if (file?.import_status === 'ready' || (file?.import_status === 'needs_review' && getFileImportPlan(file))) {
-    return 'bg-positive/10 text-positive';
-  }
+  if (file?.import_status === 'ready') return 'bg-positive/10 text-positive';
+  if (file?.import_status === 'needs_review' && getFileImportPlan(file)) return 'bg-blue-500/10 text-blue-400';
   if (file?.import_status === 'failed') return 'bg-danger/10 text-danger';
   if (file?.import_status === 'needs_review') return 'bg-warning/10 text-warning';
   return 'bg-bg-page text-text-tertiary';
@@ -100,7 +99,9 @@ const HistoricalFuturesProviderPanel = () => {
   const [files, setFiles] = useState([]);
   const [selectedFileId, setSelectedFileId] = useState(null);
   const [inspection, setInspection] = useState(null);
-  const [uploadFiles, setUploadFiles] = useState([]);
+  const [inspectionProgress,setInspectionProgress]=useState(null);
+  const inspectionLock=useRef(false);
+  const [providerLoading,setProviderLoading]=useState(true);
   const [form, setForm] = useState({
     instrument: '',
     timeframe: '',
@@ -146,7 +147,7 @@ const HistoricalFuturesProviderPanel = () => {
     }
   };
 
-  useEffect(() => { loadProvider(); }, []);
+  useEffect(() => { loadProvider().finally(()=>setProviderLoading(false)); }, []);
 
   const selectedFile = files.find(file => file.id === selectedFileId) || null;
   const datasets = selectedFile?.datasets || [];
@@ -186,41 +187,48 @@ const HistoricalFuturesProviderPanel = () => {
     setNotice('');
   };
 
-  const handleUpload = async () => {
-    if (!uploadFiles.length || busy) return;
+  const handleUpload = async (uploadFiles) => {
+    if (!uploadFiles.length || busy || inspectionLock.current || providerLoading) return;
+    inspectionLock.current=true;
     setBusy(true);
     setError('');
     setNotice('');
     let uploaded = 0;
     let currentProviderId = provider?.id || null;
     let lastFileId = null;
+    const failures=[];
     try {
-      for (const file of uploadFiles) {
-        const body = new FormData();
-        body.append('file', file);
-        const response = await authFetch('/api/market-data/files/inspect', { method: 'POST', body });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || `Unable to inspect ${file.name}.`);
-        currentProviderId = data.file.providerId;
-        lastFileId = data.file.id;
-        setProvider({ id: currentProviderId, provider_type: 'historical_futures', display_name: 'Historical Futures' });
-        uploaded += 1;
+      for (let index=0;index<uploadFiles.length;index++) {
+        const file=uploadFiles[index];
+        setInspectionProgress({index:index+1,total:uploadFiles.length,name:file.name});
+        try {
+          const body = new FormData();
+          body.append('file', file);
+          const response = await authFetch('/api/market-data/files/inspect', { method: 'POST', body });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'Inspection failed.');
+          currentProviderId = data.file.providerId;
+          lastFileId = data.file.id;
+          setProvider({ id: currentProviderId, provider_type: 'historical_futures', display_name: 'Historical Futures' });
+          uploaded += 1;
+        } catch(err) {
+          failures.push(file.name+': '+(err.message||'Inspection failed.'));
+        }
       }
-      setProvider({ id: currentProviderId, provider_type: 'historical_futures', display_name: 'Historical Futures' });
-      const refreshed = await loadFiles(currentProviderId);
-      const latest = refreshed.find(file => file.id === lastFileId);
-      if (latest) selectFile(latest);
-      setUploadFiles([]);
-      const readyCount = refreshed.filter(file => ['needs_review', 'failed'].includes(file.import_status) && getFileImportPlan(file)).length;
-      const attentionCount = refreshed.filter(file => ['needs_review', 'failed'].includes(file.import_status) && !getFileImportPlan(file)).length;
-      setNotice(`Inspected ${uploaded} file${uploaded === 1 ? '' : 's'}. ${readyCount} ready to import automatically${attentionCount ? `; ${attentionCount} need attention` : ''}.`);
+      if(currentProviderId) {
+        const refreshed = await loadFiles(currentProviderId);
+        const latest = refreshed.find(file => file.id === lastFileId);
+        if (latest) selectFile(latest);
+        const readyCount = refreshed.filter(file => ['needs_review', 'failed'].includes(file.import_status) && getFileImportPlan(file)).length;
+        const attentionCount = refreshed.filter(file => ['needs_review', 'failed'].includes(file.import_status) && !getFileImportPlan(file)).length;
+        setNotice(`Inspected ${uploaded} file${uploaded === 1 ? '' : 's'}. ${readyCount} ready to import automatically${attentionCount ? `; ${attentionCount} need attention` : ''}.`);
+      }
+      if(failures.length)setError(failures.join(' · '));
     } catch (err) {
-      setError(err.message || 'Upload failed.');
-      if (currentProviderId) {
-        setProvider({ id: currentProviderId, provider_type: 'historical_futures', display_name: 'Historical Futures' });
-        await loadFiles(currentProviderId).catch(() => undefined);
-      }
+      setError([...failures,err.message||'Unable to refresh source files.'].join(' · '));
     } finally {
+      setInspectionProgress(null);
+      inspectionLock.current=false;
       setBusy(false);
     }
   };
@@ -371,7 +379,7 @@ const HistoricalFuturesProviderPanel = () => {
   return (
     <div className="space-y-4">
       {error && <div className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">{error}</div>}
-      {notice && <div className="rounded-lg border border-positive/30 bg-positive/10 px-4 py-3 text-sm text-positive">{notice}</div>}
+      {notice && <div className="rounded-lg border border-border bg-bg-input px-4 py-3 text-sm text-text-primary">{notice}</div>}
 
       <div className="rounded-xl border border-border bg-bg-page/40 p-4 space-y-3">
         <div>
@@ -383,18 +391,13 @@ const HistoricalFuturesProviderPanel = () => {
             type="file"
             multiple
             accept=".csv,.parquet"
-            onChange={event => setUploadFiles(Array.from(event.target.files || []))}
+            disabled={busy||providerLoading}
+            onChange={event => {const selected=Array.from(event.target.files||[]);event.target.value='';void handleUpload(selected);}}
             className="block w-full text-sm text-text-secondary file:mr-3 file:rounded-lg file:border file:border-border file:bg-bg-surface file:px-3 file:py-2 file:text-xs file:font-medium file:text-text-primary"
           />
-          <button
-            onClick={handleUpload}
-            disabled={!uploadFiles.length || busy}
-            className="shrink-0 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-text disabled:opacity-50"
-          >
-            {busy ? 'Working…' : `Inspect ${uploadFiles.length || ''} file${uploadFiles.length === 1 ? '' : 's'}`}
-          </button>
+          {inspectionProgress&&<div role="status" className="text-xs text-blue-400 sm:max-w-[50%] break-words">Inspecting {inspectionProgress.index} of {inspectionProgress.total} · {inspectionProgress.name}</div>}
         </div>
-        <p className="text-[11px] text-text-tertiary">Maximum 100 MB per file. Files are checked automatically; only missing or ambiguous information needs your attention. Nothing is imported until you start an import.</p>
+        <p className="text-[11px] text-text-tertiary">Maximum 100 MB per file. Selected files are inspected automatically; only missing or ambiguous information needs your attention. Nothing is imported until you start an import.</p>
       </div>
 
       <div className="rounded-xl border border-border bg-bg-surface overflow-hidden">
@@ -403,7 +406,7 @@ const HistoricalFuturesProviderPanel = () => {
             <h4 className="text-sm font-semibold text-text-primary">Source files</h4>
             <p className="text-xs text-text-tertiary">{files.length} file{files.length === 1 ? '' : 's'} · each file owns its own datasets</p>
             {automaticImports.length > 0 && (
-              <p className="mt-1 text-xs text-positive">{automaticImports.length} file{automaticImports.length === 1 ? '' : 's'} can be imported automatically{manualReviewCount ? ` · ${manualReviewCount} need${manualReviewCount === 1 ? 's' : ''} attention` : ''}</p>
+              <p className="mt-1 text-xs text-blue-400">{automaticImports.length} file{automaticImports.length === 1 ? '' : 's'} can be imported automatically{manualReviewCount ? ` · ${manualReviewCount} need${manualReviewCount === 1 ? 's' : ''} attention` : ''}</p>
             )}
             {manualReviewCount > 0 && automaticImports.length === 0 && (
               <p className="mt-1 text-xs text-warning">{manualReviewCount} file{manualReviewCount === 1 ? '' : 's'} need information or a decision before import</p>
