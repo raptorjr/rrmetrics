@@ -1,5 +1,7 @@
 const React = require('react');
 const { useEffect, useRef, useState } = React;
+const {createPortal}=require('react-dom');
+const {readChartTheme,saveChartTheme,resolveChartTheme}=require('../../utils/replayChartTheme');
 const { ChartWidgetGrid } = require('@tradecanvas/chart/widget');
 const { replayChartIntervals } = require('../../utils/historicalReplay');
 const { toReplayChartPosition, snapReplayPrice, replayPositionColors } = require('../../utils/backtestingReplay');
@@ -24,7 +26,7 @@ const loadReplayData = (widget, bars, baseTimeframe, preserveViewport = true) =>
 
 const ReplayTradeCanvasGrid = ({
   ticker, executionMarket, markets = [], historicalStart, historicalEnd,
-  fullHeight, captureRef, restoreLayout, onReady, onRestoreError,
+  fullHeight, captureRef, pendingRef, restoreLayout, onReady, onRestoreError,
   timeframe,
   availableTimeframes,
   baseCandles,
@@ -91,8 +93,13 @@ const ReplayTradeCanvasGrid = ({
   const restoredRef = useRef(false);
   const restoreStartedRef=useRef(false);
   const [gridRevision,setGridRevision]=useState(0);
-  const [contextStatus,setContextStatus]=useState('');
+  const [chartTheme,setChartTheme]=useState(()=>readChartTheme());
+  const themeRef=useRef(chartTheme), expectedThemeRef=useRef(null);
+  const contextWorkRef=useRef(new Map());
   const [contextError,setContextError]=useState('');
+  const desiredTheme=()=>resolveChartTheme(themeRef.current,document.documentElement.dataset.theme);
+  const applyTheme=()=>{const theme=desiredTheme();expectedThemeRef.current=theme;gridRef.current?.setTheme(theme);};
+  const chooseTheme=value=>{themeRef.current=value;setChartTheme(value);saveChartTheme(value);applyTheme();};
   const [activeChart,setActiveChart]=useState(0);
   const cacheRef=useRef(new Map()),requestsRef=useRef(new Map()),widgetStateRef=useRef(new WeakMap());
   const drawingBankRef=useRef(Object.create(null));
@@ -158,22 +165,25 @@ const ReplayTradeCanvasGrid = ({
     widgetStateRef.current.set(widget,token);
     if(source){
       syncData(widget,true);setGridRevision(v=>v+1);
-      if(!gridRef.current?.getWidgets().some(w=>widgetStateRef.current.get(w)?.loading))setContextStatus('');
       return;
     }
-    setContextStatus('Loading '+(market?.label||symbol)+' historical data…');setContextError('');
-    void loadMarket(symbol).then(()=>{
+    setContextError('');setGridRevision(v=>v+1);
+    const work=loadMarket(symbol).then(()=>{
       if(!gridRef.current?.getWidgets().includes(widget)||widgetStateRef.current.get(widget)!==token)return;
       widgetStateRef.current.set(widget,{...token,loading:false});
       syncData(widget,true);setGridRevision(v=>v+1);
-    }).catch(error=>{
+    }).catch(async error=>{
       if(!gridRef.current?.getWidgets().includes(widget)||widgetStateRef.current.get(widget)!==token)return;
       setContextError(error.message||'Could not load historical chart data.');
       const fallback=token.previous&&seriesFor(token.previous)?token.previous:liveRef.current.executionSymbol;
-      if(fallback!==symbol)void widget.setSymbol(fallback);
+      if(fallback!==symbol)await widget.setSymbol(fallback);
+      else widgetStateRef.current.set(widget,{...token,loading:false});
     }).finally(()=>{
-      if(gridRef.current&&!gridRef.current.getWidgets().some(w=>widgetStateRef.current.get(w)?.loading))setContextStatus('');
+      if(contextWorkRef.current.get(widget)===work)contextWorkRef.current.delete(widget);
+      if(gridRef.current)setGridRevision(v=>v+1);
     });
+    contextWorkRef.current.set(widget,work);
+    void work.catch(error=>{if(gridRef.current?.getWidgets().includes(widget)&&widgetStateRef.current.get(widget)===token){widgetStateRef.current.set(widget,{...token,loading:false});setGridRevision(v=>v+1);setContextError(error.message||'Could not restore previous chart.');}});
   };
   const captureLayout=grid=>{
     if(!restoredRef.current)return null;
@@ -208,7 +218,7 @@ const ReplayTradeCanvasGrid = ({
     const cells = [{
       symbol: executionSymbol, symbols: catalogueSymbols(markets),
       ...intervalOptions,
-      theme: 'dark',
+      theme: desiredTheme(),
       ui: 'modern',
       ...tradingOptions,
       // RR Metrics owns replay. Do not expose TradeCanvas's native replay
@@ -222,7 +232,7 @@ const ReplayTradeCanvasGrid = ({
       cells,
       // Apply replay restrictions to every future chart, not just cells[0].
       widget: {
-        symbol: executionSymbol, symbols: catalogueSymbols(markets), ...intervalOptions, theme: 'dark', ui: 'modern', ...tradingOptions, resampleTimeframes: true,
+        symbol: executionSymbol, symbols: catalogueSymbols(markets), ...intervalOptions, theme: desiredTheme(), ui: 'modern', ...tradingOptions, resampleTimeframes: true,
         features: { replay: false, 'toolbar.replay': false, fullscreen: false, 'toolbar.fullscreen': false, 'dock.watchlist': false, depthLadder: false, symbolSearch: true, symbolTyping: false, 'hotkeys.symbolSearch': true, 'toolbar.compare': false },
       },
       // Replace the native Replay button with the layout picker in the active
@@ -235,6 +245,7 @@ const ReplayTradeCanvasGrid = ({
       sync: { symbol: false, interval: false, crosshair: true, time: false, drawings: true, replay: false },
       onChartSymbolChange: (widget,symbol)=>applySymbol(widget,symbol),
       onChartUnpark: widget=>{
+        widget.setTheme(desiredTheme());
         const symbol=widget.getSymbol();
         const peers=gridRef.current?.getWidgets().filter(w=>w!==widget&&w.getSymbol()===symbol)||[];
         if(!peers.length&&Object.hasOwn(drawingBankRef.current,symbol))widget.getChart().setDrawings(JSON.parse(JSON.stringify(drawingBankRef.current[symbol])));
@@ -246,6 +257,7 @@ const ReplayTradeCanvasGrid = ({
         if (onActiveChartChange) onActiveChartChange(index);
       },
       onChartAdd: widget => {
+        widget.setTheme(desiredTheme());
         const chart = widget.getChart();
         chart.setHostReplayViewport(true);
         // Follow the actual candle body colours by default; explicit user volume colours win.
@@ -284,9 +296,31 @@ const ReplayTradeCanvasGrid = ({
       },
     });
     gridRef.current = grid;
+    expectedThemeRef.current=desiredTheme();
+    const themeObserver=new MutationObserver(()=>{
+      if(!restoredRef.current)return;
+      const actual=hostRef.current?.querySelector('.tcw-grid')?.dataset.tcwTheme;
+      if((actual==='dark'||actual==='light')&&actual!==expectedThemeRef.current){
+        themeRef.current=actual;expectedThemeRef.current=actual;setChartTheme(actual);saveChartTheme(actual);
+      }
+    });
+    themeObserver.observe(hostRef.current,{attributes:true,subtree:true,attributeFilter:['data-tcw-theme']});
+    const appObserver=new MutationObserver(()=>{if(themeRef.current==='app'&&restoredRef.current)applyTheme();});
+    appObserver.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
     if(captureRef)captureRef.current=()=>captureLayout(grid);
+    if(pendingRef)pendingRef.current=mode=>{
+      const pending=()=>grid.getWidgets().some(w=>widgetStateRef.current.get(w)?.loading);
+      if(mode!=='wait')return pending();
+      return (async()=>{while(pending()){
+        const work=grid.getWidgets().map(w=>contextWorkRef.current.get(w)).filter(Boolean);
+        if(!work.length)throw Error('Historical chart could not finish loading. Choose an available symbol and retry.');
+        await Promise.allSettled(work);
+      }})();
+    };
     return () => {
+      themeObserver.disconnect();appObserver.disconnect();
       if(captureRef)captureRef.current=null;
+      if(pendingRef)pendingRef.current=null;
       grid.destroy();
       gridRef.current = null;
     };
@@ -321,7 +355,7 @@ const ReplayTradeCanvasGrid = ({
           await grid.restoreLayout(layout);
         }
         if(gridRef.current!==grid)return;
-        restoredRef.current=true;setGridRevision(v=>v+1);onReady?.(true);
+        applyTheme();restoredRef.current=true;setGridRevision(v=>v+1);onReady?.(true);
       }catch(e){if(gridRef.current===grid)onRestoreError?.('Could not restore saved chart layout: '+e.message);}
     };
     void restore();
@@ -355,10 +389,14 @@ const ReplayTradeCanvasGrid = ({
       {/* The grid moves its active toolbar outside the widget's feature-scoped root. */}
       <style>{'[data-replay-workspace] .tcw-toolbar [data-role="fullscreen"] { display: none !important; }'}</style>
       <div className={fullHeight?"w-full flex-1 min-h-0 min-w-0":"w-full h-[430px] min-w-0"} ref={hostRef} data-active-chart={activeChart} />
-      {(contextStatus||contextError)&&<div className="absolute bottom-3 left-3 z-40 max-w-[80%] rounded-lg border border-border bg-bg-surface px-3 py-2 text-xs shadow-lg" role={contextError?'alert':'status'}>{contextError||contextStatus}{contextError&&<button className="ml-2 underline" onClick={()=>setContextError('')}>Dismiss</button>}</div>}
+      {gridRef.current?.getWidgets().map((widget,index)=>{
+        const state=widgetStateRef.current.get(widget),cell=hostRef.current?.querySelectorAll('.tcw-grid-cell')[index];
+        return state?.loading&&cell?createPortal(<div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center bg-bg-page/75"><div role="status" className="rounded-lg bg-bg-surface border border-border px-4 py-3 text-center text-sm text-text-primary shadow-lg"><div className="mx-auto mb-2 h-6 w-6 rounded-full border-2 border-accent border-t-transparent animate-spin"/>Loading {marketFor(state.symbol)?.label||state.symbol} historical data…</div></div>,cell,'loading-'+index):null;
+      })}
+      {contextError&&<div className="absolute bottom-3 left-3 z-40 max-w-[80%] rounded-lg border border-border bg-bg-surface px-3 py-2 text-xs shadow-lg" role="alert">{contextError}<button className="ml-2 underline" onClick={()=>setContextError('')}>Dismiss</button></div>}
       <ReplayGoTo openRef={goToRef} onGoTo={onGoTo} replayTime={replayTime}/>
       <ReplayTradingSettings dialogRef={settingsRef} units={labelUnits} onChange={setLabelUnits} spec={spec}
-        status={settingsStatus} error={settingsError} onRetry={refreshSettings} onSave={saveSettings} onDiscard={cancelSettings} />
+        chartTheme={chartTheme} onChartThemeChange={chooseTheme} status={settingsStatus} error={settingsError} onRetry={refreshSettings} onSave={saveSettings} onDiscard={cancelSettings} />
     </>
   );
 };
