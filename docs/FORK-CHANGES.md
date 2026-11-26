@@ -1,3 +1,9 @@
+## Virtual account management follow-up
+
+- Account-first header and create button; indented session names and matching primary continuation buttons.
+- Whole virtual accounts can be deleted atomically, including exhausted accounts. Only the latest standard practice session can be individually deleted; for multi-session accounts this restores the predecessor's saved state and increments its revision. Deleting the sole session also deletes its account. Earlier sessions stay protected. Account deletion validates all member revisions and never removes imported market data or real trades.
+- Shared confirmations use the defined negative color token and explicit viewport centering; session actions use the same modal. Chart theme preference integration remains a separate follow-up, together with pending chart loading/playback work.
+
 ## Replay usability — account grouping and dialogs
 
 - Replay sessions are grouped by virtual account in expandable rows with account totals; session filters preserve full account totals. Create the next session directly from its account; default names use Session N and can be edited.
