@@ -153,10 +153,15 @@ function earliestContinuationRange(ranges) {
   return [...ranges].sort((a,b)=>a.start-b.start||b.end-a.end)[0]||null;
 }
 // Simulated active-market seconds per wall-clock second, not bars/sec.
-const REPLAY_SPEEDS = [1,10,30,60,120,300,600,1200];
+const REPLAY_SPEEDS = [1,10,30,60,120,300,600,1200]; // legacy candle-speed migration
+const MIN_REPLAY_SPEED=1, MAX_REPLAY_SPEED=1200;
+function replaySpeedAtPercent(percent){return Math.max(1,Math.min(1200,Math.round(1200**(Math.max(0,Math.min(100,percent))/100))));}
+function replaySpeedPercent(speed){return Math.max(0,Math.min(100,100*Math.log(Math.max(1,speed))/Math.log(1200)));}
 function restoreReplaySpeed(checkpoint, intervalSeconds) {
   if (!checkpoint) return 60;
   const wanted = checkpoint.speedMode === 'time' ? checkpoint.speed : checkpoint.speed * intervalSeconds;
+  if(!Number.isFinite(wanted))return 60;
+  if(checkpoint.speedMode==='time')return Math.max(MIN_REPLAY_SPEED,Math.min(MAX_REPLAY_SPEED,Math.round(wanted)));
   return REPLAY_SPEEDS.reduce((best,value)=>Math.abs(value-wanted)<Math.abs(best-wanted)?value:best,60);
 }
 // Bound background-tab catch-up without skipping any execution bars.
@@ -190,4 +195,4 @@ function resetReplayChartLayout(layout) {
     return {...cell,chart:{...chart,drawings:[]}};
   })};
 }
-module.exports = { continuationRanges, earliestContinuationRange, replaySessionRangeChoices, replayChartIntervals, resetReplayChartLayout, REPLAY_SPEEDS, restoreReplaySpeed, replayStepBudget, getSessionMarkets, TIMEFRAME_SECONDS, timeframeSeconds, compareTimeframes, getAvailableMarkets, isRangeWithinCoverage, aggregateCandles };
+module.exports = { continuationRanges, earliestContinuationRange, replaySessionRangeChoices, replayChartIntervals, resetReplayChartLayout, REPLAY_SPEEDS, MIN_REPLAY_SPEED, MAX_REPLAY_SPEED, replaySpeedAtPercent, replaySpeedPercent, restoreReplaySpeed, replayStepBudget, getSessionMarkets, TIMEFRAME_SECONDS, timeframeSeconds, compareTimeframes, getAvailableMarkets, isRangeWithinCoverage, aggregateCandles };
