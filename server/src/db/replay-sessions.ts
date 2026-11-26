@@ -98,7 +98,7 @@ export function createReplaySession(db: Db, owner: string, input: unknown) {
   if (!record(input) || typeof input.name !== 'string' || !input.name.trim() || input.name.length > 120
     || (input.description != null && (typeof input.description !== 'string' || input.description.length > 2000))
     || (input.accountId == null && (!number(input.startingBalance) || input.startingBalance < .01 || input.startingBalance > 1e9))
-    || (input.accountId != null && (typeof input.accountId !== 'string' || !integer(input.previousRevision)))
+    || (input.accountId != null && (typeof input.accountId !== 'string' || typeof input.previousSessionId !== 'string' || !integer(input.previousRevision)))
     || (input.accountName != null && (typeof input.accountName !== 'string' || !input.accountName.trim() || input.accountName.length>120))
     || typeof input.startTime !== 'string' || typeof input.endTime !== 'string') return null;
   const start = Date.parse(input.startTime), end = Date.parse(input.endTime);
@@ -115,7 +115,7 @@ export function createReplaySession(db: Db, owner: string, input: unknown) {
     if(input.accountId!=null){
       accountId=input.accountId;
       const members=accountRows(db,owner,accountId),previous=members[members.length-1];
-      if(!previous || previous.revision!==input.previousRevision)return null;
+      if(!previous || previous.id!==input.previousSessionId || previous.revision!==input.previousRevision)return null;
       const summary=view(db,previous);
       if(!summary.canContinue || !summary.lastReplayTime || start<=Date.parse(summary.lastReplayTime))return null;
       cents=Math.round(summary.balance*100);sequence=members.length+1;
