@@ -1,3 +1,8 @@
+## Replay speed duration hint
+
+- Show a live estimate of real time for one active market hour beneath the playback speed slider. The estimate is theoretical (3600 seconds divided by the speed multiplier), not a measured rendering benchmark.
+- Babylon acceptance confirmed the preceding per-cell viewport restoration fix. The previously reported intermittent symbol substitution remains unconfirmed; daily statistics and objectives are next.
+
 ## Replay viewport restoration follow-up
 
 - Reapply saved independent replay viewports after the grid arrangement, active toolbar, theme and deferred cell resizing settle. Resize each visible chart before restoring; match its saved cell index, symbol and interval, not just the symbol.
