@@ -4,6 +4,7 @@ const { createPortal } = require('react-dom');
 const { replayDatePopupPosition } = require('../../utils/replayDatePopup');
 const { authFetch } = require('../../helper.js');
 const ReplayTradeCanvasGrid = require('./ReplayTradeCanvasGrid').default;
+const ReplayTradeHistory = require('../shared/ReplayTradeHistory');
 const {
   getInstrumentSpec,
   normalizeOhlcvRows,
@@ -787,32 +788,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
 
       <div className="shrink-0 bg-bg-surface border-t border-border px-3 py-1 max-h-[30vh] overflow-auto">
         <button className="w-full text-left text-xs text-text-secondary py-1" onClick={()=>setShowDetails(v=>!v)}>{showDetails?"▾":"▸"} Trade history · {closedTrades.length} closed</button>
-        {showDetails && <div>
-        {closedTrades.length === 0 ? (
-          <p className="text-text-secondary text-sm">No trades yet. Start the replay and place a simulated trade.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs min-w-[720px]">
-              <thead><tr className="text-text-secondary border-b border-border text-left">
-                <th className="py-2 pr-3">Side</th><th className="py-2 pr-3">Entry time</th><th className="py-2 pr-3">Entry</th><th className="py-2 pr-3">Exit</th><th className="py-2 pr-3">Qty</th><th className="py-2 pr-3">P/L</th><th className="py-2">Exit reason</th>
-              </tr></thead>
-              <tbody>
-                {closedTrades.map(trade => (
-                  <tr key={trade.id} className="border-b border-border/60 text-text-secondary">
-                    <td className={'py-2 pr-3 font-semibold ' + (trade.direction === 'long' ? 'text-positive' : 'text-negative')}>{trade.direction.toUpperCase()}</td>
-                    <td className="py-2 pr-3">{formatBarTime(trade.entryTime)}</td>
-                    <td className="py-2 pr-3 font-mono">{formatPrice(trade.entryPrice, spec.decimals)}</td>
-                    <td className="py-2 pr-3 font-mono">{formatPrice(trade.exitPrice, spec.decimals)}</td>
-                    <td className="py-2 pr-3">{trade.quantity}</td>
-                    <td className={'py-2 pr-3 font-semibold ' + (trade.pnl >= 0 ? 'text-positive' : 'text-negative')}>{formatMoney(trade.pnl)}</td>
-                    <td className="py-2">{trade.reason}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        </div>}
+        {showDetails && <ReplayTradeHistory trades={closedTrades}/>}
       </div>
 
       <div className="shrink-0 px-3 py-1 text-xs text-text-secondary">
