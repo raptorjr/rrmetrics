@@ -162,9 +162,31 @@ export function deleteReplaySession(db: Db, owner: string, session: string, inpu
     if (!row) return {error:'Session not found.',status:404} as const;
     if (row.revision !== input.revision) return {error:'Session changed on another device. Refresh the session list and try again.',status:409} as const;
     const m=membership(db,row);
-    if(m.sessionCount>1)return {error:'Sessions belonging to a multi-session account cannot be deleted individually yet.',status:409} as const;
+    if(m.sequence<m.sessionCount)return {error:'Earlier sessions cannot be deleted because later sessions depend on their balance.',status:409} as const;
     db.prepare('DELETE FROM replay_sessions WHERE id=? AND user_id=?').run(session,owner);
-    db.prepare('DELETE FROM replay_accounts WHERE id=? AND user_id=?').run(m.accountId,owner);
+    if(m.sessionCount===1)db.prepare('DELETE FROM replay_accounts WHERE id=? AND user_id=?').run(m.accountId,owner);
+    else {
+      const remaining=accountRows(db,owner,m.accountId),previous=remaining[remaining.length-1];
+      // Reopen the previous checkpoint, invalidating stale clients.
+      db.prepare('UPDATE replay_sessions SET revision=revision+1 WHERE id=? AND user_id=?').run(previous.id,owner);
+    }
+    return {deleted:true as const};
+  })();
+}
+// Delete a complete practice account atomically; every member revision must
+// still match the confirmation snapshot, including newly appended sessions.
+export function deleteReplayAccount(db:Db,owner:string,accountId:string,input:unknown){
+  if(!record(input)||!Array.isArray(input.sessions)||!input.sessions.length||
+    !input.sessions.every((x:unknown)=>record(x)&&typeof x.id==='string'&&integer(x.revision)&&x.revision>=0))
+    return {error:'Invalid account deletion snapshot.',status:400} as const;
+  return db.transaction(()=>{
+    const rows=accountRows(db,owner,accountId);
+    if(!rows.length)return {error:'Virtual account not found.',status:404} as const;
+    const revisions=new Map(input.sessions.map((x:Json)=>[x.id,x.revision]));
+    if(rows.length!==input.sessions.length||revisions.size!==rows.length||rows.some(row=>revisions.get(row.id)!==row.revision))
+      return {error:'Account changed on another device. Refresh and confirm again.',status:409} as const;
+    for(const row of rows)db.prepare('DELETE FROM replay_sessions WHERE id=? AND user_id=?').run(row.id,owner);
+    db.prepare('DELETE FROM replay_accounts WHERE id=? AND user_id=?').run(accountId,owner);
     return {deleted:true as const};
   })();
 }

@@ -236,6 +236,11 @@ backtesting.delete('/api/backtesting/replay-sessions/:id', requiresLogin, async 
   const result = replaySessions.deleteReplaySession(c.get('db'),c.get('user').id,c.req.param('id'),body);
   return 'error' in result ? c.json({error:result.error},result.status) : c.json(result);
 });
+backtesting.delete('/api/backtesting/replay-accounts/:id', requiresLogin, async (c) => {
+  let body:unknown;try{body=await c.req.json();}catch{return c.json({error:'Invalid account.'},400);}
+  const result=replaySessions.deleteReplayAccount(c.get('db'),c.get('user').id,c.req.param('id'),body);
+  return 'error' in result?c.json({error:result.error},result.status):c.json(result);
+});
 backtesting.put('/api/backtesting/replay-sessions/:id/checkpoint', requiresLogin, async (c) => {
   let body: unknown; try { body = await c.req.json(); } catch { return c.json({error:'Invalid checkpoint.'},400); }
   const result = replaySessions.saveReplaySession(c.get('db'),c.get('user').id,c.req.param('id'),body);

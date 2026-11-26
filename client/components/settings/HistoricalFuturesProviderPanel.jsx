@@ -90,7 +90,7 @@ const statusLabel = (file) => {
 const statusClass = (file) => {
   if (file?.import_status === 'ready') return 'bg-positive/10 text-positive';
   if (file?.import_status === 'needs_review' && getFileImportPlan(file)) return 'bg-blue-500/10 text-blue-400';
-  if (file?.import_status === 'failed') return 'bg-danger/10 text-danger';
+  if (file?.import_status === 'failed') return 'bg-negative/10 text-negative';
   if (file?.import_status === 'needs_review') return 'bg-warning/10 text-warning';
   return 'bg-bg-page text-text-tertiary';
 };
@@ -379,7 +379,7 @@ const HistoricalFuturesProviderPanel = () => {
 
   return (
     <div className="space-y-4">
-      {error && <div className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">{error}</div>}
+      {error && <div className="rounded-lg border border-negative/30 bg-negative/10 px-4 py-3 text-sm text-negative">{error}</div>}
       {notice && <div className="rounded-lg border border-border bg-bg-input px-4 py-3 text-sm text-text-primary">{notice}</div>}
 
       <div className="rounded-xl border border-border bg-bg-page/40 p-4 space-y-3">
@@ -437,7 +437,7 @@ const HistoricalFuturesProviderPanel = () => {
                     {file.input_format.toUpperCase()} · {formatBytes(file.file_size_bytes)} · uploaded {formatDate(file.created_at)}
                   </div>
                   {file.last_error && (
-                    <div className="mt-1 text-xs text-danger">{file.last_error}</div>
+                    <div className="mt-1 text-xs text-negative">{file.last_error}</div>
                   )}
                   {file.datasets?.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
@@ -458,7 +458,7 @@ const HistoricalFuturesProviderPanel = () => {
                     </div>
                   )}
                 </button>
-                <button onClick={() => handleDeletePreview(file)} disabled={busy} className="shrink-0 rounded-lg border border-border px-3 py-2 text-xs font-medium text-text-secondary hover:border-danger/40 hover:text-danger disabled:opacity-50">Delete source</button>
+                <button onClick={() => handleDeletePreview(file)} disabled={busy} className="shrink-0 rounded-lg border border-border px-3 py-2 text-xs font-medium text-text-secondary hover:border-negative/40 hover:text-negative disabled:opacity-50">Delete source</button>
               </div>
             ))}
           </div>
@@ -636,10 +636,10 @@ const HistoricalFuturesProviderPanel = () => {
           ) : (
             <p className="text-xs text-text-tertiary">This is a staged upload with no normalized datasets yet.</p>
           )}
-          {error&&<p role="alert" className="text-xs text-danger">{error}</p>}
+          {error&&<p role="alert" className="text-xs text-negative">{error}</p>}
           <div className="flex justify-end gap-2">
             <button autoFocus disabled={busy} onClick={() => setDeletePrompt(null)} className="rounded-lg border border-border px-3 py-2 text-xs text-text-secondary">Cancel</button>
-            <button onClick={handleDeleteConfirm} disabled={busy} className="rounded-lg bg-danger px-3 py-2 text-xs font-medium text-white disabled:opacity-50">Delete file and owned datasets</button>
+            <button onClick={handleDeleteConfirm} disabled={busy} className="rounded-lg bg-negative px-3 py-2 text-xs font-medium text-white disabled:opacity-50">Delete file and owned datasets</button>
           </div>
           </div>
         </AppModal>
