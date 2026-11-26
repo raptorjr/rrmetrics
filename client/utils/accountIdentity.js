@@ -1,7 +1,7 @@
 const NO_ACCOUNTS = '__rrmetrics_no_accounts__';
 
 const getTradeAccountKey = (trade, accountBrokers = {}) => {
-  if (trade.domain === 'backtesting' && trade.replaySessionId) return 'replay::'+trade.replaySessionId;
+  if (trade.domain === 'backtesting' && (trade.replayAccountId || trade.replaySessionId)) return 'replay::'+(trade.replayAccountId || trade.replaySessionId);
   const name = trade.account || 'Manual';
 
   // ProjectX/Topstep trade IDs encode both the connection and exchange account ID.

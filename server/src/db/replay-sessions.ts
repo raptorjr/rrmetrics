@@ -23,23 +23,40 @@ const trade = (x: unknown) => record(x) && id(x.id) && direction(x.direction) &&
   && price(x.entryPrice) && price(x.exitPrice) && integer(x.entryTime) && integer(x.exitTime)
   && x.exitTime >= x.entryTime && number(x.pnl) && (x.rMultiple == null || number(x.rMultiple)) && fills(x.fills);
 const MAX_CHECKPOINT = 8 * 1024 * 1024;
-type Row = { id: string; name: string; description: string; start_time: string; end_time: string; starting_balance_cents: number; revision: number; checkpoint_json: string | null; created_at: string; updated_at: string };
+type Row = { id: string; user_id: string; name: string; description: string; start_time: string; end_time: string; starting_balance_cents: number; revision: number; checkpoint_json: string | null; created_at: string; updated_at: string };
 function rowFor(db: Db, owner: string, session: string) {
   return db.prepare('SELECT * FROM replay_sessions WHERE user_id=? AND id=?').get(owner, session) as Row | undefined;
 }
 function allTrades(db: Db, session: string): Json[] {
   return (db.prepare('SELECT trade_json FROM replay_session_trades WHERE session_id=? ORDER BY rowid').all(session) as {trade_json:string}[]).map(x => JSON.parse(x.trade_json));
 }
+type Membership = {accountId:string;accountName:string;accountStartingBalanceCents:number;sequence:number;sessionCount:number};
+function membership(db:Db,row:Row):Membership {
+  return db.prepare(`SELECT a.id AS accountId,a.name AS accountName,a.starting_balance_cents AS accountStartingBalanceCents,
+    m.sequence,(SELECT COUNT(*) FROM replay_account_sessions WHERE account_id=a.id) AS sessionCount
+    FROM replay_account_sessions m JOIN replay_accounts a ON a.id=m.account_id
+    WHERE m.session_id=? AND a.user_id=?`).get(row.id,row.user_id) as Membership;
+}
+function accountRows(db:Db,owner:string,accountId:string):Row[] {
+  return db.prepare(`SELECT s.* FROM replay_account_sessions m JOIN replay_sessions s ON s.id=m.session_id
+    JOIN replay_accounts a ON a.id=m.account_id WHERE a.id=? AND a.user_id=? AND s.user_id=? ORDER BY m.sequence`).all(accountId,owner,owner) as Row[];
+}
 function view(db: Db, row: Row, full = false) {
   const checkpoint = row.checkpoint_json ? JSON.parse(row.checkpoint_json) : null;
   const trades = allTrades(db, row.id);
   const realized = trades.reduce((sum,t) => sum + t.pnl, 0) + (checkpoint?.position?.realizedPnl ?? 0);
-  return { id: row.id, name: row.name, description: row.description, startTime: row.start_time, endTime: row.end_time,
+  const m=membership(db,row);
+  const sealed=m.sequence<m.sessionCount;
+  return { id: row.id, accountId:m.accountId, accountName:m.accountName, accountStartingBalance:m.accountStartingBalanceCents/100,
+    sequence:m.sequence,sessionCount:m.sessionCount,sealed,
+    canContinue:!sealed && !!checkpoint && !checkpoint.position && !checkpoint.pendingOrder && Math.round(row.starting_balance_cents+realized*100)>0,
+    lastReplayTime:checkpoint?new Date(checkpoint.time*1000).toISOString():null,
+    name: row.name, description: row.description, startTime: row.start_time, endTime: row.end_time,
     startingBalance: row.starting_balance_cents / 100, revision: row.revision, createdAt: row.created_at, updatedAt: row.updated_at,
     realizedPnl: realized, balance: row.starting_balance_cents / 100 + realized, tradeCount: trades.length,
     winRate: trades.length ? 100 * trades.filter(t => t.pnl > 0).length / trades.length : 0,
     progress: checkpoint ? Math.round(100 * checkpoint.index / Math.max(1, checkpoint.barCount - 1)) : 0,
-    status: checkpoint && checkpoint.index === checkpoint.barCount - 1 && !checkpoint.position && !checkpoint.pendingOrder ? 'completed' : 'in_progress',
+    status: sealed || (checkpoint && checkpoint.index === checkpoint.barCount - 1 && !checkpoint.position && !checkpoint.pendingOrder) ? 'completed' : 'in_progress',
     ...(full ? { checkpoint, trades } : {}) };
 }
 export function listReplaySessions(db: Db, owner: string) {
@@ -54,15 +71,20 @@ export function getReplaySession(db: Db, owner: string, session: string) {
 export function replayAnalytics(db: Db, owner: string) {
   return db.transaction(() => {
     const rows=db.prepare('SELECT * FROM replay_sessions WHERE user_id=? ORDER BY updated_at DESC').all(owner) as Row[];
-    const accounts=rows.map(row=>{
-      const summary=view(db,row);
-      return {...summary,key:'replay::'+row.id,provider:'replay',currencyCode:'USD'};
+    const summaries=rows.map(row=>view(db,row));
+    const accounts=summaries.filter(s=>!s.sealed).map(latest=>{
+      const members=summaries.filter(s=>s.accountId===latest.accountId);
+      const trades=members.flatMap(s=>allTrades(db,s.id));
+      return {...latest,id:latest.accountId,name:latest.accountName,key:'replay::'+latest.accountId,provider:'replay',currencyCode:'USD',
+        startingBalance:latest.accountStartingBalance,realizedPnl:latest.balance-latest.accountStartingBalance,
+        tradeCount:trades.length,winRate:trades.length?100*trades.filter(t=>t.pnl>0).length/trades.length:0};
     });
     const trades=rows.flatMap(row=>{
       const checkpoint=row.checkpoint_json?JSON.parse(row.checkpoint_json):null;
+      const m=membership(db,row);
       return allTrades(db,row.id).map(t=>({
         _id:'replay::'+row.id+'::'+t.id,domain:'backtesting',replaySessionId:row.id,
-        account:row.name,ticker:checkpoint.marketKey.split('::')[0],direction:t.direction,
+        replayAccountId:m.accountId,account:m.accountName,ticker:checkpoint.marketKey.split('::')[0],direction:t.direction,
         quantity:t.direction==='short'?-t.quantity:t.quantity,enterPrice:t.entryPrice,exitPrice:t.exitPrice,
         enterTime:new Date(t.entryTime*1000).toISOString(),exitTime:new Date(t.exitTime*1000).toISOString(),
         manualPL:t.pnl,grossPL:t.pnl,netPL:t.pnl,fees:0,currencyCode:'USD',
@@ -75,7 +97,9 @@ export function replayAnalytics(db: Db, owner: string) {
 export function createReplaySession(db: Db, owner: string, input: unknown) {
   if (!record(input) || typeof input.name !== 'string' || !input.name.trim() || input.name.length > 120
     || (input.description != null && (typeof input.description !== 'string' || input.description.length > 2000))
-    || !number(input.startingBalance) || input.startingBalance < .01 || input.startingBalance > 1e9
+    || (input.accountId == null && (!number(input.startingBalance) || input.startingBalance < .01 || input.startingBalance > 1e9))
+    || (input.accountId != null && (typeof input.accountId !== 'string' || typeof input.previousSessionId !== 'string' || !integer(input.previousRevision)))
+    || (input.accountName != null && (typeof input.accountName !== 'string' || !input.accountName.trim() || input.accountName.length>120))
     || typeof input.startTime !== 'string' || typeof input.endTime !== 'string') return null;
   const start = Date.parse(input.startTime), end = Date.parse(input.endTime);
   if (!number(start) || !number(end) || end <= start) return null;
@@ -86,9 +110,27 @@ export function createReplaySession(db: Db, owner: string, input: unknown) {
     AND d.data_kind != 'trades' AND d.start_time<=? AND d.end_time>=? LIMIT 1`).get(owner,startIso,endIso);
   if (!covered) return null;
   const session = randomUUID(), now = new Date().toISOString();
-  db.prepare(`INSERT INTO replay_sessions (id,user_id,name,description,start_time,end_time,starting_balance_cents,created_at,updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?)`).run(session,owner,input.name.trim(),String(input.description ?? '').trim(),startIso,endIso,Math.round(input.startingBalance*100),now,now);
-  return getReplaySession(db,owner,session);
+  return db.transaction(()=>{
+    let accountId=session,sequence=1,cents=0;
+    if(input.accountId!=null){
+      accountId=input.accountId;
+      const members=accountRows(db,owner,accountId),previous=members[members.length-1];
+      if(!previous || previous.id!==input.previousSessionId || previous.revision!==input.previousRevision)return null;
+      const summary=view(db,previous);
+      if(!summary.canContinue || !summary.lastReplayTime || start<=Date.parse(summary.lastReplayTime))return null;
+      cents=Math.round(summary.balance*100);sequence=members.length+1;
+      // Seal the predecessor and invalidate any other client's stale checkpoint.
+      db.prepare('UPDATE replay_sessions SET revision=revision+1 WHERE id=? AND user_id=?').run(previous.id,owner);
+    }else{
+      cents=Math.round(input.startingBalance*100);
+      db.prepare('INSERT INTO replay_accounts(id,user_id,name,starting_balance_cents,created_at) VALUES(?,?,?,?,?)')
+        .run(accountId,owner,(input.accountName??input.name).trim(),cents,now);
+    }
+    db.prepare(`INSERT INTO replay_sessions (id,user_id,name,description,start_time,end_time,starting_balance_cents,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?)`).run(session,owner,input.name.trim(),String(input.description ?? '').trim(),startIso,endIso,cents,now,now);
+    db.prepare('INSERT INTO replay_account_sessions(account_id,session_id,sequence) VALUES(?,?,?)').run(accountId,session,sequence);
+    return getReplaySession(db,owner,session);
+  })();
 }
 // Metadata mutations are explicit and revision checked, like checkpoint resets.
 // A stale list on another device must not delete newly saved executions.
@@ -101,8 +143,13 @@ export function renameReplaySession(db: Db, owner: string, session: string, inpu
     const row = rowFor(db,owner,session);
     if (!row) return {error:'Session not found.',status:404} as const;
     if (row.revision !== input.revision) return {error:'Session changed on another device. Refresh the session list and try again.',status:409} as const;
-    if (row.name !== name) db.prepare('UPDATE replay_sessions SET name=?, revision=revision+1, updated_at=? WHERE id=? AND user_id=?')
-      .run(name,new Date().toISOString(),session,owner);
+    if (row.name !== name) {
+      const m=membership(db,row);
+      db.prepare('UPDATE replay_sessions SET name=?, revision=revision+1, updated_at=? WHERE id=? AND user_id=?')
+        .run(name,new Date().toISOString(),session,owner);
+      // Preserve legacy single-session rename behavior; named multi-session accounts remain independent.
+      if(m.sessionCount===1 && m.accountName===row.name)db.prepare('UPDATE replay_accounts SET name=? WHERE id=? AND user_id=?').run(name,m.accountId,owner);
+    }
     return {session:view(db,rowFor(db,owner,session)!)};
   })();
 }
@@ -113,8 +160,10 @@ export function deleteReplaySession(db: Db, owner: string, session: string, inpu
     const row = rowFor(db,owner,session);
     if (!row) return {error:'Session not found.',status:404} as const;
     if (row.revision !== input.revision) return {error:'Session changed on another device. Refresh the session list and try again.',status:409} as const;
-    // The foreign key cascades to this virtual account's completed trades only.
+    const m=membership(db,row);
+    if(m.sessionCount>1)return {error:'Sessions belonging to a multi-session account cannot be deleted individually yet.',status:409} as const;
     db.prepare('DELETE FROM replay_sessions WHERE id=? AND user_id=?').run(session,owner);
+    db.prepare('DELETE FROM replay_accounts WHERE id=? AND user_id=?').run(m.accountId,owner);
     return {deleted:true as const};
   })();
 }
@@ -135,6 +184,8 @@ export function saveReplaySession(db: Db, owner: string, session: string, input:
     const row = rowFor(db,owner,session);
     if (!row) return {error:'Session not found.',status:404} as const;
     if (row.revision !== input.revision) return {error:'Session changed on another device. Reopen it before saving again.',status:409} as const;
+    const m=membership(db,row);
+    if(m.sequence<m.sessionCount)return {error:'This session is sealed because the account continued in a later session.',status:409} as const;
     if (c.time * 1000 < Date.parse(row.start_time) || c.time * 1000 > Date.parse(row.end_time)) return {error:'Replay time is outside this session.',status:400} as const;
     const prior = row.checkpoint_json ? JSON.parse(row.checkpoint_json) : null;
     if (prior && (prior.marketKey !== c.marketKey || prior.timeframe !== c.timeframe || prior.fingerprint !== c.fingerprint)) return {error:'Session historical source changed.',status:409} as const;

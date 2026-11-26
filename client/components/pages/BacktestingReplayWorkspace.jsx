@@ -539,6 +539,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
 
   const realizedOpenPnl=position?.realizedPnl ?? 0;
   const realized=stats.netPnl+realizedOpenPnl, balance=session.startingBalance+realized;
+  const accountStart=session.accountStartingBalance??session.startingBalance, accountRealized=balance-accountStart;
   snapshotRef.current=()=>{
     const candle=latestCandle(), layout=chartCaptureRef.current?.();
     if(!chartReady||historicalLoading||!candle||!layout||!fingerprintRef.current)return null;
@@ -635,10 +636,10 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
         <div className="min-w-0 overflow-x-auto">
           <div data-replay-account-group="true" className="flex w-max mx-auto items-center gap-4 whitespace-nowrap text-xs bg-bg-input border border-border rounded-lg px-3 py-1.5">
             <select aria-label="Switch replay session" title="Switch replay session" disabled={savingExit||conflictRef.current} value={session.id} onChange={e=>void saveExit(e.target.value)} className="shrink-0 max-w-[220px] bg-bg-input rounded px-2 py-1 text-sm font-semibold disabled:opacity-40">
-              <option value={session.id}>{session.name}</option>{sessions.filter(s=>s.id!==session.id).map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+              <option value={session.id}>{session.accountName} · {session.name}</option>{sessions.filter(s=>s.id!==session.id).map(s=><option key={s.id} value={s.id}>{s.accountName} · {s.name}</option>)}
             </select>
             <div aria-hidden="true" className="self-stretch w-px bg-border"/>
-            {[['Starting',session.startingBalance],['Balance',balance],['Equity',balance+unrealizedPnl],['Realized P/L',realized],['Unrealized P/L',unrealizedPnl]].map(([label,value])=><div key={label}><span className="text-text-secondary mr-2">{label}</span><strong className={label.includes('P/L')?(value<0?'text-negative':'text-positive'):'text-text-primary'}>{formatMoney(value)}</strong></div>)}
+            {[['Starting',accountStart],['Balance',balance],['Equity',balance+unrealizedPnl],['Realized P/L',accountRealized],['Unrealized P/L',unrealizedPnl]].map(([label,value])=><div key={label}><span className="text-text-secondary mr-2">{label}</span><strong className={label.includes('P/L')?(value<0?'text-negative':'text-positive'):'text-text-primary'}>{formatMoney(value)}</strong></div>)}
           </div>
         </div>
         <div className="flex min-w-0 justify-end items-center gap-2">

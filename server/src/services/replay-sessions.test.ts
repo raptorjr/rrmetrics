@@ -124,3 +124,56 @@ test('persistent replay accounts resume across clients, isolate trades and rejec
     assert.equal((db.prepare('SELECT COUNT(*) AS n FROM backtesting_trades').get() as any).n,0);
   } finally {db.close();}
 });
+
+test('legacy accounts migrate idempotently and sequential sessions carry balance without duplicating trade identity', async()=>{
+  const db=new Database(':memory:');
+  try{
+    db.pragma('foreign_keys = ON');
+    const schema=fs.readFileSync(path.join(__dirname,'../db/schema.sql'),'utf8');
+    // Simulate the schema on Babylon before virtual accounts were introduced.
+    const legacy=schema.split('-- A virtual account owns a chronological sequence of replay sessions.')[0];
+    db.exec(legacy);
+    for(const id of ['owner','other'])db.prepare('INSERT INTO profiles(id,email,password_hash,created_at) VALUES(?,?,?,?)').run(id,id+'@example.test','','2026-01-01');
+    db.prepare("INSERT INTO market_data_providers(id,user_id,provider_type,display_name) VALUES('p','owner','historical_futures','Historical Futures')").run();
+    db.prepare("INSERT INTO market_data_files(id,user_id,provider_id,original_filename,input_format,file_size_bytes,content_sha256,import_status,original_storage_key) VALUES('f','owner','p','NQ.csv','csv',1,'hash','ready','originals/nq.csv')").run();
+    const start='2026-01-01T00:00:00.000Z',end='2026-01-01T00:10:00.000Z',later='2026-01-01T00:05:00.000Z';
+    db.prepare("INSERT INTO market_data_file_datasets(id,user_id,file_id,data_kind,instrument,timeframe,timestamp_unit,row_count,start_time,end_time,normalized_storage_key) VALUES('d','owner','f','ohlcv','NQ','1m','ms',11,?,?,'normalized/nq.parquet')").run(start,end);
+    db.prepare('INSERT INTO replay_sessions(id,user_id,name,start_time,end_time,starting_balance_cents,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)').run('legacy','owner','Practice',start,end,5000000,start,start);
+    db.exec(schema);db.exec(schema);
+    const app=(id:string)=>{const a=new Hono<{Bindings:Env;Variables:AuthContext}>();a.use('*',async(c,next)=>{c.set('db',db);c.set('user',{id,email:id+'@example.test'});await next();});a.route('/',backtesting);return a;};
+    const desktop=app('owner'),other=app('other'),url='/api/backtesting/replay-sessions';
+    const write=(a:typeof desktop,uri:string,method:string,body:unknown)=>a.request(uri,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const get=async(id:string)=>(await (await desktop.request(url+'/'+id)).json() as any).session;
+    const base=(await get('legacy'));assert.equal(base.accountId,'legacy');assert.equal(base.canContinue,false);
+    const time=Date.parse(start)/1000;
+    const trade={id:'replay-1',direction:'long',quantity:1,entryPrice:100,exitPrice:110,entryTime:time,exitTime:time+60,pnl:200,rMultiple:2,fills:[
+      {direction:'long',quantity:1,price:100,time,kind:'entry'},
+      {direction:'short',quantity:1,price:110,time:time+60,kind:'exit'}]};
+    const checkpoint={version:1,marketKey:'NQ::',timeframe:'1m',fingerprint:'a'.repeat(64),index:3,barCount:11,time:time+180,orderSequence:2,quantity:1,quantityPresets:[1,2,3,5,10],speed:2,orderType:'market',orderPrice:'',position:null,pendingOrder:null,layout:{v:1,kind:'grid',layout:'1x2',cells:[]}};
+    const save=url+'/legacy/checkpoint';
+    const next={name:'Second day',accountId:'legacy',previousSessionId:'legacy',previousRevision:1,startTime:later,endTime:end};
+    assert.equal((await write(desktop,url,'POST',next)).status,400);
+    assert.equal((await write(desktop,save,'PUT',{revision:0,checkpoint,trades:[trade]})).status,200);
+    assert.equal((await write(other,url,'POST',next)).status,400);
+    assert.equal((await write(desktop,url,'POST',{...next,startTime:start})).status,400);
+    assert.equal((await write(desktop,url,'POST',{...next,previousRevision:0})).status,400);
+    assert.equal((await write(desktop,url,'POST',{...next,previousSessionId:'wrong'})).status,400);
+    const created=await write(desktop,url,'POST',{...next,startingBalance:1});assert.equal(created.status,201);
+    const {session}=await created.json() as any;
+    assert.equal(session.startingBalance,50200);assert.equal(session.accountStartingBalance,50000);assert.equal(session.sequence,2);assert.equal(session.accountId,'legacy');
+    const sealed=await get('legacy');assert.equal(sealed.sealed,true);assert.equal(sealed.revision,2);
+    assert.equal((await write(desktop,save,'PUT',{revision:2,checkpoint,trades:[trade]})).status,409);
+    assert.equal((await write(desktop,url+'/legacy','DELETE',{revision:2})).status,409);
+    assert.equal((await write(desktop,url,'POST',next)).status,400);
+    const trade2={...trade,entryTime:time+300,exitTime:time+360,pnl:-50,exitPrice:97.5,fills:[{...trade.fills[0],time:time+300},{...trade.fills[1],time:time+360,price:97.5}]};
+    assert.equal((await write(desktop,url+'/'+session.id+'/checkpoint','PUT',{revision:0,checkpoint:{...checkpoint,index:2,barCount:6,time:time+420},trades:[trade2]})).status,200);
+    db.exec(schema);
+    const analytics=await (await desktop.request('/api/backtesting/replay-analytics')).json() as any;
+    assert.equal(analytics.accounts.length,1);assert.equal(analytics.accounts[0].key,'replay::legacy');
+    assert.equal(analytics.accounts[0].startingBalance,50000);assert.equal(analytics.accounts[0].balance,50150);assert.equal(analytics.accounts[0].realizedPnl,150);assert.equal(analytics.accounts[0].tradeCount,2);
+    assert.equal(new Set(analytics.trades.map((t:any)=>t._id)).size,2);
+    assert.ok(analytics.trades.every((t:any)=>t.replayAccountId==='legacy'));
+    assert.equal((await get('legacy')).trades[0].pnl,200);
+    assert.deepEqual(await (await other.request('/api/backtesting/replay-analytics')).json(),{accounts:[],trades:[]});
+  }finally{db.close();}
+});
