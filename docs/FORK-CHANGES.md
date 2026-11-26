@@ -1,3 +1,7 @@
+## Public release preparation
+
+- Added the Unraid Community Applications public-release roadmap and a durable TradeCanvas-first chart policy. Removed unused Lightweight Charts, KLineCharts and orphaned Fancy Canvas dependencies after a source and lockfile audit. Kept historical change records and existing statistical visualizations.
+
 ## Replay workspace refinements
 
 - Shared Dashboard and Analytics now accept isolated replay accounts through a read-only projection; Trading/Backtesting selector, SQLite-backed independent selections, Statistics navigation, and read-only backtesting calendar. No simulated trades inserted into the real journal.
