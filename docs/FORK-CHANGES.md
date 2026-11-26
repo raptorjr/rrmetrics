@@ -1,3 +1,7 @@
+## Replay statistics layout polish
+
+- Reserve optional statistics rows across Today, Session and Account so switching scopes does not shrink the panel when a message or additional P/L detail is absent. Center the market-hour duration beneath the entire speed control group. No calculation or execution changes.
+
 ## Replay statistics by trading day, session and account
 
 - Backtest statistics now switch between Today (default), Session and Account. Today follows the replayed candle's historical trading date, rolling at 18:00 America/New_York, independent of display time zone and DST. This is a standard futures convention, not a provider-specific holiday calendar.
