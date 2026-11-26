@@ -1,3 +1,7 @@
+## Persistent virtual accounts
+
+- Introduced an independent virtual account identity with multiple chronological replay sessions. Legacy accounts migrate one-to-one without losing account selections, trades or saved checkpoints. New sessions can continue a flat saved account, inherit its balance and seal the prior session. Dashboard and Analytics aggregate by virtual account; session history remains separate. Multi-session deletion, prop-firm constraints, payout simulation and equity history are not implemented yet.
+
 ## Public release preparation
 
 - Documented the provider verification and improved CSV import roadmap, including TopstepX file import without an API subscription, independent reconciliation tests, verification status and shared watched-folder infrastructure. Planning only; no broker or import behaviour changed.
