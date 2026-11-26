@@ -65,7 +65,16 @@ export function listReplaySessions(db: Db, owner: string) {
 }
 export function getReplaySession(db: Db, owner: string, session: string) {
   const row = rowFor(db,owner,session);
-  return row ? view(db,row,true) : null;
+  if(!row)return null;
+  const session=view(db,row,true);
+  // Only preceding, sealed sessions belong to this replay's historical view.
+  // Never send other accounts or the selected session's trades a second time.
+  const priorSessions=accountRows(db,owner,session.accountId).slice(0,session.sequence-1).map(previous=>({
+    id:previous.id,
+    instrument:previous.checkpoint_json?JSON.parse(previous.checkpoint_json).marketKey.split('::')[0]:null,
+    trades:allTrades(db,previous.id),
+  }));
+  return {...session,priorSessions};
 }
 // Read-only analytics projection. The replay trade's recorded P/L is authoritative,
 // especially after partial exits. Never insert these records into real trades.
