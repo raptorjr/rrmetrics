@@ -47,8 +47,9 @@ function view(db: Db, row: Row, full = false) {
   const realized = trades.reduce((sum,t) => sum + t.pnl, 0) + (checkpoint?.position?.realizedPnl ?? 0);
   const m=membership(db,row);
   const sealed=m.sequence<m.sessionCount;
+  const depleted=!checkpoint?.position && Math.round(row.starting_balance_cents+realized*100)<=0;
   return { id: row.id, accountId:m.accountId, accountName:m.accountName, accountStartingBalance:m.accountStartingBalanceCents/100,
-    sequence:m.sequence,sessionCount:m.sessionCount,sealed,
+    sequence:m.sequence,sessionCount:m.sessionCount,sealed,accountStatus:depleted?'depleted':'active',
     canContinue:!sealed && !!checkpoint && !checkpoint.position && !checkpoint.pendingOrder && Math.round(row.starting_balance_cents+realized*100)>0,
     lastReplayTime:checkpoint?new Date(checkpoint.time*1000).toISOString():null,
     name: row.name, description: row.description, startTime: row.start_time, endTime: row.end_time,
@@ -194,6 +195,9 @@ export function saveReplaySession(db: Db, owner: string, session: string, input:
     if (restart && (c.index !== 0 || c.position != null || c.pendingOrder != null || trades.length !== 0 || (prior && c.orderSequence < prior.orderSequence))) return {error:'Invalid restart checkpoint.',status:400} as const;
     const existing = allTrades(db,session);
     const incoming = new Map(trades.map(t=>[t.id,JSON.stringify(t)]));
+    const depleted=!prior?.position && Math.round(row.starting_balance_cents+existing.reduce((sum,t)=>sum+t.pnl*100,0))<=0;
+    if(depleted && (restart || c.position || c.pendingOrder || trades.length!==existing.length || c.index!==prior?.index))
+      return {error:'Account capital exhausted. Review the saved session or create a new account.',status:409} as const;
     if (!restart && existing.some(t=>incoming.get(t.id)!==JSON.stringify(t))) return {error:'Saved trade history cannot be changed or removed.',status:409} as const;
     if (!restart && (existing.length || prior?.position || prior?.pendingOrder) && prior && c.index < prior.index) return {error:'Cannot rewind executed history.',status:409} as const;
     if (restart) db.prepare('DELETE FROM replay_session_trades WHERE session_id=?').run(session);
