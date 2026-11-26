@@ -151,12 +151,13 @@ test('legacy accounts migrate idempotently and sequential sessions carry balance
       {direction:'short',quantity:1,price:110,time:time+60,kind:'exit'}]};
     const checkpoint={version:1,marketKey:'NQ::',timeframe:'1m',fingerprint:'a'.repeat(64),index:3,barCount:11,time:time+180,orderSequence:2,quantity:1,quantityPresets:[1,2,3,5,10],speed:2,orderType:'market',orderPrice:'',position:null,pendingOrder:null,layout:{v:1,kind:'grid',layout:'1x2',cells:[]}};
     const save=url+'/legacy/checkpoint';
-    const next={name:'Second day',accountId:'legacy',previousRevision:1,startTime:later,endTime:end};
+    const next={name:'Second day',accountId:'legacy',previousSessionId:'legacy',previousRevision:1,startTime:later,endTime:end};
     assert.equal((await write(desktop,url,'POST',next)).status,400);
     assert.equal((await write(desktop,save,'PUT',{revision:0,checkpoint,trades:[trade]})).status,200);
     assert.equal((await write(other,url,'POST',next)).status,400);
     assert.equal((await write(desktop,url,'POST',{...next,startTime:start})).status,400);
     assert.equal((await write(desktop,url,'POST',{...next,previousRevision:0})).status,400);
+    assert.equal((await write(desktop,url,'POST',{...next,previousSessionId:'wrong'})).status,400);
     const created=await write(desktop,url,'POST',{...next,startingBalance:1});assert.equal(created.status,201);
     const {session}=await created.json() as any;
     assert.equal(session.startingBalance,50200);assert.equal(session.accountStartingBalance,50000);assert.equal(session.sequence,2);assert.equal(session.accountId,'legacy');
