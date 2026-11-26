@@ -1,6 +1,7 @@
 const React = require('react');
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
 const { createPortal } = require('react-dom');
+const {useConfirm}=require('../shared/AppModal');
 const { replayDatePopupPosition } = require('../../utils/replayDatePopup');
 const { authFetch } = require('../../helper.js');
 const ReplayTradeCanvasGrid = require('./ReplayTradeCanvasGrid').default;
@@ -209,6 +210,7 @@ const formatInterval = seconds => seconds < 60
     : (seconds / 3600) + ' hour' + (seconds === 3600 ? '' : 's');
 
 const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, onExit}) => {
+  const askConfirm=useConfirm();
   const saved = session.checkpoint;
   const workspaceRef = useRef(null), chartCaptureRef = useRef(null), fingerprintRef = useRef('');
   const revisionRef = useRef(session.revision), saveInFlight = useRef(null), lastSavedRef = useRef('');
@@ -590,7 +592,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
     };
     exitRef.current=true;setIsPlaying(false);setSavingExit(true);
     if(!chartReady&&!saveInFlight.current){
-      if(window.confirm('Leave this session without changing its saved state?')){
+      if(await askConfirm({title:'Leave without saving?',message:'Leave this session without changing its saved state?',danger:true,confirmLabel:'Leave session'})){
         try{await navigate();return;}catch(e){setError(e.message||'Could not open session.');}
       }
       exitRef.current=false;setSavingExit(false);return;
@@ -601,7 +603,9 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
   };
   const restartSession=async()=>{
     if(!chartReady||savingExit||exitRef.current||conflictRef.current||exhaustedNow())return;
-    if(!window.confirm('Restart this session from its first candle? This permanently clears its simulated trades, open position and working orders and restores the starting balance. Chart drawings are cleared; layout and indicators are kept.'))return;
+    setIsPlaying(false);
+    if(!(await askConfirm({title:'Restart replay session?',message:'This permanently clears its simulated trades, open position and working orders and restores the starting balance. Chart drawings are cleared; layout and indicators are kept.',danger:true,confirmLabel:'Restart session'})))return;
+    if(!chartReady||savingExit||exitRef.current||conflictRef.current||exhaustedNow())return;
     exitRef.current=true;setIsPlaying(false);setSavingExit(true);
     try{
       if(saveInFlight.current)await saveInFlight.current;
@@ -655,7 +659,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
       {saveStatus!=='Saved'&&!/^(Saving|Restoring|Restarting|Not saved)/.test(saveStatus)&&<div className="shrink-0 px-3 py-2 text-xs text-negative" role="alert">{saveStatus}</div>}
       {capitalExhausted&&<div className="shrink-0 px-3 py-2 text-xs text-negative" role="status">Account capital exhausted. Trading and restart are disabled. Save &amp; exit to review this session or create a new account.</div>}
       {importError&&<div className="shrink-0 px-3 py-2 text-xs text-negative" role="alert">{importError}</div>}
-      {conflictRef.current&&<div className="shrink-0 px-3 py-2 text-xs text-negative">Session changed on another device. Saving is blocked. <button onClick={()=>{if(window.confirm('Discard unsaved changes on this device and return to the session list?'))onExit();}} className="underline">Return to session list</button></div>}
+      {conflictRef.current&&<div className="shrink-0 px-3 py-2 text-xs text-negative">Session changed on another device. Saving is blocked. <button onClick={async()=>{if(await askConfirm({title:'Discard unsaved changes?',message:'Discard unsaved changes on this device and return to the session list?',danger:true,confirmLabel:'Discard changes'}))onExit();}} className="underline">Return to session list</button></div>}
       <div className="flex-1 min-h-0 grid grid-cols-[minmax(0,1fr)_300px] gap-1 overflow-hidden" inert={savingExit||conflictRef.current?true:undefined}>
 
         <div className="bg-bg-surface flex flex-col min-h-0 overflow-hidden min-w-0">
@@ -695,8 +699,10 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
               <div/>
               <div className="flex items-center justify-center gap-2">
-              <button type="button" onClick={() => {
-                if (!canSeek || !window.confirm('Jump to the beginning of this replay? The chart will return to the first candle.')) return;
+              <button type="button" onClick={async () => {
+                setIsPlaying(false);
+                if (!canSeek || !(await askConfirm({title:'Jump to beginning?',message:'The chart will return to the first candle.',confirmLabel:'Jump to beginning'}))) return;
+                if(positionRef.current||pendingOrderRef.current||closedTradesRef.current.length||exitRef.current||conflictRef.current)return;
                 setIsPlaying(false);
                 currentIndexRef.current = 0;
                 setCurrentIndex(0);
