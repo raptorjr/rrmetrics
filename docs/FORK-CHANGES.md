@@ -6,6 +6,8 @@
 
 ## Replay workspace refinements
 
+- Saved replay sessions now offer a read-only Trade history action, using the existing owner-scoped session endpoint independently of historical market-data availability. The same paginated table is shared with the replay workspace; expand a completed trade to inspect recorded fills, scaling and partial exits. The saved account balance includes realized partial exits on open positions, while history lists completed round trips only. No broker/manual trade mutations or schema changes.
+
 - Shared Dashboard and Analytics now accept isolated replay accounts through a read-only projection; Trading/Backtesting selector, SQLite-backed independent selections, Statistics navigation, and read-only backtesting calendar. No simulated trades inserted into the real journal.
 
 - Replay session row actions: Rename and confirmed Delete, using owner/revision-checked APIs and cascading only the selected replay account's trades. Documented future Statistics navigation and user-confirmed multi-symbol acceptance.
