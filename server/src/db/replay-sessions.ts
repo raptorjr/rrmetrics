@@ -23,7 +23,7 @@ const trade = (x: unknown) => record(x) && id(x.id) && direction(x.direction) &&
   && price(x.entryPrice) && price(x.exitPrice) && integer(x.entryTime) && integer(x.exitTime)
   && x.exitTime >= x.entryTime && number(x.pnl) && (x.rMultiple == null || number(x.rMultiple)) && fills(x.fills);
 const MAX_CHECKPOINT = 8 * 1024 * 1024;
-type Row = { id: string; name: string; description: string; start_time: string; end_time: string; starting_balance_cents: number; revision: number; checkpoint_json: string | null; created_at: string; updated_at: string };
+type Row = { id: string; user_id: string; name: string; description: string; start_time: string; end_time: string; starting_balance_cents: number; revision: number; checkpoint_json: string | null; created_at: string; updated_at: string };
 function rowFor(db: Db, owner: string, session: string) {
   return db.prepare('SELECT * FROM replay_sessions WHERE user_id=? AND id=?').get(owner, session) as Row | undefined;
 }
