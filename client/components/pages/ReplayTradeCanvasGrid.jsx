@@ -2,6 +2,7 @@ const React = require('react');
 const { useEffect, useRef, useState } = React;
 const {createPortal}=require('react-dom');
 const {readChartTheme,saveChartTheme,resolveChartTheme}=require('../../utils/replayChartTheme');
+const {restoreReplayGridViews}=require('../../utils/replayChartViewport');
 const { ChartWidgetGrid } = require('@tradecanvas/chart/widget');
 const { replayChartIntervals } = require('../../utils/historicalReplay');
 const { toReplayChartPosition, snapReplayPrice, replayPositionColors } = require('../../utils/backtestingReplay');
@@ -341,6 +342,7 @@ const ReplayTradeCanvasGrid = ({
     restoreStartedRef.current=true;
     const restore=async()=>{
       try{
+        let restoredLayout=null;
         if(restoreLayout){
           const symbols=layoutSymbols(restoreLayout,executionSymbol);
           await Promise.all(symbols.filter(s=>s!==executionSymbol).map(async symbol=>{
@@ -353,9 +355,19 @@ const ReplayTradeCanvasGrid = ({
           const layout=cleanReplayLayout(restoreLayout,executionSymbol,markets,restoreLayout.rrDrawings||{},restoreLayout.cells.length,restoreLayout.rrContextSources||{});
           drawingBankRef.current=Object.assign(Object.create(null),layout.rrDrawings);
           await grid.restoreLayout(layout);
+          restoredLayout=layout;
         }
         if(gridRef.current!==grid)return;
-        applyTheme();restoredRef.current=true;setGridRevision(v=>v+1);onReady?.(true);
+        applyTheme();
+        if(restoredLayout){
+          // Finish resizing and theming before exposing the restored workspace.
+          // The first cell was created at full width and can be resized later
+          // than the other cells. Restore the original independent views last.
+          const applied=await restoreReplayGridViews(grid,restoredLayout,()=>gridRef.current===grid);
+          if(gridRef.current!==grid)return;
+          if(!applied)throw Error('Chart arrangement changed while restoring the saved viewport.');
+        }
+        restoredRef.current=true;setGridRevision(v=>v+1);onReady?.(true);
       }catch(e){if(gridRef.current===grid)onRestoreError?.('Could not restore saved chart layout: '+e.message);}
     };
     void restore();
