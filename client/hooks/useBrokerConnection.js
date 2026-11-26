@@ -1,4 +1,5 @@
 const { useState, useCallback } = require('react');
+const {useConfirm}=require('../components/shared/AppModal');
 const { authFetch } = require('../helper.js');
 
 const BROKER_CONFIGS = {
@@ -20,6 +21,7 @@ const BROKER_CONFIGS = {
 const TRADOVATE_BROKERS = Object.values(BROKER_CONFIGS).filter(b => b.group === 'tradovate');
 
 const useBrokerConnection = (brokerType, { onSyncComplete, setMessage, setExpandedBroker } = {}) => {
+  const askConfirm=useConfirm();
   const [connections, setConnections] = useState([]);
   const [connectionsUsed, setConnectionsUsed] = useState(0);
   const [connectionLimit, setConnectionLimit] = useState(0);
@@ -152,7 +154,7 @@ const useBrokerConnection = (brokerType, { onSyncComplete, setMessage, setExpand
   };
 
   const handleDisconnect = async (connectionId) => {
-    if (!confirm(`Disconnect this ${label} connection?`)) return;
+    if (!(await askConfirm({title:`Disconnect ${label}?`,message:`Disconnect this ${label} connection?`,danger:true,confirmLabel:'Disconnect'}))) return;
     setMessage?.(null);
     try {
       const response = await authFetch(`${apiBase}/connections/${connectionId}`, { method: 'DELETE' });

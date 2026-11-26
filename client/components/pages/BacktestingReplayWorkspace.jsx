@@ -1,6 +1,8 @@
 const React = require('react');
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
 const { createPortal } = require('react-dom');
+const {useConfirm}=require('../shared/AppModal');
+const {allowedMinutes,closestAllowedTime}=require('../../utils/replayAccountPresentation');
 const { replayDatePopupPosition } = require('../../utils/replayDatePopup');
 const { authFetch } = require('../../helper.js');
 const ReplayTradeCanvasGrid = require('./ReplayTradeCanvasGrid').default;
@@ -136,7 +138,10 @@ const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeForma
     if (max && nextValue > max) nextValue = max;
     update(nextValue);
   };
-  const setTime = (nextHour, nextMinute = minute) => update(candidate(selectedDate, nextHour, nextMinute));
+  const setTime = (nextHour, nextMinute = minute) => {const value=closestAllowedTime(selectedDate,[nextHour],nextHour,nextMinute,min,max);if(value)update(value);};
+  const hourAllowed=h=>allowedMinutes(selectedDate,h,min,max).length>0;
+  const periodHours=period=>Array.from({length:12},(_,i)=>i+(period==='PM'?12:0));
+  const actualHour=h=>timeFormat==='24h'?h:(h%12)+(hour>=12?12:0);
   const displayDate = (() => {
     if (!parts) return 'Select date and time';
     const date = new Date(Date.UTC(year, month - 1, day));
@@ -151,7 +156,7 @@ const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeForma
     const nextHour = timeFormat === '24h' ? nextDisplayHour : (nextDisplayHour % 12) + (hour >= 12 ? 12 : 0);
     setTime(nextHour);
   };
-  const setPeriod = period => setTime((hour % 12) + (period === 'PM' ? 12 : 0));
+  const setPeriod = period => {const wanted=(hour%12)+(period==='PM'?12:0);const value=closestAllowedTime(selectedDate,periodHours(period),wanted,minute,min,max);if(value)update(value);};
   const monthStepAllowed = direction => monthIndex + direction >= minMonth && monthIndex + direction <= maxMonth;
   return (
     <div ref={pickerRef} className="relative">
@@ -178,13 +183,13 @@ const ReplayDateTimePicker = ({ value, onChange, min, max, dateFormat, timeForma
           <div className="text-[10px] font-semibold uppercase tracking-wider text-text-secondary mb-2">Time · {timeFormat === '24h' ? '24-hour' : '12-hour'}</div>
           <div className="grid gap-2 items-center" style={{ gridTemplateColumns: timeFormat === '24h' ? '1fr auto 1fr' : '1fr auto 1fr 1fr' }}>
             <select aria-label="Hour" value={displayHour} onChange={event => setHourDisplay(Number(event.target.value))} className="min-w-0 bg-bg-input border border-border rounded-md px-2 py-2 text-sm text-text-primary">
-              {(timeFormat === '24h' ? Array.from({length:24},(_,i)=>i) : Array.from({length:12},(_,i)=>i+1)).map(value => <option key={value} value={value}>{pad(value)}</option>)}
+              {(timeFormat === '24h' ? Array.from({length:24},(_,i)=>i) : Array.from({length:12},(_,i)=>i+1)).map(value => <option key={value} value={value} disabled={!hourAllowed(actualHour(value))}>{pad(value)}</option>)}
             </select>
             <span className="text-text-secondary">:</span>
             <select aria-label="Minute" value={minute} onChange={event => setTime(hour,Number(event.target.value))} className="min-w-0 bg-bg-input border border-border rounded-md px-2 py-2 text-sm text-text-primary">
-              {Array.from({length:60},(_,i)=>i).map(value => <option key={value} value={value}>{pad(value)}</option>)}
+              {Array.from({length:60},(_,i)=>i).map(value => <option key={value} value={value} disabled={!isAllowed(candidate(selectedDate,hour,value))}>{pad(value)}</option>)}
             </select>
-            {timeFormat !== '24h' && <select aria-label="AM or PM" value={hour >= 12 ? 'PM' : 'AM'} onChange={event => setPeriod(event.target.value)} className="min-w-0 bg-bg-input border border-border rounded-md px-2 py-2 text-sm text-text-primary"><option>AM</option><option>PM</option></select>}
+            {timeFormat !== '24h' && <select aria-label="AM or PM" value={hour >= 12 ? 'PM' : 'AM'} onChange={event => setPeriod(event.target.value)} className="min-w-0 bg-bg-input border border-border rounded-md px-2 py-2 text-sm text-text-primary">{['AM','PM'].map(period=><option key={period} disabled={!periodHours(period).some(hourAllowed)}>{period}</option>)}</select>}
           </div>
         </div>
         <div className="flex justify-end mt-3"><button type="button" onClick={() => {setOpen(false);triggerRef.current?.focus();}} className="px-3 py-1.5 rounded-md text-xs font-medium bg-bg-input text-text-primary hover:bg-bg-page">Done</button></div>
@@ -209,6 +214,7 @@ const formatInterval = seconds => seconds < 60
     : (seconds / 3600) + ' hour' + (seconds === 3600 ? '' : 's');
 
 const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, onExit}) => {
+  const askConfirm=useConfirm();
   const saved = session.checkpoint;
   const workspaceRef = useRef(null), chartCaptureRef = useRef(null), fingerprintRef = useRef('');
   const revisionRef = useRef(session.revision), saveInFlight = useRef(null), lastSavedRef = useRef('');
@@ -590,7 +596,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
     };
     exitRef.current=true;setIsPlaying(false);setSavingExit(true);
     if(!chartReady&&!saveInFlight.current){
-      if(window.confirm('Leave this session without changing its saved state?')){
+      if(await askConfirm({title:'Leave without saving?',message:'Leave this session without changing its saved state?',danger:true,confirmLabel:'Leave session'})){
         try{await navigate();return;}catch(e){setError(e.message||'Could not open session.');}
       }
       exitRef.current=false;setSavingExit(false);return;
@@ -601,7 +607,9 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
   };
   const restartSession=async()=>{
     if(!chartReady||savingExit||exitRef.current||conflictRef.current||exhaustedNow())return;
-    if(!window.confirm('Restart this session from its first candle? This permanently clears its simulated trades, open position and working orders and restores the starting balance. Chart drawings are cleared; layout and indicators are kept.'))return;
+    setIsPlaying(false);
+    if(!(await askConfirm({title:'Restart replay session?',message:'This permanently clears its simulated trades, open position and working orders and restores the starting balance. Chart drawings are cleared; layout and indicators are kept.',danger:true,confirmLabel:'Restart session'})))return;
+    if(!chartReady||savingExit||exitRef.current||conflictRef.current||exhaustedNow())return;
     exitRef.current=true;setIsPlaying(false);setSavingExit(true);
     try{
       if(saveInFlight.current)await saveInFlight.current;
@@ -655,7 +663,7 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
       {saveStatus!=='Saved'&&!/^(Saving|Restoring|Restarting|Not saved)/.test(saveStatus)&&<div className="shrink-0 px-3 py-2 text-xs text-negative" role="alert">{saveStatus}</div>}
       {capitalExhausted&&<div className="shrink-0 px-3 py-2 text-xs text-negative" role="status">Account capital exhausted. Trading and restart are disabled. Save &amp; exit to review this session or create a new account.</div>}
       {importError&&<div className="shrink-0 px-3 py-2 text-xs text-negative" role="alert">{importError}</div>}
-      {conflictRef.current&&<div className="shrink-0 px-3 py-2 text-xs text-negative">Session changed on another device. Saving is blocked. <button onClick={()=>{if(window.confirm('Discard unsaved changes on this device and return to the session list?'))onExit();}} className="underline">Return to session list</button></div>}
+      {conflictRef.current&&<div className="shrink-0 px-3 py-2 text-xs text-negative">Session changed on another device. Saving is blocked. <button onClick={async()=>{if(await askConfirm({title:'Discard unsaved changes?',message:'Discard unsaved changes on this device and return to the session list?',danger:true,confirmLabel:'Discard changes'}))onExit();}} className="underline">Return to session list</button></div>}
       <div className="flex-1 min-h-0 grid grid-cols-[minmax(0,1fr)_300px] gap-1 overflow-hidden" inert={savingExit||conflictRef.current?true:undefined}>
 
         <div className="bg-bg-surface flex flex-col min-h-0 overflow-hidden min-w-0">
@@ -695,8 +703,10 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
               <div/>
               <div className="flex items-center justify-center gap-2">
-              <button type="button" onClick={() => {
-                if (!canSeek || !window.confirm('Jump to the beginning of this replay? The chart will return to the first candle.')) return;
+              <button type="button" onClick={async () => {
+                setIsPlaying(false);
+                if (!canSeek || !(await askConfirm({title:'Jump to beginning?',message:'The chart will return to the first candle.',confirmLabel:'Jump to beginning'}))) return;
+                if(positionRef.current||pendingOrderRef.current||closedTradesRef.current.length||exitRef.current||conflictRef.current)return;
                 setIsPlaying(false);
                 currentIndexRef.current = 0;
                 setCurrentIndex(0);

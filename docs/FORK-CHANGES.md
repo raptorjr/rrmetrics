@@ -1,3 +1,10 @@
+## Replay usability — account grouping and dialogs
+
+- Replay sessions are grouped by virtual account in expandable rows with account totals; session filters preserve full account totals. Create the next session directly from its account; default names use Session N and can be edited.
+- Replay date/time options respect start/end boundaries including hours, minutes and AM/PM.
+- Shared app-themed confirmation dialogs replace browser confirmations; Historical Futures deletion displays its existing impact details in a modal. Native browser file selection and beforeunload remain.
+- Babylon acceptance on the preceding account/import milestone passed all 24 user checklist items. Next separate batches: context-chart loading and autosave feedback, playback speed slider, daily statistics and objectives, then equity-based forced liquidation.
+
 ## Replay continuation and historical import polish
 
 - Selecting historical CSV/Parquet files immediately stages and inspects each file sequentially; explicit import confirmation remains. Progress identifies the current filename, failures do not stop subsequent files, and staged/ready status is blue while imported status is green.

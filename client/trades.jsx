@@ -6,6 +6,7 @@ const { useState, useEffect } = React;
 const useAccountScope=require('./utils/useAccountScope');
 const {filterAccountDomain,filterReplayAccounts,analyticsPage,tradingPage}=require('./utils/accountScope');
 const { createRoot } = require('react-dom/client');
+const { ConfirmationProvider }=require('./components/shared/AppModal');
 require('./styles/globals.css');
 
 // Context
@@ -597,7 +598,7 @@ const init = () => {
     window.history.replaceState(null, '', window.location.pathname);
   }
   const root = createRoot(document.getElementById('app'));
-  root.render(<App />);
+  root.render(<ConfirmationProvider><App /></ConfirmationProvider>);
 };
 
 window.onload = init;

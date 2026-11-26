@@ -1,10 +1,12 @@
 const React = require('react');
+const {useConfirm}=require('../shared/AppModal');
 const { useEffect, useState } = React;
 const { authFetch } = require('../../helper.js');
 const { BROKER_CONFIGS } = require('../../hooks/useBrokerConnection');
 const { getTradePL } = require('../../utils/analytics');
 
 const AccountManagementPanel = ({ triggerReload }) => {
+  const askConfirm=useConfirm();
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
@@ -30,7 +32,7 @@ const AccountManagementPanel = ({ triggerReload }) => {
     const selected = accounts.filter(account => selectedIds.includes(account.id));
     if (!selected.length) return;
     const verb = action === 'clear' ? 'clear trades for' : 'delete';
-    if (!window.confirm(`${action === 'clear' ? 'Clear trades for' : 'Delete'} ${selected.length} selected account(s)? ${action === 'clear' ? 'Account settings will remain.' : 'Their local account settings and imported trade history will be removed.'}`)) return;
+    if (!(await askConfirm({title:action==='clear'?'Clear account trades?':'Delete accounts?',message:`${action === 'clear' ? 'Clear trades for' : 'Delete'} ${selected.length} selected account(s)? ${action === 'clear' ? 'Account settings will remain.' : 'Their local account settings and imported trade history will be removed.'}`,danger:true,confirmLabel:action==='clear'?'Clear trades':'Delete accounts'}))) return;
     setBusy('bulk'); setError(''); setNotice('');
     let completed = 0; const failures = [];
     for (const account of selected) {

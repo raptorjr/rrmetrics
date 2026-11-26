@@ -1,4 +1,5 @@
 const React = require('react');
+const {AppModal}=require('../shared/AppModal');
 const { useState, useEffect, useRef } = React;
 const { authFetch } = require('../../helper.js');
 const { formatDateEST, formatTimeEST } = require('../../utils/dateUtils');
@@ -613,9 +614,9 @@ const HistoricalFuturesProviderPanel = () => {
       )}
 
       {deletePrompt && (
-        <div className="rounded-xl border border-danger/30 bg-danger/5 p-4 space-y-3">
+        <AppModal title="Confirm source deletion" wide busy={busy} onCancel={()=>setDeletePrompt(null)}>
+          <div className="space-y-3">
           <div>
-            <h4 className="text-sm font-semibold text-text-primary">Confirm source deletion</h4>
             <p className="mt-1 text-xs text-text-secondary">This removes only the selected file and the datasets it owns. Other source files remain intact.</p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
@@ -635,11 +636,13 @@ const HistoricalFuturesProviderPanel = () => {
           ) : (
             <p className="text-xs text-text-tertiary">This is a staged upload with no normalized datasets yet.</p>
           )}
+          {error&&<p role="alert" className="text-xs text-danger">{error}</p>}
           <div className="flex justify-end gap-2">
-            <button onClick={() => setDeletePrompt(null)} className="rounded-lg border border-border px-3 py-2 text-xs text-text-secondary">Cancel</button>
+            <button autoFocus disabled={busy} onClick={() => setDeletePrompt(null)} className="rounded-lg border border-border px-3 py-2 text-xs text-text-secondary">Cancel</button>
             <button onClick={handleDeleteConfirm} disabled={busy} className="rounded-lg bg-danger px-3 py-2 text-xs font-medium text-white disabled:opacity-50">Delete file and owned datasets</button>
           </div>
-        </div>
+          </div>
+        </AppModal>
       )}
     </div>
   );
