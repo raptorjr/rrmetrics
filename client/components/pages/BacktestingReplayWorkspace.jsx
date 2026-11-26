@@ -26,7 +26,7 @@ const formatMoney = value => (value < 0 ? '-$' : '$') + Math.abs(value).toLocale
 const formatPrice = (value, decimals = 2) => Number(value).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 const { formatDateEST, formatTimeEST, getDisplayTimeZone, getDateFormat, getTimeFormat } = require('../../utils/dateUtils');
 const { nextGoToIndex } = require('../../utils/replayGoTo');
-const { getSessionMarkets, isRangeWithinCoverage, aggregateCandles, timeframeSeconds, replaySpeedAtPercent, replaySpeedPercent, restoreReplaySpeed, replayStepBudget, resetReplayChartLayout } = require('../../utils/historicalReplay');
+const { getSessionMarkets, isRangeWithinCoverage, aggregateCandles, timeframeSeconds, replaySpeedAtPercent, replaySpeedPercent, replayHourDuration, restoreReplaySpeed, replayStepBudget, resetReplayChartLayout } = require('../../utils/historicalReplay');
 
 const formatBarTime = value => {
   const date = new Date(value * 1000);
@@ -725,10 +725,13 @@ const BacktestingReplayWorkspace = ({session, sessions = [], onSwitchSession, on
               <button type="button" onClick={() => { setIsPlaying(false); advanceOne(); }} disabled={capitalExhausted || !chartReady || !candles.length || currentIndex >= candles.length - 1} title="Next candle" aria-label="Next candle" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30"><span aria-hidden="true" className="text-xl leading-none">▶|</span></button>
               <button type="button" onClick={restartSession} disabled={capitalExhausted||!chartReady||savingExit} title="Restart session and reset its simulated trades" aria-label="Restart session" className="w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary disabled:opacity-30 text-xl">↺</button>
               </div>
-              <div className="justify-self-end flex items-center gap-2 text-xs text-text-secondary">
+              <div className="justify-self-end flex flex-col items-end gap-1 text-xs text-text-secondary">
+              <div className="flex items-center gap-2">
                 <label htmlFor="replay-speed" title="Simulated active-market time per real second. Closed-market gaps are skipped.">Speed</label>
                 <input id="replay-speed" type="range" min="0" max="100" step="any" value={replaySpeedPercent(speed)} onChange={event=>setSpeed(replaySpeedAtPercent(Number(event.target.value)))} onKeyDown={event=>{if(['ArrowLeft','ArrowDown','ArrowRight','ArrowUp'].includes(event.key)){event.preventDefault();const direction=['ArrowLeft','ArrowDown'].includes(event.key)?-1:1;setSpeed(current=>Math.max(1,Math.min(1200,current+direction*Math.max(1,Math.round(current*.05)))));}}} className="w-24 sm:w-36 accent-accent" aria-valuetext={speed+' times real time'} title="1×–1200×; logarithmic scale"/>
                 <span className="text-text-primary font-semibold tabular-nums min-w-[48px] text-right">{speed}×</span>
+              </div>
+              <span className="text-[11px] tabular-nums whitespace-nowrap" title="Theoretical duration at the selected speed. Actual playback depends on data and processing performance.">1 market hour ≈ {replayHourDuration(speed)}</span>
               </div>
             </div>
             <div className="flex items-center justify-between gap-3 text-xs">
