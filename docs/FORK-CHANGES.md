@@ -1,3 +1,9 @@
+## Replay statistics by trading day, session and account
+
+- Backtest statistics now switch between Today (default), Session and Account. Today follows the replayed candle's historical trading date, rolling at 18:00 America/New_York, independent of display time zone and DST. This is a standard futures convention, not a provider-specific holiday calendar.
+- Account and Today include preceding sealed sessions with their original instruments; current unsaved executions update immediately. Closed-trade counts, win rate, profit factor and averages use whole round trips assigned to the final exit day. Realized P/L follows exit fills, including partial exits, and remains distinct from closed-trade P/L when they differ. Cross-day splits must reconcile to stored totals; unavailable allocations are labelled, not invented. No fees or margin model added.
+- Prior history is read-only and owner-scoped; no database migration, execution engine or chart changes. Configurable daily objectives remain the next separate batch.
+
 ## Replay speed duration hint
 
 - Show a live estimate of real time for one active market hour beneath the playback speed slider. The estimate is theoretical (3600 seconds divided by the speed multiplier), not a measured rendering benchmark.
