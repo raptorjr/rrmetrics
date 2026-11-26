@@ -28,6 +28,7 @@ Do not deploy to the user's running Unraid installation unless the user explicit
 - Preserve the self-hosted, local-first nature of RR Metrics and its existing security model.
 - Follow established server, database, broker-service, API, and React client patterns. Inspect the relevant implementation rather than relying on assumptions in old summaries.
 - Database changes must be safe for existing installations. Prefer additive, idempotent migrations; never assume users can discard their SQLite database.
+- Follow [the provider verification and import roadmap](docs/PROVIDER-IMPORT-ROADMAP.md) when changing broker or file integrations. Prefer official provider evidence and independently established expected outcomes; third-party journal results are not a correctness oracle. Distinguish fixture-tested, sandbox-tested and live-verified integrations, and do not claim support beyond verified capabilities.
 - Preserve historical trade data and broker reconciliation evidence. Do not silently discard, fabricate, or reinterpret imported executions to make results look complete.
 - Keep account/user scoping consistent with the existing data model.
 - Never expose, commit, or log credentials, tokens, encryption keys, personal trading data, or runtime database contents. Never commit `.env`, `data/`, generated bundles, or other runtime secrets/state.
