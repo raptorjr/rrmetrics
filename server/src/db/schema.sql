@@ -560,3 +560,30 @@ CREATE TABLE IF NOT EXISTS replay_session_trades (
   trade_json TEXT NOT NULL,
   PRIMARY KEY(session_id, trade_id)
 );
+
+
+-- A virtual account owns a chronological sequence of replay sessions.
+-- Legacy sessions retain their IDs as account IDs, preserving saved selections.
+CREATE TABLE IF NOT EXISTS replay_accounts (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  starting_balance_cents INTEGER NOT NULL CHECK(starting_balance_cents > 0),
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS replay_account_sessions (
+  account_id TEXT NOT NULL REFERENCES replay_accounts(id) ON DELETE CASCADE,
+  session_id TEXT NOT NULL UNIQUE REFERENCES replay_sessions(id) ON DELETE CASCADE,
+  sequence INTEGER NOT NULL CHECK(sequence > 0),
+  PRIMARY KEY(account_id, sequence)
+);
+CREATE INDEX IF NOT EXISTS replay_accounts_owner ON replay_accounts(user_id);
+-- Backfill only sessions without an association; safe on every startup.
+BEGIN;
+INSERT OR IGNORE INTO replay_accounts(id,user_id,name,starting_balance_cents,created_at)
+  SELECT s.id,s.user_id,s.name,s.starting_balance_cents,s.created_at FROM replay_sessions s
+  WHERE NOT EXISTS (SELECT 1 FROM replay_account_sessions m WHERE m.session_id=s.id);
+INSERT OR IGNORE INTO replay_account_sessions(account_id,session_id,sequence)
+  SELECT s.id,s.id,1 FROM replay_sessions s
+  WHERE NOT EXISTS (SELECT 1 FROM replay_account_sessions m WHERE m.session_id=s.id);
+COMMIT;
